@@ -1,0 +1,13 @@
+<launch>
+<node pkg="habitat_ros" type="main.py" name="habitat_agent" output="screen">
+  <param name="task_config" value="/home/lig/catkin_ws/src/active-slam/habitat/challenge_objectnav2021.local.rgbd.yaml"/>
+  <param name="agent_type" value="random_walk"/>
+  <param name="rgb_topic" value="/camera/rgb/image"/>
+  <param name="depth_topic" value="/camera/depth/image"/>
+  <param name="camera_info_topic" value="/camera/rgb/camera_info"/>
+  <param name="true_pose_topic" value="/camera/true_pose"/>
+  <param name="cloud_topic" value="/rtabmap/cloud_map"/>
+  <param name="camera_calib" value="/home/lig/catkin_ws/src/active-slam/habitat/camera_info.yaml"/>
+  <param name="test_scene" value="/home/lig/github/graph-aslam/data/scene_datasets/mp3d_example/17DRP5sb8fy/17DRP5sb8fy.glb"/>
+</node>
+</launch>

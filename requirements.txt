@@ -1,0 +1,16 @@
+black
+isort
+mypy
+pydocstyle
+pylint
+pytest
+setuptools
+tqdm
+wheel
+numpy
+matplotlib
+simplejson
+pyyaml
+# opencv-python
+# rospkg 
+# catkin_pkg

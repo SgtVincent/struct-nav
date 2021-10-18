@@ -1,0 +1,12 @@
+<launch>
+    <node pkg="tf" type="static_transform_publisher"
+        name="set_camera_pose_at_origin"
+        args="0 0 0 0 0 0 1 map head_camera 10"
+    />
+
+    <node   pkg="rviz"
+            type="rviz"
+            name="display_rgbd_and_cloud"
+            args="-d $(find aslam)/config/rgbd_and_cloud.rviz" />
+
+</launch>

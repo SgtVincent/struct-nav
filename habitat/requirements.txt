@@ -1,0 +1,6 @@
+numpy
+gym
+keyboard
+cv_bridge
+scikit-image
+transformations

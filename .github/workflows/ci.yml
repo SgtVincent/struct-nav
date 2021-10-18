@@ -1,0 +1,96 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install ROS dependencies
+        run: |
+          sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+          sudo apt install -y curl # if you haven't already installed curl
+          curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
+          sudo apt update
+          sudo apt install -y ros-noetic-desktop-full
+          source /opt/ros/noetic/setup.bash
+          echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
+          source ~/.bashrc
+          sudo apt install -y python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential
+          sudo rosdep init
+          rosdep update
+      - name: Install python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install --ignore-installed -r requirements.txt
+          pip3 install --ignore-installed -r habitat/requirements.txt
+          pip3 list
+      - name: pylint aslam
+        run: python3 -m pylint --ignored-modules=cv2,open3d aslam
+        env:
+          PYTHONPATH: /opt/ros/noetic/lib/python3/dist-packages
+      - name: docstype aslam
+        run: python3 -m pydocstyle --convention=google aslam
+      # - name: mypy
+      # You can comment this out if you use this repo for a student project
+      # run: python3 -m mypy --strict aslam
+      - name: isort aslam
+        # these errors can be fixed by python3 -m isort aslam
+        run: python3 -m isort -c aslam
+      - name: black aslam
+        # these errors can be fixed by python3 -m black --check aslam
+        run: python3 -m black --check aslam
+      - name: pylint habitat
+        run: python3 -m pylint --ignored-modules=cv2,open3d habitat/scripts
+        env:
+          PYTHONPATH: /opt/ros/noetic/lib/python3/dist-packages
+      - name: docstype habitat
+        run: python3 -m pydocstyle --convention=google habitat
+      # - name: mypy
+      # You can comment this out if you use this repo for a student project
+      # run: python3 -m mypy --strict aslam
+      - name: isort habitat
+        # these errors can be fixed by python3 -m isort aslam
+        run: python3 -m isort -c habitat
+      - name: black habitat
+        # these errors can be fixed by python3 -m black --check aslam
+        run: python3 -m black --check habitat
+
+  test:
+    # If you need to use ROS 1 or 2, you may need to change the ubuntu setting
+    name: test py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8, 3.9]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install --ignore-installed -r requirements.txt
+          pip3 install --ignore-installed -r habitat/requirements.txt
+      # - name: Build
+      #  run: python3 setup.py sdist bdist_wheel
+      - name: Test aslam
+        run: python3 -m pytest --pyargs aslam
+      - name: Test habitat
+        run: python3 -m pytest --pyargs habitat
