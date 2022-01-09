@@ -62,21 +62,22 @@ by Shaoyu Chen, Jiemin Fang, Qian Zhang, Wenyu Liu, Xinggang Wang*. (\*) Corresp
 * Pytorch 1.1 or higher
 * CUDA 9.2 or higher
 * gcc-5.4 or higher
+* conda envrionment 
 
-Create a conda virtual environment and activate it.
+<!-- Create a conda virtual environment and activate it.
 ```
 conda create -n hais python=3.7
 conda activate hais
-```
+``` -->
 
 
-2\) Clone the repository.
+<!-- 2\) Clone the repository.
 ```
 git clone https://github.com/hustvl/HAIS.git --recursive
-```
+``` -->
 
   
-3\) Install the requirements.
+2\) Install the requirements.
 ```
 cd HAIS
 pip install -r requirements.txt
@@ -84,15 +85,19 @@ conda install -c bioconda google-sparsehash # does not work for me
 sudo apt-get install libsparsehash-dev # This works
 ```
 
-4\) Install spconv 
+3\) Install spconv 
 
-*  Verify the version of spconv.
-  
-      spconv 1.0, compatible with CUDA < 11 and pytorch < 1.5, is already recursively cloned in `HAIS/lib/spconv` in step 2) by default. 
-
-      For higher version CUDA and pytorch, spconv 1.2 is suggested. Replace `HAIS/lib/spconv` with this fork of spconv.
+* Clone spconv repository under ./lib directory.
 
 ```
+# For CUDA < 11 and pytorch < 1.5, spconv 1.0 is compatible. 
+cd ./lib
+git clone https://github.com/llijiang/spconv.git --recursive
+```
+
+```
+# For higher version CUDA and pytorch, spconv 1.2 is suggested.
+cd ./lib
 git clone https://github.com/outsidercsy/spconv.git --recursive
 ```
 
@@ -118,7 +123,7 @@ pip install {wheel_file_name}.whl
 ```
 
 
-5\) Compile the external C++ and CUDA ops.
+4\) Compile the external C++ and CUDA ops.
 ```
 cd HAIS/lib/hais_ops
 export CPLUS_INCLUDE_PATH={conda_env_path}/hais/include:$CPLUS_INCLUDE_PATH
