@@ -32,5 +32,11 @@
   "files.watcherExclude": {
     "node_modules": true
   },
-  "restructuredtext.confPath": "${workspaceFolder}/doc/source"
+"restructuredtext.confPath": "${workspaceFolder}/doc/source",
+"python.autoComplete.extraPaths": [
+    "/opt/ros/noetic/lib/python3/dist-packages"
+],
+"python.analysis.extraPaths": [
+    "/opt/ros/noetic/lib/python3/dist-packages"
+]
 }

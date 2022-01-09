@@ -1,0 +1,9 @@
+<launch>
+<include file="$(find rtabmap_ros)/launch/rtabmap.launch">
+    <arg name="rtabmap_args" value="--delete_db_on_start"/>
+    <arg name="depth_topic" value="/camera/depth/image"/>
+    <arg name="rgb_topic" value="/camera/rgb/image"/>
+    <arg name="camera_info_topic" value="/camera/rgb/camera_info"/>
+    <arg name="approx_sync" value="false"/>
+</include>
+</launch>

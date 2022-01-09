@@ -63,3 +63,9 @@ doc/media
 # python build
 build/
 dist/
+
+############ habita-recognition ignore ##################
+habitat_recognition/tb_logs/
+habitat_recognition/.vscode
+.vscode/settings.json
+.vscode/c_cpp_properties.json

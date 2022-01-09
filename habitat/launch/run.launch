@@ -1,0 +1,5 @@
+<launch>
+<include file="$(find habitat_ros)/launch/habitat_agent.launch"/>
+<include file="$(find habitat_ros)/launch/rtabmap_lowres.launch"/> 
+<!-- <include file="$(find habitat_ros)/launch/rtabmap_highres.launch"/> -->
+</launch>
