@@ -4,3 +4,4 @@ keyboard
 cv_bridge
 scikit-image
 transformations
+rospkg
