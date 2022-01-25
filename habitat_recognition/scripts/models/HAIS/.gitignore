@@ -61,6 +61,7 @@ exp/
 build/
 dist/
 results/
+debug/
 
 *.tsv
 *.npy

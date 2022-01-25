@@ -4,10 +4,12 @@ import os
 
 def get_parser():
     parser = argparse.ArgumentParser(description='Point Cloud Segmentation')
-    parser.add_argument('--config', type=str, help='path to config file')
+    parser.add_argument('--config', type=str, default='/home/junting/project_cvl/HAIS/config/hais_eval_scannet.yaml', 
+        help='path to config file')
 
     # pretrain
-    parser.add_argument('--pretrain', type=str, help='path to pretrain model')
+    parser.add_argument('--pretrain', type=str, default='/home/junting/project_cvl/HAIS/pretrain/hais_ckpt.pth',
+        help='path to pretrain model')
 
     parser.add_argument('--save_dir', type=str, default='exp', help='path to save model')
 

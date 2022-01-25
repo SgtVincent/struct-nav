@@ -10,8 +10,12 @@ from util.log import logger
 import util.utils as utils
 import util.eval as eval
 
+DEBUG=True
+
 def init():
     global result_dir
+    if DEBUG:
+        cfg.exp_path = os.path.join("debug", cfg.dataset, cfg.model_name, cfg.config.split('/')[-1][:-5])
     result_dir = os.path.join(cfg.exp_path, 'result', cfg.split)
     backup_dir = os.path.join(result_dir, 'backup_files')
     os.makedirs(backup_dir, exist_ok=True)
@@ -51,7 +55,8 @@ def test(model, model_fn, data_name, epoch):
         total_end1 = 0.
         matches = {}
         for i, batch in enumerate(dataloader):
-
+            if DEBUG and i >=5:
+                break
             # inference
             start1 = time.time()
             preds = model_fn(batch, model, epoch)
