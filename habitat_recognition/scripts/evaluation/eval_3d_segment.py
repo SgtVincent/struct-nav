@@ -22,7 +22,7 @@ if not os.path.exists(DEFAULT_LOGDIR):
     os.makedirs(DEFAULT_LOGDIR)
 
 
-class Eval3DDetection:
+class Eval3DSegmentation:
     def __init__(
         self,
         config,

@@ -1,11 +1,11 @@
 GENERAL:
-  task: train  # train, test
+  task: train # train, test
   manual_seed: 123
   model_dir: model/hais/hais.py
   dataset_dir: data/scannetv2_inst.py
 
 DATA:
-  data_root: dataset
+  data_root: /home/junting/project_cvl/HAIS/dataset
   dataset: scannetv2
   filename_suffix: _inst_nostuff.pth
 
@@ -13,8 +13,8 @@ DATA:
   ignore_label: -100
 
   input_channel: 3
-  scale: 50   # voxel_size = 1 / scale, scale 50 -> voxel_size 0.02m
-  batch_size: 4
+  scale: 50 # voxel_size = 1 / scale, scale 50 -> voxel_size 0.02m
+  batch_size: 1
   full_scale: [128, 512]
   max_npoint: 250000
   mode: 4 # 4=mean
@@ -35,17 +35,16 @@ TRAIN:
   multiplier: 0.5
   momentum: 0.9
   weight_decay: 0.0001
-  save_freq: 16  # also eval_freq
+  save_freq: 16 # also eval_freq
   loss_weight: [1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, score_loss, mask_loss
   fg_thresh: 1.
   bg_thresh: 0.
   score_scale: 50 # the minimal voxel size is 2cm
-  score_fullscale: 20  
+  score_fullscale: 20
   score_mode: 4 # mean
   pretrain_path:
   pretrain_module: []
   fix_module: []
-
 
   point_aggr_radius: 0.03
   cluster_shift_meanActive: 300
@@ -57,7 +56,7 @@ TRAIN:
   use_mask_filter_score_feature: True
   use_mask_filter_score_feature_start_epoch: 200
   mask_filter_score_feature_thre: 0.5
-  
+
   using_set_aggr_in_training: False
   using_set_aggr_in_testing: True
 
@@ -80,9 +79,4 @@ TEST:
   save_instance: True
 
   test_mask_score_thre: -0.5 # bias fg << bg
-
-
-  
-
-
 

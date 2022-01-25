@@ -14,7 +14,7 @@
   "editor.detectIndentation": false,
   "editor.formatOnSave": true,
   "[python]": {
-    "editor.rulers": [79],
+    "editor.rulers": [80],
     // Python use black as formatter
     "editor.defaultFormatter": null
   },
@@ -32,11 +32,14 @@
   "files.watcherExclude": {
     "node_modules": true
   },
-"restructuredtext.confPath": "${workspaceFolder}/doc/source",
-"python.autoComplete.extraPaths": [
+  "restructuredtext.confPath": "${workspaceFolder}/doc/source",
+  "python.autoComplete.extraPaths": [
     "/opt/ros/noetic/lib/python3/dist-packages"
-],
-"python.analysis.extraPaths": [
-    "/opt/ros/noetic/lib/python3/dist-packages"
-]
+  ],
+  "python.analysis.extraPaths": [
+    "/opt/ros/noetic/lib/python3/dist-packages",
+    "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts/models/HAIS/lib",
+    "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts"
+  ],
+  "cSpell.words": ["hais"]
 }
