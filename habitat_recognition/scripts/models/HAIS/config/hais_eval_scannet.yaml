@@ -16,7 +16,7 @@ DATA:
   scale: 50 # voxel_size = 1 / scale, scale 50 -> voxel_size 0.02m
   batch_size: 1
   full_scale: [128, 512]
-  max_npoint: 250000
+  max_npoint: 300000 # 250000
   mode: 4 # 4=mean
 
 STRUCTURE:
@@ -37,7 +37,7 @@ TRAIN:
   weight_decay: 0.0001
   save_freq: 16 # also eval_freq
   loss_weight: [1.0, 1.0, 1.0, 1.0] # semantic_loss, offset_norm_loss, score_loss, mask_loss
-  fg_thresh: 1.
+  fg_thresh: 0.5 # 1.
   bg_thresh: 0.
   score_scale: 50 # the minimal voxel size is 2cm
   score_fullscale: 20
@@ -55,7 +55,7 @@ TRAIN:
 
   use_mask_filter_score_feature: True
   use_mask_filter_score_feature_start_epoch: 200
-  mask_filter_score_feature_thre: 0.5
+  mask_filter_score_feature_thre: 0.0 # 0.5
 
   using_set_aggr_in_training: False
   using_set_aggr_in_testing: True

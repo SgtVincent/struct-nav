@@ -67,6 +67,8 @@ dist/
 ############ habita-recognition ignore ##################
 habitat_recognition/tb_logs/
 habitat_recognition/.vscode
+# with least modification to original code, log directory is auto generated 
+habitat_recognition/scripts/exp
 .vscode/settings.json
 .vscode/c_cpp_properties.json
 .vscode/launch.json

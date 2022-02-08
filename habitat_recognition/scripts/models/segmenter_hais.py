@@ -1,13 +1,14 @@
 import os
-from ssl import HAS_ALPN
 import sys
 from unicodedata import name
-
+import time
 import numpy as np
 import scipy
 import open3d as o3d
 import torch
 import yaml
+from tensorboardX import SummaryWriter
+from dataset.mp3d.config_mp3d import ConfigMP3D
 
 # local import
 ##################################################################
@@ -21,11 +22,15 @@ sys.path.append(HAIS_DIR)
 
 from models.HAIS.model.hais.hais import HAIS, model_fn_decorator
 from models.HAIS.util.utils import checkpoint_restore
-from models.config_hais import ConfigHAIS
-from dataset.mp3d.mp3d_hais import mp3dHAISDataset
+from config.config_hais import ConfigHAIS
+from dataset.mp3d.dataset_mp3d import DatasetMP3D
 
 # import wrapper functions of C++ ops
 from models.HAIS.lib.hais_ops.functions import hais_ops
+
+# DEBUG utilities
+VIS_SUBSAMPLE = False
+DUMP_MODEL_INPUT = True
 
 
 # TODO: implement base class for detector and segmenter if needed
@@ -37,7 +42,7 @@ class SegmenterHAIS:
         with open(config.yaml_file, "r") as f:
             hais_config = yaml.load(f, Loader=yaml.FullLoader)
         for key in hais_config:
-            for k, v in config[key].items():
+            for k, v in hais_config[key].items():
                 setattr(config, k, v)
 
         self.config = config
@@ -52,14 +57,15 @@ class SegmenterHAIS:
         self.model_epoch = config.test_epoch
         self.split = config.split
         self.label2nyu40 = config.label2nyu40
+        self.downsample_method = config.downsample_method
+        self.downsample_voxel_size = config.downsample_voxel_size
 
         ############# initialize dataset ###########
         # dataset class is the interface to convert scene pointclouds to tensors accepted by model
         # data augmentation and other utils not used yet
-        # self.dataset = mp3dHAISDataset(self.config)
+        # self.data_config = ConfigMP3D()
+        # self.dataset = DatasetMP3D(self.config)
         self.batch_id = 0
-        # TODO: load ground truth annotations from dataset here
-        self.load_scene()
 
         ############## initialize model ####################
 
@@ -95,12 +101,24 @@ class SegmenterHAIS:
         self.model = self.model.eval()
         # TODO: add code here
 
-        ############ initialize dataset annotations ######################
+        ############ initialize evaluation ##########################
+        self.eval_count = 0
+        self.time_start = None  # initialized when first calling eval()
+        # # use time stamp as x-axis of evaluation plots
+        # self.use_time_stamp = True
+        # self.logging = logging
+        # if self.logging:
+        #     self.log_dir = join(
+        #         log_dir, datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        #     )
+        #     self.logger = SummaryWriter(self.log_dir)
 
     def predict(self, o3d_pcl):
 
-        batch = self._make_batch(o3d_pcl)
-        preds = self.model_fn(batch, self.model, self.model_epoch)
+        batch, o3d_pcl = self.make_batch(o3d_pcl, max_npoint=self.max_npoint)
+
+        with torch.no_grad():
+            preds = self.model_fn(batch, self.model, self.model_epoch)
 
         # decode results for
         N = batch["feats"].shape[0]
@@ -204,21 +222,49 @@ class SegmenterHAIS:
         pred_info["inst_conf"] = cluster_scores.cpu().numpy()  # (nCluster)
         pred_info["label_id"] = cluster_semantic_id.cpu().numpy()  # (nCluster)
 
-        return pred_info
-
-    # TODO: call evaluator.eval() here
-    def evaluate(self, pred_info):
-        pass
-
-    # TODO: load ground truth annotations
-    def load_scene(self):
-        pass
+        return o3d_pcl, pred_info
 
     # this function converts open3d point clouds and annotations to batch input accepted by model
-    def _make_batch(self, o3d_pcl):
+    def make_batch(self, o3d_pcl, max_npoint=250000):
+
+        # subsample point clouds if too many
+        def down_sample(o3d_pcl, max_npoint, method="voxel", voxel_size=0.01):
+            num_point = np.asarray(o3d_pcl.points).shape[0]
+
+            if method == "random":
+                ratio = float(max_npoint) / float(num_point - 1)
+                sampled_pcl = o3d_pcl.random_down_sample(ratio)
+
+            elif method == "uniform":
+                per_k = (num_point // max_npoint) + 1
+                sampled_pcl = o3d_pcl.uniform_down_sample(per_k)
+
+            elif method == "voxel":
+                sampled_pcl = o3d_pcl.voxel_down_sample(voxel_size)
+
+            else:
+                raise NotImplementedError
+            sampled_num = np.asarray(sampled_pcl.points).shape[0]
+
+            print(
+                f"Original point cloud has {num_point} points, subsampled to {sampled_num} points by {method} method"
+            )
+            if VIS_SUBSAMPLE:
+                o3d.visualization.draw_geometries([sampled_pcl])
+            return sampled_pcl
+
+        if np.asarray(o3d_pcl.points).shape[0] > max_npoint:
+            sampled_pcl = down_sample(
+                o3d_pcl,
+                max_npoint,
+                method=self.downsample_method,
+                voxel_size=self.downsample_voxel_size,
+            )
+            o3d_pcl = sampled_pcl
 
         # load from open3d point cloud
         xyz_origin = np.asarray(o3d_pcl.points)
+        xyz_origin = xyz_origin - xyz_origin.mean(0)  # mean shift
         rgb = np.asarray(o3d_pcl.colors) * 2.0 - 1  # from [0,1] to [-1,1]
 
         locs = []
@@ -256,7 +302,7 @@ class SegmenterHAIS:
             locs, 0
         )  # long (N, 1 + 3), the batch item idx is put in locs[:, 0]
         locs_float = torch.cat(locs_float, 0).to(torch.float32)  # float (N, 3)
-        feats = torch.cat(feats, 0)  # float (N, C)
+        feats = torch.cat(feats, 0).to(torch.float32)  # float (N, C)
 
         spatial_shape = np.clip(
             (locs.max(0)[0][1:] + 1).numpy(), self.full_scale[0], None
@@ -281,7 +327,7 @@ class SegmenterHAIS:
 
         self.batch_id += 1
 
-        return batch
+        return batch, o3d_pcl
 
 
 # test this class with python -m models.segmenter_hais under ./scripts path
@@ -294,9 +340,12 @@ if __name__ == "__main__":
     scans_dir = (
         "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans"
     )
-    scene_name = "17DRP5sb8fy"
-    ply_path = os.path.join(scans_dir, scene_name)
+    # scene_name = "17DRP5sb8fy" # too large
+    scene_name = "8194nk5LbLH"
+    ply_path = os.path.join(
+        scans_dir, scene_name, f"{scene_name}_semantic.ply"
+    )
+    # o3d_pcl = o3d.io.read_triangle_mesh(ply_path)
     o3d_pcl = o3d.io.read_point_cloud(ply_path)
-
     result = seg_hais.predict(o3d_pcl)
 

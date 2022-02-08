@@ -16,7 +16,7 @@ DEFAULT_RATE = 0.5
 DEFAULT_AGENT_TYPE = "random_walk"
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
-VISUALIZE = True
+VISUALIZE = False
 
 
 def main():
@@ -33,7 +33,6 @@ def main():
     depth_topic = rospy.get_param("~depth_topic", None)
     camera_info_topic = rospy.get_param("~camera_info_topic", None)
     true_pose_topic = rospy.get_param("~true_pose_topic", None)
-    true_pose_topic = None
     cloud_topic = rospy.get_param("~cloud_topic", None)
     camera_info_file = rospy.get_param("~camera_calib", None)
 

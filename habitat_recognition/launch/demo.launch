@@ -1,0 +1,17 @@
+<launch>
+
+<include file="$(find habitat_ros)/launch/habitat_agent.launch"/>
+<include file="$(find rtabmap_ros)/launch/rtabmap.launch">
+    <arg name="rtabmap_args" value="--delete_db_on_start --Grid/CellSize 0.015 --Crid/DepthDecimation 1"/>
+    <arg name="depth_topic" value="/camera/depth/image"/>
+    <arg name="rgb_topic" value="/camera/rgb/image"/>
+    <arg name="camera_info_topic" value="/camera/rgb/camera_info"/>
+    <arg name="approx_sync" value="false"/>
+    <arg name="rviz" default="false" /> <!-- not to launch rviz -->
+    <arg name="rtabmapviz" default="false" /> <!-- not to launch rtabmap rviz -->
+</include>
+<include file="$(find habitat_recognition)/launch/run.launch"/>
+<!-- visualize by rviz -->
+<node type="rviz" name="rviz" pkg="rviz" args="-d $(find habitat_recognition)/config/rviz/demo.rviz" />
+
+</launch>
