@@ -29,11 +29,11 @@ def main():
     agent_type = rospy.get_param("~agent_type", DEFAULT_AGENT_TYPE)
     # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
-    rgb_topic = rospy.get_param("~rgb_topic", None)
-    depth_topic = rospy.get_param("~depth_topic", None)
-    camera_info_topic = rospy.get_param("~camera_info_topic", None)
-    true_pose_topic = rospy.get_param("~true_pose_topic", None)
-    cloud_topic = rospy.get_param("~cloud_topic", None)
+    rgb_topic = rospy.get_param("~rgb_topic", "")
+    depth_topic = rospy.get_param("~depth_topic", "")
+    camera_info_topic = rospy.get_param("~camera_info_topic", "")
+    true_pose_topic = rospy.get_param("~true_pose_topic", "")
+    cloud_topic = rospy.get_param("~cloud_topic", "")
     camera_info_file = rospy.get_param("~camera_calib", None)
 
     # ros pub and sub
@@ -53,7 +53,7 @@ def main():
 
     # Initial Sim
     test_scene = rospy.get_param("~test_scene", None)
-    sim, action_names = init_sim(test_scene)
+    sim, sim_agent, action_names = init_sim(test_scene)
 
     # Initialize the agent and environment
     # env = habitat.Env(config=config)

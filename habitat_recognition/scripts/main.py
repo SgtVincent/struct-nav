@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 import os
 import sys
-import random
 import rospy
 import numpy as np
 import open3d as o3d
-from std_msgs.msg import Int32, Header, ColorRGBA
+
+# from std_msgs.msg import Int32, Header, ColorRGBA
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Quaternion, Pose, Point, Vector3
 

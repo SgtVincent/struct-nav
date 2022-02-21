@@ -20,6 +20,7 @@
   },
   "python.formatting.provider": "black",
   "python.linting.pylintEnabled": true,
+  "python.linting.pylintArgs": ["--disable=C0111"],
   "python.linting.pydocstyleEnabled": true,
   "python.linting.pydocstyleArgs": ["--convention=google"],
   "python.linting.mypyEnabled": true,

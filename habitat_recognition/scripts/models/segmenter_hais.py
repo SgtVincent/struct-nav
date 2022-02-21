@@ -1,6 +1,5 @@
 import os
 import sys
-from unicodedata import name
 import time
 import numpy as np
 import scipy
@@ -56,7 +55,7 @@ class SegmenterHAIS:
         self.mode = config.mode
         self.model_epoch = config.test_epoch
         self.split = config.split
-        self.label2nyu40 = config.label2nyu40
+        self.label2nyu40id = config.label2nyu40id
         self.downsample_method = config.downsample_method
         self.downsample_voxel_size = config.downsample_voxel_size
 
@@ -153,7 +152,7 @@ class SegmenterHAIS:
             proposals_idx[_mask][:, 1].long(),
         ] = 1
         semantic_id = torch.tensor(
-            self.label2nyu40, device=scores_pred.device
+            self.label2nyu40id, device=scores_pred.device
         )[
             semantic_pred[
                 proposals_idx[:, 1][proposals_offset[:-1].long()].long()

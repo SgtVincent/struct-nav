@@ -23,7 +23,7 @@ class EvaluatorHAIS:
         
         # TODO: now the model label fixed to nyu40, try to generalize this part 
         self.model_label = config.model_label # "nyu40"
-        self.label2nyu40 = config.label2nyu40
+        self.label2nyu40id = config.label2nyu40id
         self.nyu40id2label = config.nyu40id2label
 
         ############## dataset loading #####################

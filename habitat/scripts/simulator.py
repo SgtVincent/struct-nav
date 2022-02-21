@@ -82,24 +82,6 @@ def init_sim(test_scene):
         "enable_physics": False,  # kinematics only
     }
 
-    rgb_sensor = True  # @param {type:"boolean"}
-    depth_sensor = True  # @param {type:"boolean"}
-    semantic_sensor = True  # @param {type:"boolean"}
-
-    sim_settings = {
-        "width": 1280,  # Spatial resolution of the observations
-        "height": 720,
-        "scene": test_scene,  # Scene path
-        "default_agent": 0,
-        "sensor_height": 1.5,  # Height of sensors in meters
-        "hfov": 90,  # flied of view
-        "color_sensor": rgb_sensor,  # RGB sensor
-        "depth_sensor": depth_sensor,  # Depth sensor
-        "semantic_sensor": semantic_sensor,  # Semantic sensor
-        "seed": 1,  # used in the random navigation
-        "enable_physics": False,  # kinematics only
-    }
-
     cfg = make_cfg(sim_settings)
     # Needed to handle out of order cell run in Colab
     sim = habitat_sim.Simulator(cfg)
@@ -129,4 +111,4 @@ def init_sim(test_scene):
         cfg.agents[sim_settings["default_agent"]].action_space.keys()
     )
 
-    return sim, action_names
+    return sim, agent, action_names

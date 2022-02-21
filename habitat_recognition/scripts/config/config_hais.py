@@ -30,7 +30,7 @@ class ConfigHAIS:
         self.run_mode = "test"
         self.pretrain = "/home/junting/project_cvl/HAIS/pretrain/hais_ckpt.pth"
         self.model_label = "nyu40"
-        self.label2nyu40 = [
+        self.label2nyu40id = [
             1,
             2,
             3,
@@ -52,8 +52,31 @@ class ConfigHAIS:
             36,
             39,
         ]
+
+        self.class_names = [
+            "wall",
+            "floor",
+            "cabinet",
+            "bed",
+            "chair",
+            "sofa",
+            "table",
+            "door",
+            "window",
+            "bookshelf",
+            "picture",
+            "counter",
+            "desk",
+            "curtain",
+            "refrigerator",
+            "shower curtain",
+            "toilet",
+            "sink",
+            "bathtub",
+            "otherfurniture",
+        ]
         self.nyu40id2label = {
-            nyu40id: i for i, nyu40id in enumerate(self.label2nyu40)
+            nyu40id: i for i, nyu40id in enumerate(self.label2nyu40id)
         }
         ##################### eval config ###############
         self.eval_logging = True
