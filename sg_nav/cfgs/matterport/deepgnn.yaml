@@ -1,0 +1,5 @@
+model:
+  name: 'deepgnn'
+  hidden_dim: 64
+  num_layers: 2
+  aggr: 'mean'
