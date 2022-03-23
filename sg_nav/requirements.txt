@@ -1,0 +1,14 @@
+cmake
+open3d
+plyfile
+onnxruntime
+trimesh
+pandas
+tqdm
+rospkg
+yacs==0.1.8
+multimethod
+tensorboard
+shortuuid
+wandb
+pyyaml
