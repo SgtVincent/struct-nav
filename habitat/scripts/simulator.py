@@ -111,4 +111,4 @@ def init_sim(test_scene):
         cfg.agents[sim_settings["default_agent"]].action_space.keys()
     )
 
-    return sim, agent, action_names
+    return sim, action_names

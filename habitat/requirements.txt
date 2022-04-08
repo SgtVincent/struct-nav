@@ -3,5 +3,6 @@ gym
 keyboard
 cv_bridge
 scikit-image
+scikit-fmm
 transformations
 rospkg

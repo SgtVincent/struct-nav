@@ -42,5 +42,6 @@
     "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts/models/HAIS/lib",
     "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts"
   ],
-  "cSpell.words": ["hais"]
+  "cSpell.words": ["hais"],
+  "python.linting.enabled": true
 }

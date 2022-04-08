@@ -67,7 +67,8 @@ class HabitatObservationPublisher:
             self.publish_depth = False
 
         # Initialize position publisher.
-        if len(true_pose_topic) > 0:
+        # if len(true_pose_topic) > 0:
+        if False:
             self.publish_true_pose = True
             self.pose_publisher = rospy.Publisher(
                 true_pose_topic, PoseStamped, latch=True, queue_size=100
@@ -90,9 +91,7 @@ class HabitatObservationPublisher:
 
         # Publish depth image.
         if self.publish_depth:
-            depth = self.cvbridge.cv2_to_imgmsg(
-                observations["depth"] * DEPTH_SCALE
-            )
+            depth = self.cvbridge.cv2_to_imgmsg(observations["depth"] * DEPTH_SCALE)
             depth.header.stamp = cur_time
             depth.header.frame_id = "base_scan"
             self.depth_publisher.publish(depth)

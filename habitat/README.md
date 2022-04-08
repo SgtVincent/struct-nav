@@ -29,6 +29,8 @@ Integrate Habitat simulator with ROS
 
 8. Install [Rtabmap-ros](https://github.com/introlab/rtabmap_ros)
 
+9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite`
+
 ## Launch habitat node
 
 Run agent in simulator via `roslaunch habitat_ros habitat_agent.launch`.
@@ -65,3 +67,13 @@ roslaunch rtabmap_ros rtabmap.launch \
     approx_sync:=false
 
 ```
+
+## Extra documentations
+
+### TF tree in this module
+
+[demo](./img/tf_tree.png)
+
+### TODO LIST
+
+- [ ] consider if we need to move agent & planning functions from habitat_ros to a new package

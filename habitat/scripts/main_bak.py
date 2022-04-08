@@ -8,9 +8,6 @@ from agents import RandomWalkAgent, SpinningAgent
 from publishers import HabitatObservationPublisher
 from simulator import init_sim
 
-# register agent position sensor
-import custom_sensors
-
 # from std_msgs.msg import Int32
 from subscribers import PointCloudSubscriber
 from utils import transformation
@@ -32,11 +29,11 @@ def main():
     agent_type = rospy.get_param("~agent_type", DEFAULT_AGENT_TYPE)
     # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
-    rgb_topic = rospy.get_param("~rgb_topic", None)
-    depth_topic = rospy.get_param("~depth_topic", None)
-    camera_info_topic = rospy.get_param("~camera_info_topic", None)
-    true_pose_topic = rospy.get_param("~true_pose_topic", None)
-    cloud_topic = rospy.get_param("~cloud_topic", None)
+    rgb_topic = rospy.get_param("~rgb_topic", "")
+    depth_topic = rospy.get_param("~depth_topic", "")
+    camera_info_topic = rospy.get_param("~camera_info_topic", "")
+    true_pose_topic = rospy.get_param("~true_pose_topic", "")
+    cloud_topic = rospy.get_param("~cloud_topic", "")
     camera_info_file = rospy.get_param("~camera_calib", None)
 
     # ros pub and sub
@@ -56,11 +53,15 @@ def main():
 
     # Initial Sim
     test_scene = rospy.get_param("~test_scene", None)
-    sim, sim_agent, action_names = init_sim(test_scene)
+    sim, action_names = init_sim(test_scene)
 
     # Initialize the agent and environment
     # env = habitat.Env(config=config)
     # env.reset()
+
+    # Initialize TF tree with ground truth init pose (if any)
+    sim_agent = sim.get_agent(0)
+    transformation.publish_agent_init_tf(sim_agent)
 
     if agent_type == "random_walk":
         agent = RandomWalkAgent(action_names)
@@ -73,12 +74,6 @@ def main():
     # Run the simulator with agent
     # observations = sim.reset()
     observations = sim.step("stay")
-    # FIXME: use habitat-lab API instead of habitat-sim
-    sensor_states = sim_agent.get_state().sensor_states
-    observations["agent_position"] = (
-        sensor_states["rgb"].position,
-        sensor_states["rgb"].rotation,
-    )
     robot_start_time = rospy.Time.now().to_sec()
     print("TIME TO LAUNCH HABITAT:", robot_start_time - node_start_time)
 
@@ -111,12 +106,6 @@ def main():
         # action_msg.data = action
         # action_publisher.publish(action_msg)
         observations = sim.step(action)
-        # FIXME: use habitat-lab API instead of habitat-sim
-        sensor_states = sim_agent.get_state().sensor_states
-        observations["agent_position"] = (
-            sensor_states["rgb"].position,
-            sensor_states["rgb"].rotation,
-        )
         rate.sleep()
 
 
