@@ -4,7 +4,10 @@
 import numpy as np
 import open3d as o3d
 import rospy
-from agents import *
+
+from agents import RandomWalkAgent, SpinningAgent, FrontierExploreAgent
+from agents.utils.arguments import get_args
+
 from publishers import HabitatObservationPublisher
 from simulator import init_sim
 
@@ -12,7 +15,7 @@ from simulator import init_sim
 from subscribers import PointCloudSubscriber
 from utils import transformation
 
-DEFAULT_RATE = 0.5
+DEFAULT_RATE = 1
 DEFAULT_AGENT_TYPE = "random_walk"
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
@@ -41,14 +44,9 @@ def main():
     camera_info_file = rospy.get_param("~camera_calib", None)
 
     # topics for planning
-    if agent_type not in ["random_walk", "spinning"]:
+    if agent_type in ["frontier_explore"]:
         odom_topic = rospy.get_param("~odom_topic", "/odom")
-        local_plan_topic = rospy.get_param(
-            "~local_plan_topic", "/move_base/DWAPlannerROS/local_plan"
-        )
-        global_plan_topic = rospy.get_param(
-            "~global_plan_topic", "/move_base/DWAPlannerROS/global_plan"
-        )
+        grid_map_topic = rospy.get_param("~grid_map_topic", "/rtabmap/grid_map")
 
     # ros pub and sub
     rate = rospy.Rate(rate_value)
@@ -75,24 +73,32 @@ def main():
 
     if agent_type == "random_walk":
         agent = RandomWalkAgent(action_names)
+
     elif agent_type == "spinning":
         agent = SpinningAgent("turn_right")
+
     elif agent_type == "frontier_explore":
-        agent = FrontierExploreAgent(odom_topic, local_plan_topic, global_plan_topic)
+        agent_args = get_args(silence_mode=True)
+        agent_args.odom_topic = odom_topic
+        agent_args.grid_map_topic = grid_map_topic
+        agent = FrontierExploreAgent(agent_args, sim)
+
     else:
         print("AGENT TYPE {} IS NOT DEFINED!!!".format(agent_type))
         return
 
     # Run the simulator with agent
     # observations = sim.reset()
-    observations = sim.step("stay")
+    # observations = sim.step("stay")
     robot_start_time = rospy.Time.now().to_sec()
     print("TIME TO LAUNCH HABITAT:", robot_start_time - node_start_time)
 
     cnt_pub = 0
     cnt_sub = 0
 
+    action = "stay"  # initial action to get first frame
     while not rospy.is_shutdown():
+        observations = sim.step(action)
         publisher.publish(observations)
         cnt_pub += 1
 
@@ -107,17 +113,13 @@ def main():
                 "{} points.".format(cnt_pub, cnt_sub, num_points)
             )
 
-            if VISUALIZE and cnt_sub == 11:
-                coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
-                o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
-                o3d.visualization.draw_geometries([coo, o3d_cloud])
+            # if VISUALIZE and cnt_sub == 11:
+            #     coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
+            #     o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
+            #     o3d.visualization.draw_geometries([coo, o3d_cloud])
 
-        # action = agent.act(observations, sim)
+        # message processing and synchronization should be down in agent.act()
         action = agent.act()
-        # action_msg = Int32()
-        # action_msg.data = action
-        # action_publisher.publish(action_msg)
-        observations = sim.step(action)
         rate.sleep()
 
 

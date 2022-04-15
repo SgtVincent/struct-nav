@@ -4,7 +4,9 @@
 import numpy as np
 import open3d as o3d
 import rospy
-from agents import RandomWalkAgent, SpinningAgent
+from agents.dummy_agents import *
+
+# from agents.frontier_explore_agent import FrontierExploreAgent
 from publishers import HabitatObservationPublisher
 from simulator import init_sim
 
@@ -27,6 +29,10 @@ def main():
     # task_config = rospy.get_param("~task_config")
     rate_value = rospy.get_param("~rate", DEFAULT_RATE)
     agent_type = rospy.get_param("~agent_type", DEFAULT_AGENT_TYPE)
+    # assert (
+    #     agent_type in AGENT_CLASS_MAPPING.keys()
+    # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
+
     # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
     rgb_topic = rospy.get_param("~rgb_topic", "")
@@ -36,14 +42,20 @@ def main():
     cloud_topic = rospy.get_param("~cloud_topic", "")
     camera_info_file = rospy.get_param("~camera_calib", None)
 
+    # topics for planning
+    if agent_type not in ["random_walk", "spinning"]:
+        odom_topic = rospy.get_param("~odom_topic", "/odom")
+        local_plan_topic = rospy.get_param(
+            "~local_plan_topic", "/move_base/DWAPlannerROS/local_plan"
+        )
+        global_plan_topic = rospy.get_param(
+            "~global_plan_topic", "/move_base/DWAPlannerROS/global_plan"
+        )
+
     # ros pub and sub
     rate = rospy.Rate(rate_value)
     publisher = HabitatObservationPublisher(
-        rgb_topic,
-        depth_topic,
-        camera_info_topic,
-        true_pose_topic,
-        camera_info_file,
+        rgb_topic, depth_topic, camera_info_topic, true_pose_topic, camera_info_file,
     )
     # action_publisher = rospy.Publisher(
     #     "habitat_action", Int32, latch=True, queue_size=100
@@ -67,6 +79,8 @@ def main():
         agent = RandomWalkAgent(action_names)
     elif agent_type == "spinning":
         agent = SpinningAgent("turn_right")
+    # elif agent_type == "frontier_explore":
+    #     agent = FrontierExploreAgent(odom_topic, local_plan_topic, global_plan_topic)
     else:
         print("AGENT TYPE {} IS NOT DEFINED!!!".format(agent_type))
         return

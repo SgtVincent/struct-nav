@@ -29,25 +29,17 @@
 
 
         <!-- custom arguments -->
-        <arg name="grid_cellsize" value="0.015"/>
+        <arg name="grid_cellsize" value="0.05"/>
         <arg name="grid_depthdecimation" value="1"/> 
         <!-- interface with move_base -->
-        <arg name="use_action_for_goal" value="true" />
-        <arg name="map_topic" value="/map" />
-        <arg name="move_base_topic" value="/move_base" />
+        <!-- <arg name="use_action_for_goal" value="true" /> -->
+        <!-- <arg name="map_topic" value="/map" /> -->
+        <!-- <arg name="move_base_topic" value="/move_base" /> -->
 
     </include>
     
     <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz"/> -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/>
-    <!-- move_base -->
-    <include file="$(find turtlebot3_navigation)/launch/move_base.launch">
-        <arg name="odom_topic" value="/odom" />
-        <arg name="model" value="waffle" />
-        <arg name="move_forward_only" value="true" />
-        <!-- topics -->
-        <!-- <remap from="/rtabmap/grid_map" to="/map" /> -->
-    </include>
 
     <!-- run m-explore for frontier-based exploration -->
     <include file="$(find habitat_ros)/launch/explore_lite.launch"/>

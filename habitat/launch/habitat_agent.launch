@@ -1,6 +1,6 @@
 <launch>
-    <!-- <arg name="agent_type" default="random_walk"/> -->
-    <arg name="agent_type" default="frontier_explore"/>
+    <arg name="agent_type" default="random_walk"/>
+    <!-- <arg name="agent_type" default="frontier_explore"/> -->
     <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"/>
 
     <node pkg="habitat_ros" type="main.py" name="habitat_agent" output="screen">
@@ -16,9 +16,8 @@
         <param name="cloud_topic" value="/rtabmap/cloud_map"/>
         <param name="camera_calib" value="$(find habitat_ros)/camera_info.yaml"/>
         <!-- topics for local policy generation -->
-        <param name="local_plan_topic" value="/move_base/DWAPlannerROS/local_plan"/>
-        <param name="global_plan_topic" value="/move_base/DWAPlannerROS/global_plan"/>
         <param name="odom_topic" value="/odom"/>
+        <param name="grid_map_topic" value="/rtabmap/grid_map"/> 
         
     </node>
 </launch>
