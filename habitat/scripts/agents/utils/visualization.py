@@ -26,7 +26,7 @@ def draw_line(start, end, mat, steps=25, w=1):
     return mat
 
 
-def init_vis_image(goal_name, legend):
+def init_sem_image(goal_name, legend):
     vis_image = np.ones((655, 1165, 3)).astype(np.uint8) * 255
     font = cv2.FONT_HERSHEY_SIMPLEX
     fontScale = 1
@@ -42,6 +42,47 @@ def init_vis_image(goal_name, legend):
     )
 
     text = "Predicted Semantic Map"
+    textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
+    textX = 640 + (480 - textsize[0]) // 2 + 30
+    textY = (50 + textsize[1]) // 2
+    vis_image = cv2.putText(
+        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+    )
+
+    # draw outlines
+    color = [100, 100, 100]
+    vis_image[49, 15:655] = color
+    vis_image[49, 670:1150] = color
+    vis_image[50:530, 14] = color
+    vis_image[50:530, 655] = color
+    vis_image[50:530, 669] = color
+    vis_image[50:530, 1150] = color
+    vis_image[530, 15:655] = color
+    vis_image[530, 670:1150] = color
+
+    # draw legend
+    lx, ly, _ = legend.shape
+    vis_image[537 : 537 + lx, 155 : 155 + ly, :] = legend
+
+    return vis_image
+
+
+def init_occ_image(goal_name, legend):
+    vis_image = np.ones((655, 1165, 3)).astype(np.uint8) * 255
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fontScale = 1
+    color = (20, 20, 20)  # BGR
+    thickness = 2
+
+    text = "Observations (Goal: {})".format(goal_name)
+    textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
+    textX = (640 - textsize[0]) // 2 + 15
+    textY = (50 + textsize[1]) // 2
+    vis_image = cv2.putText(
+        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+    )
+
+    text = "Predicted Occupancy Map"
     textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
     textX = 640 + (480 - textsize[0]) // 2 + 30
     textY = (50 + textsize[1]) // 2

@@ -9,7 +9,10 @@ Panels:
         - /TF1/Frames1
         - /Image1
         - /Info1
+        - /Map1
         - /DepthCloud1/Auto Size1
+        - /frontiers1
+        - /frontiers1/Status1
       Splitter Ratio: 0.4110580086708069
     Tree Height: 387
   - Class: rviz/Selection
@@ -29,7 +32,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Info
+    SyncSource: Image
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -188,7 +191,7 @@ Visualization Manager:
       Draw Behind: false
       Enabled: true
       Name: Map
-      Topic: /rtabmap/octomap_grid
+      Topic: /rtabmap/grid_map
       Unreliable: false
       Use Timestamp: false
       Value: true
@@ -208,12 +211,12 @@ Visualization Manager:
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: false
+      Enabled: true
       Name: Map
       Topic: /rtabmap/grid_map
       Unreliable: false
       Use Timestamp: false
-      Value: false
+      Value: true
     - Alpha: 1
       Auto Size:
         Auto Size Factor: 1
@@ -250,6 +253,14 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /frontiers
+      Name: frontiers
+      Namespaces:
+        "": true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -274,7 +285,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 12.00186824798584
+      Distance: 25.34014892578125
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -282,17 +293,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.0065956697799265385
-        Y: 0.7642555832862854
-        Z: -0.02083282545208931
+        X: -1.9258383512496948
+        Y: -1.0959627628326416
+        Z: -1.3455517292022705
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.36479711532592773
+      Pitch: 0.9747967720031738
       Target Frame: base_link
-      Yaw: 4.55818510055542
+      Yaw: 4.663161277770996
     Saved: ~
 Window Geometry:
   Displays:
@@ -313,4 +324,4 @@ Window Geometry:
     collapsed: false
   Width: 1273
   X: 524
-  Y: 237
+  Y: 163

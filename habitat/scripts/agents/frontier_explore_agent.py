@@ -1,8 +1,10 @@
+import enum
 import math
 import os
 import time
 import cv2
 from matplotlib.pyplot import grid
+from matplotlib import cm
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import skimage.morphology
@@ -10,14 +12,15 @@ from PIL import Image
 from torchvision import transforms
 from habitat_sim import Simulator
 from scipy.spatial.transform import Rotation as R
+from yaml import Mark
 
 # ros packages
 import rospy
 from nav_msgs.msg import Path, Odometry, OccupancyGrid
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import String
-from visualization_msgs.msg import MarkerArray
+from std_msgs.msg import String, Header
+from visualization_msgs.msg import MarkerArray, Marker
 
 
 from envs.utils.fmm_planner import FMMPlanner
@@ -26,11 +29,14 @@ from envs.habitat.objectgoal_env import ObjectGoalEnv
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette
 import envs.utils.pose as pu
+from agents.utils.utils_frontier_explore import frontier_goals
 import agents.utils.visualization as vu
 from agents.utils.arguments import get_args
 
+
 """
-args members: 
+FrontierExploreAgent arguments:
+------------------------------
 args.map_resolution
 args.visualize
 args.print_images
@@ -55,9 +61,13 @@ class FrontierExploreAgent:
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
-
+        self.action_names = {
+            0: "stay",
+            1: "move_forward",
+            2: "turn_left",
+            3: "turn_right",
+        }
         self.obs = None
-        self.obs_shape = None
         self.collision_map = None
         self.visited = None
         self.visited_vis = None
@@ -74,27 +84,27 @@ class FrontierExploreAgent:
         self.info["spl"] = None
         self.info["success"] = None
 
-        # subscribe to ros topics
+        ############## ROS setup #############################
         self.odom_topic = self.args.odom_topic
         self.grid_map_topic = self.args.grid_map_topic
         self.frontiers_topic = self.args.frontiers_topic
+        # self.goal_topic = self.args.goal_topic
 
         self.sub_odom = rospy.Subscriber(self.odom_topic, Odometry, self.callback_odom)
         print(f"subscribing to {self.odom_topic}...")
 
         self.sub_grid_map = rospy.Subscriber(
-            self.grid_map_topic, Odometry, self.callback_grid_map
+            self.grid_map_topic, OccupancyGrid, self.callback_grid_map
         )
         print(f"subscribing to {self.grid_map_topic}...")
 
-        self.sub_frontiers = rospy.Subscriber(
-            self.frontiers_topic, MarkerArray, self.callback_frontiers
+        self.pub_frontiers = rospy.Publisher(
+            self.frontiers_topic, MarkerArray, queue_size=1
         )
-        print(f"subscribing to {self.frontiers_topic}...")
 
+        # cached messages
         self.odom_msg = None
         self.grid_map_msg = None
-        self.frontiers_msg = None
 
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
@@ -104,100 +114,135 @@ class FrontierExploreAgent:
             self.vis_image = None
             self.rgb_vis = None
 
-    def reset(self):
+    def reset(self, map_shape):
         args = self.args
 
         # obs, info = super().reset()
         # obs = self._preprocess_obs(obs)
-        obs = self.sim.reset()
-        self.obs_shape = obs.shape
 
         # Episode initializations
-        map_shape = (
-            args.map_size_cm // args.map_resolution,
-            args.map_size_cm // args.map_resolution,
-        )
+        # map_shape = (
+        #     args.map_size_cm // args.map_resolution,
+        #     args.map_size_cm // args.map_resolution,
+        # )
         self.collision_map = np.zeros(map_shape)
         self.visited = np.zeros(map_shape)
         self.visited_vis = np.zeros(map_shape)
         self.col_width = 1
         self.count_forward_actions = 0
-        self.curr_loc = [
-            args.map_size_cm / 100.0 / 2.0,
-            args.map_size_cm / 100.0 / 2.0,
-            0.0,
-        ]
+        # self.curr_loc = [
+        #     args.map_size_cm / 100.0 / 2.0,
+        #     args.map_size_cm / 100.0 / 2.0,
+        #     0.0,
+        # ]
         self.last_action = None
 
         if args.visualize or args.print_images:
-            self.vis_image = vu.init_vis_image(self.goal_name, self.legend)
+            self.vis_image = vu.init_occ_image(self.goal_name, self.legend)
 
-        return obs
+        return
 
     # wrapper function to execute one step
     def act(self):
-        odom_msg = self.odom_msg
-        grid_map_msg = self.grid_map_msg
-        frontiers_msg = self.frontiers_msg
-
-        while odom_msg == None or grid_map_msg == None or frontiers_msg == None:
-            # waiting for data
-            rospy.sleep(1)
-
-        # parse grid_map message
-        """ nav_msgs/OccupancyGrid: 
-        -----------------------------
-        std_msgs/Header header
-        nav_msgs/MapMetaData info
-        int8[] data
+        """This function generates one step for habitat simulator 
+        
+        This function receives grid_map message, odometry message from ROS, 
+        and generate one step in habitat simulator. 
+        
+        The process is: 
+        1. generate frontiers and goals from Frontiers-based exploration algorithm.
+        Ref: A Frontier-Based Approach for Autonomous Exploration by Yamauchi, 1997
+        2. calculate path of short-term goals by Fast Marching Method (global planner)
+        3. select instant action within local window by gradient on distance map (local planner)
+    
+        
+        Args: 
+            self 
+        
+        Returns: 
+            action: string of an action accepted by habitat simulator
+        
         """
-        local_map = grid_map_msg.data
+        ############ parse ros messages ################
+        odom_msg: Odometry = self.odom_msg
+        grid_map_msg: OccupancyGrid = self.grid_map_msg
+
+        # FIXME: cannot receive grid_map message
+        while odom_msg == None or grid_map_msg == None:
+            # waiting for data
+            return "stay"
+
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
         )
-        map_resolution = grid_map_msg.info.resolution
-        origin_pose = grid_map_msg.info.origin
+        self.reset(grid_map.shape)
+        # map_resolution = grid_map_msg.info.resolution
+        # NOTE: args.map_resolution is in cm
+        map_resolution = self.args.map_resolution / 100.0
+        map_origin_position = grid_map_msg.info.origin.position
+        map_origin = np.array([map_origin_position.x, map_origin_position.y])
 
         # parse odometry message
         odom_pose = odom_msg.pose
         odom_position_2d = np.array(
             [odom_pose.pose.position.x, odom_pose.pose.position.y,]
         )
+        # FIXME: there are zero quaternions for unknown reason
+        try:
+            odom_rot = R.from_quat(
+                [
+                    odom_pose.pose.orientation.x,
+                    odom_pose.pose.orientation.y,
+                    odom_pose.pose.orientation.z,
+                    odom_pose.pose.orientation.w,
+                ]
+            )
+            odom_angle = odom_rot.as_euler("zxy", degrees=True)[0]
+        except:
+            odom_angle = 0
 
-        odom_rot = R.from_quat(
-            [
-                odom_pose.pose.orientation.x,
-                odom_pose.pose.orientation.y,
-                odom_pose.pose.orientation.z,
-                odom_pose.pose.orientation.w,
-            ]
+        ##################  generate frontiers and goals ##############
+        frontiers, goals = frontier_goals(
+            grid_map,
+            map_origin,
+            map_resolution,
+            odom_position_2d,
+            cluster_trashhole=self.args.cluster_trashhole,
+            num_goals=1,
         )
+        # TODO: think about goal selection strategy
+        goal_position = goals[0, :]
 
-        # parse target
+        self.publish_frontiers(frontiers, goals)
 
-        angle = odom_rot.as_euler("zxy", degrees=True)[0]
+        ################### generate action by planners ################
 
-        # generate goal
+        # convert (x,y) goal center to goal map
+        goal_map = np.zeros_like(grid_map)
+        pixel_position = ((goal_position - map_origin) / map_resolution).astype(int)
+        # NOTE: (x,y) is (col, row) in image
+        goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
         p_input = {}
-        p_input["map_pred"] = grid_map
+        p_input["map_pred"] = grid_map.astype(np.float64)
         # p_input["exp_pred"] = local_map[e, 1, :, :]
         p_input["pose_pred"] = np.zeros(7)
         p_input["pose_pred"][:2] = odom_position_2d
-        p_input["pose_pred"][2] = angle
+        p_input["pose_pred"][2] = odom_angle
         p_input["pose_pred"][3:] = np.array(
-            [0, grid_map.shape[1] - 1, 0, grid_map.shape[0] - 1]
+            [0, grid_map.shape[0], 0, grid_map.shape[1]]
         )
-        selem = skimage.morphology.disk(int(object_boundary * 100.0 / map_resolution))
-        goal_map = (
-            skimage.morphology.binary_dilation(sem_map[goal_idx + 1], selem) != True
-        )
-        p_input["goal"] = goal_maps[e]  # global_goals[e]
-        p_input["found_goal"] = found_goal[e]
-        p_input["wait"] = wait_env[e] or finished[e]
-        # if args.visualize or args.print_images:
-        #     local_map[e, -1, :, :] = 1e-5
-        #     p_input["sem_map_pred"] = local_map[e, 4:, :, :].argmax(0)
+        p_input["goal"] = goal_map
+        p_input["found_goal"] = False
+        p_input["wait"] = False
+
+        action = self.plan(p_input)
+        if self.args.visualize or self.args.print_images:
+            self._visualize(p_input)
+
+        # TODO: add logic for STOP action
+
+        return self.action_names[action]
 
     def plan_act_and_preprocess(self, planner_inputs):
         """Function responsible for planning, taking the action and
@@ -503,5 +548,54 @@ class FrontierExploreAgent:
     def callback_grid_map(self, grid_map_msg: OccupancyGrid):
         self.grid_map_msg = grid_map_msg
 
-    def callback_frontiers(self, frontiers_msg: MarkerArray):
-        self.frontiers_msg = frontiers_msg
+    def publish_frontiers(self, frontiers, goals):
+
+        marker_arr = MarkerArray()
+        color_map = cm.get_cmap("plasma")
+        # publish frontiers
+        for i, f in enumerate(frontiers):
+
+            marker = Marker()
+            marker.header = Header()
+            marker.header.frame_id = "map"
+            marker.id = i
+            marker.type = marker.SPHERE
+            marker.scale.x = f[2] / 1000.0
+            marker.scale.y = f[2] / 1000.0
+            marker.scale.z = f[2] / 1000.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker.color.a = 0.5
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = f[0]
+            marker.pose.position.y = f[1]
+            marker.pose.position.z = 0.5
+
+            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
+            marker_arr.markers.append(marker)
+        # publish goals
+        num_frontiers = frontiers.shape[0]
+        for i, g in enumerate(goals):
+
+            marker = Marker()
+            marker.header = Header()
+            marker.header.frame_id = "map"
+            marker.id = i + num_frontiers  # avoid overwrite
+            marker.type = marker.SPHERE
+            marker.scale.x = 0.5
+            marker.scale.y = 0.5
+            marker.scale.z = 0.5
+            marker.color.r = 1.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            marker.color.a = 0.5
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = g[0]
+            marker.pose.position.y = g[1]
+            marker.pose.position.z = 0.5
+
+            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
+            marker_arr.markers.append(marker)
+
+        self.pub_frontiers.publish(marker_arr)

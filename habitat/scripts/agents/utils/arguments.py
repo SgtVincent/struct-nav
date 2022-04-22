@@ -153,6 +153,9 @@ def get_args(silence_mode=False):
     parser.add_argument("--exp_pred_threshold", type=float, default=1.0)
     parser.add_argument("--collision_threshold", type=float, default=0.20)
 
+    # Frontier Exploration
+    parser.add_argument("--cluster_trashhole", type=float, default=0.3)
+
     if silence_mode:
         # use default arguments
         args = parser.parse_args("")

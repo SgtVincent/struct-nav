@@ -77,3 +77,4 @@ roslaunch rtabmap_ros rtabmap.launch \
 ### TODO LIST
 
 - [ ] consider if we need to move agent & planning functions from habitat_ros to a new package
+- [ ] load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)

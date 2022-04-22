@@ -1,10 +1,10 @@
 <launch>
 
     <!-- habitat agent & habitat simulator -->
-    <include file="$(find habitat_ros)/launch/habitat_agent.launch">
+    <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
         <arg name="agent_type" value="frontier_explore"/>
         <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"/>
-    </include>
+    </include> -->
 
     <!-- rtabmap -->
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
@@ -38,10 +38,7 @@
 
     </include>
     
-    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz"/> -->
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/>
-
-    <!-- run m-explore for frontier-based exploration -->
-    <include file="$(find habitat_ros)/launch/explore_lite.launch"/>
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz"/>
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
 
 </launch>

@@ -22,7 +22,9 @@ from typing import (
 
 import gym
 import numpy as np
-from gym.spaces.dict_space import Dict as SpaceDict
+
+# from gym.spaces.dict_space import Dict as SpaceDict # gym==0.10.8
+from gym.spaces import Dict as SpaceDict
 
 import habitat
 from habitat.config import Config
@@ -135,14 +137,10 @@ class VectorEnv:
 
         for write_fn in self._connection_write_fns:
             write_fn((OBSERVATION_SPACE_COMMAND, None))
-        self.observation_spaces = [
-            read_fn() for read_fn in self._connection_read_fns
-        ]
+        self.observation_spaces = [read_fn() for read_fn in self._connection_read_fns]
         for write_fn in self._connection_write_fns:
             write_fn((ACTION_SPACE_COMMAND, None))
-        self.action_spaces = [
-            read_fn() for read_fn in self._connection_read_fns
-        ]
+        self.action_spaces = [read_fn() for read_fn in self._connection_read_fns]
         self.observation_space = self.observation_spaces[0]
         self.action_space = self.action_spaces[0]
         self._paused = []
@@ -173,9 +171,7 @@ class VectorEnv:
             while command != CLOSE_COMMAND:
                 if command == STEP_COMMAND:
                     # different step methods for habitat.RLEnv and habitat.Env
-                    if isinstance(env, habitat.RLEnv) or isinstance(
-                        env, gym.Env
-                    ):
+                    if isinstance(env, habitat.RLEnv) or isinstance(env, gym.Env):
                         # habitat.RLEnv
                         observations, reward, done, info = env.step(**data)
                         if auto_reset_done and done:
@@ -217,8 +213,7 @@ class VectorEnv:
                     connection_write_fn(env.current_episode)
 
                 elif command == PLAN_ACT_AND_PREPROCESS:
-                    observations, reward, done, info = \
-                            env.plan_act_and_preprocess(data)
+                    observations, reward, done, info = env.plan_act_and_preprocess(data)
                     if auto_reset_done and done:
                         observations, info = env.reset()
                     connection_write_fn((observations, reward, done, info))
@@ -467,9 +462,7 @@ class VectorEnv:
         return result
 
     def call(
-        self,
-        function_names: List[str],
-        function_args_list: Optional[List[Any]] = None,
+        self, function_names: List[str], function_args_list: Optional[List[Any]] = None,
     ) -> List[Any]:
         r"""Calls a list of functions (which are passed by name) on the
         corresponding env (by index).
@@ -485,9 +478,7 @@ class VectorEnv:
             function_args_list = [None] * len(function_names)
         assert len(function_names) == len(function_args_list)
         func_args = zip(function_names, function_args_list)
-        for write_fn, func_args_on in zip(
-            self._connection_write_fns, func_args
-        ):
+        for write_fn, func_args_on in zip(self._connection_write_fns, func_args):
             write_fn((CALL_COMMAND, func_args_on))
         results = []
         for read_fn in self._connection_read_fns:
@@ -495,9 +486,7 @@ class VectorEnv:
         self._is_waiting = False
         return results
 
-    def render(
-        self, mode: str = "human", *args, **kwargs
-    ) -> Union[np.ndarray, None]:
+    def render(self, mode: str = "human", *args, **kwargs) -> Union[np.ndarray, None]:
         r"""Render observations from all environments in a tiled image.
         """
         for write_fn in self._connection_write_fns:
@@ -530,7 +519,9 @@ class VectorEnv:
         return np.stack(obs), np.stack(rews), np.stack(dones), infos
 
     def _assert_not_closed(self):
-        assert not self._is_closed, "Trying to operate on a SubprocVecEnv after calling close()"
+        assert (
+            not self._is_closed
+        ), "Trying to operate on a SubprocVecEnv after calling close()"
 
     @property
     def _valid_start_methods(self) -> Set[str]:
