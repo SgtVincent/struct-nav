@@ -6,6 +6,8 @@ from skimage.measure import find_contours
 # import plotly
 # import plotly.express as px
 
+DEBUG_VIS = False
+
 
 class UnionFind:
     """Union-find data structure. Items must be hashable."""
@@ -201,20 +203,20 @@ def frontier_goals(
     cluster_trashhole=0.2,
     num_goals=3,
 ):
-    """general function to calculate frontiers and goals 
-    
-    
+    """general function to calculate frontiers and goals
+
+
     Args:
-        map_raw (_type_): (M,N) 2D int map, -1 for unknown, 0 for free space 
+        map_raw (_type_): (M,N) 2D int map, -1 for unknown, 0 for free space
         map_origin (_type_): world frame coordinates [x,y] of map origin [0,0]
-        map_resolution (_type_): real-world space size for one pixel 
-        current_position (_type_): current robot position [x,y] in world frame 
-        cluster_trashhole (float, optional):  param for frontier clustering 
-        num_goals (int): number of desired goals selected from frontiers 
-        
+        map_resolution (_type_): real-world space size for one pixel
+        current_position (_type_): current robot position [x,y] in world frame
+        cluster_trashhole (float, optional):  param for frontier clustering
+        num_goals (int): number of desired goals selected from frontiers
+
     Returns:
-        centroids (numpy.Array): (C, 3), each row is (x, y, size) 
-        goals (numpy.Array): (num_goals, 2) positions of goals 
+        centroids (numpy.Array): (C, 3), each row is (x, y, size)
+        goals (numpy.Array): (num_goals, 2) positions of goals
 
     """
 
@@ -222,5 +224,27 @@ def frontier_goals(
     centroids = compute_centroids(frontiers, map_resolution)
     goals = compute_goals(centroids, current_position, num_goals)
 
-    return centroids, goals
+    # set flag to true in debug console dynamically for visualization
+    if DEBUG_VIS:
+        from matplotlib import pyplot as plt
+        from matplotlib import cm
 
+        # plt.rcParams["figure.figsize"] = [7.00, 3.50]
+        plt.rcParams["figure.autolayout"] = True
+
+        map_vis = np.copy(map_raw) + 1
+        map_vis[map_vis > 100] = 2.0  # obstacle
+        im = plt.imshow(map_vis)
+
+        frontiers_vis = [(np.array(f) - map_origin) / map_resolution for f in frontiers]
+        colormap = cm.get_cmap("plasma")
+        num_f = len(frontiers_vis)
+        for i, f in enumerate(frontiers_vis):
+            plt.scatter(f[:, 1], f[:, 0], color=colormap(float(i) / num_f))
+        # Invert y-axis
+        ax = plt.gca()
+        ax.invert_yaxis()
+
+        plt.show()
+
+    return centroids, goals

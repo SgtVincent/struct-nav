@@ -51,6 +51,8 @@ args.dump_location
 args.exp_name
 """
 
+DEBUG_VIS = False
+
 
 class FrontierExploreAgent:
     def __init__(self, args, sim: Simulator):
@@ -142,24 +144,24 @@ class FrontierExploreAgent:
 
     # wrapper function to execute one step
     def act(self):
-        """This function generates one step for habitat simulator 
-        
-        This function receives grid_map message, odometry message from ROS, 
-        and generate one step in habitat simulator. 
-        
-        The process is: 
+        """This function generates one step for habitat simulator
+
+        This function receives grid_map message, odometry message from ROS,
+        and generate one step in habitat simulator.
+
+        The process is:
         1. generate frontiers and goals from Frontiers-based exploration algorithm.
         Ref: A Frontier-Based Approach for Autonomous Exploration by Yamauchi, 1997
         2. calculate path of short-term goals by Fast Marching Method (global planner)
         3. select instant action within local window by gradient on distance map (local planner)
-    
-        
-        Args: 
-            self 
-        
-        Returns: 
+
+
+        Args:
+            self
+
+        Returns:
             action: string of an action accepted by habitat simulator
-        
+
         """
         ############ parse ros messages ################
         odom_msg: Odometry = self.odom_msg
@@ -186,7 +188,10 @@ class FrontierExploreAgent:
         # parse odometry message
         odom_pose = odom_msg.pose
         odom_position_2d = np.array(
-            [odom_pose.pose.position.x, odom_pose.pose.position.y,]
+            [
+                odom_pose.pose.position.x,
+                odom_pose.pose.position.y,
+            ]
         )
         # FIXME: there are zero quaternions for unknown reason
         try:
@@ -410,6 +415,27 @@ class FrontierExploreAgent:
 
         stg, stop = self._get_stg(map_pred, start, np.copy(goal), planning_window)
 
+        if DEBUG_VIS:
+            from matplotlib import pyplot as plt
+            from matplotlib import cm
+            from skimage.draw import disk
+            from skimage.draw import rectangle
+
+            # plt.rcParams["figure.figsize"] = [7.00, 3.50]
+            plt.rcParams["figure.autolayout"] = True
+
+            vis_map = np.copy(map_pred)
+            vis_map[map_pred == -1] = 0  # unknown
+            vis_map[map_pred == 0] = 1  # free space
+            vis_map[map_pred > 0] = 4  # obstacle
+            goal_vis = skimage.morphology.binary_dilation(
+                goal, skimage.morphology.disk(3)
+            )
+            vis_map[goal_vis == 1] = 2  # disk for long-term goal
+            rr, cc = rectangle(np.array(stg) - 2, extent=7, shape=vis_map.shape)
+            vis_map[rr.astype(int), cc.astype(int)] = 3  # rect for short-term goal
+            plt.imshow(vis_map, origin="lower")
+
         # Deterministic Local Policy
         if stop and planner_inputs["found_goal"] == 1:
             action = 0  # Stop
@@ -438,7 +464,10 @@ class FrontierExploreAgent:
 
         [gx1, gx2, gy1, gy2] = planning_window
 
-        x1, y1, = 0, 0
+        x1, y1, = (
+            0,
+            0,
+        )
         x2, y2 = grid.shape
 
         def add_boundary(mat, value=1):
@@ -447,6 +476,7 @@ class FrontierExploreAgent:
             new_mat[1 : h + 1, 1 : w + 1] = mat
             return new_mat
 
+        # FIXME: collision_map and visited_map not functioning now
         traversible = (
             skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem) != True
         )
