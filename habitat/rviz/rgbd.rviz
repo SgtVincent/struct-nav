@@ -10,9 +10,9 @@ Panels:
         - /Image1
         - /Info1
         - /Map1
+        - /Map2
         - /DepthCloud1/Auto Size1
         - /frontiers1
-        - /frontiers1/Status1
       Splitter Ratio: 0.4110580086708069
     Tree Height: 387
   - Class: rviz/Selection
@@ -144,7 +144,7 @@ Visualization Manager:
       Download graph: false
       Download map: false
       Download namespace: rtabmap
-      Enabled: false
+      Enabled: true
       Filter ceiling (m): 0
       Filter floor (m): 0
       Invert Rainbow: false
@@ -162,7 +162,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Class: rtabmap_ros/Info
       Enabled: true
       Name: Info
@@ -258,7 +258,7 @@ Visualization Manager:
       Marker Topic: /frontiers
       Name: frontiers
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -285,7 +285,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 25.34014892578125
+      Distance: 16.53329086303711
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -293,17 +293,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -1.9258383512496948
-        Y: -1.0959627628326416
-        Z: -1.3455517292022705
+        X: -0.2518162131309509
+        Y: 1.5458834171295166
+        Z: 0.5000622868537903
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9747967720031738
+      Pitch: 0.8997967839241028
       Target Frame: base_link
-      Yaw: 4.663161277770996
+      Yaw: 4.648159027099609
     Saved: ~
 Window Geometry:
   Displays:
@@ -324,4 +324,4 @@ Window Geometry:
     collapsed: false
   Width: 1273
   X: 524
-  Y: 163
+  Y: 126

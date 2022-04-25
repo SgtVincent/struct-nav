@@ -46,7 +46,7 @@ def get_args(silence_mode=False):
                                 (default: 0)""",
     )
     parser.add_argument(
-        "--print_images", type=int, default=0, help="1: save visualization as images"
+        "--print_images", type=int, default=1, help="1: save visualization as images"
     )
 
     # Environment, dataset and episode specifications
@@ -145,7 +145,7 @@ def get_args(silence_mode=False):
     # Mapping
     parser.add_argument("--global_downscaling", type=int, default=2)
     parser.add_argument("--vision_range", type=int, default=100)
-    parser.add_argument("--map_resolution", type=int, default=5)
+    parser.add_argument("--map_resolution", type=float, default=0.05)
     parser.add_argument("--du_scale", type=int, default=1)
     parser.add_argument("--map_size_cm", type=int, default=2400)
     parser.add_argument("--cat_pred_threshold", type=float, default=5.0)

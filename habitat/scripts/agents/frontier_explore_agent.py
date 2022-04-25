@@ -111,8 +111,8 @@ class FrontierExploreAgent:
 
         if args.visualize or args.print_images:
             self.legend = cv2.imread("docs/legend.png")
-            self.vis_image = None
             self.rgb_vis = None
+            self.vis_image = vu.init_occ_image(self.goal_name)  # , self.legend)
 
     def reset(self, map_shape):
         args = self.args
@@ -136,10 +136,8 @@ class FrontierExploreAgent:
         #     0.0,
         # ]
         self.last_action = None
-
         if args.visualize or args.print_images:
-            self.vis_image = vu.init_occ_image(self.goal_name, self.legend)
-
+            self.vis_image = vu.init_occ_image(self.goal_name)  # , self.legend)
         return
 
     # wrapper function to execute one step
@@ -175,10 +173,13 @@ class FrontierExploreAgent:
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
         )
-        self.reset(grid_map.shape)
+        # self.reset(grid_map.shape)
+        # FIXME: fix this dummy initialization of maps
+        self.collision_map = np.zeros_like(grid_map)
+        self.visited = np.zeros_like(grid_map)
+        self.visited_vis = np.zeros_like(grid_map)
         # map_resolution = grid_map_msg.info.resolution
-        # NOTE: args.map_resolution is in cm
-        map_resolution = self.args.map_resolution / 100.0
+        map_resolution = self.args.map_resolution
         map_origin_position = grid_map_msg.info.origin.position
         map_origin = np.array([map_origin_position.x, map_origin_position.y])
 
@@ -227,7 +228,8 @@ class FrontierExploreAgent:
         p_input["map_pred"] = grid_map.astype(np.float64)
         # p_input["exp_pred"] = local_map[e, 1, :, :]
         p_input["pose_pred"] = np.zeros(7)
-        p_input["pose_pred"][:2] = odom_position_2d
+        # NOTE: in plan() function, the position is in map frame
+        p_input["pose_pred"][:2] = odom_position_2d - map_origin
         p_input["pose_pred"][2] = odom_angle
         p_input["pose_pred"][3:] = np.array(
             [0, grid_map.shape[0], 0, grid_map.shape[1]]
@@ -237,6 +239,8 @@ class FrontierExploreAgent:
         p_input["wait"] = False
 
         action = self.plan(p_input)
+        self.last_action = action  # needed for collision check
+
         if self.args.visualize or self.args.print_images:
             self._visualize(p_input)
 
@@ -331,16 +335,20 @@ class FrontierExploreAgent:
         goal = planner_inputs["goal"]
 
         # Get pose prediction and global policy planning window
+        # FIXME: neural slam has local planning window
+        # now planning is running on global map, not scalable
+        # fix this problem later
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = planner_inputs["pose_pred"]
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
+        assert gx1 == 0 and gy1 == 0
         planning_window = [gx1, gx2, gy1, gy2]
 
         # Get curr loc
         self.curr_loc = [start_x, start_y, start_o]
         r, c = start_y, start_x
         start = [
-            int(r * 100.0 / args.map_resolution - gx1),
-            int(c * 100.0 / args.map_resolution - gy1),
+            int(r / args.map_resolution - gx1),
+            int(c / args.map_resolution - gy1),
         ]
         start = pu.threshold_poses(start, map_pred.shape)
 
@@ -350,53 +358,55 @@ class FrontierExploreAgent:
 
         if args.visualize or args.print_images:
             # Get last loc
-            last_start_x, last_start_y = self.last_loc[0], self.last_loc[1]
-            r, c = last_start_y, last_start_x
-            last_start = [
-                int(r * 100.0 / args.map_resolution - gx1),
-                int(c * 100.0 / args.map_resolution - gy1),
-            ]
-            last_start = pu.threshold_poses(last_start, map_pred.shape)
-            self.visited_vis[gx1:gx2, gy1:gy2] = vu.draw_line(
-                last_start, start, self.visited_vis[gx1:gx2, gy1:gy2]
-            )
+            if self.last_loc != None:
+                last_start_x, last_start_y = self.last_loc[0], self.last_loc[1]
+                r, c = last_start_y, last_start_x
+                last_start = [
+                    int(r / args.map_resolution - gx1),
+                    int(c / args.map_resolution - gy1),
+                ]
+                last_start = pu.threshold_poses(last_start, map_pred.shape)
+                self.visited_vis[gx1:gx2, gy1:gy2] = vu.draw_line(
+                    last_start, start, self.visited_vis[gx1:gx2, gy1:gy2]
+                )
 
+        # FIXME: add collision check
         # Collision check
-        if self.last_action == 1:
-            x1, y1, t1 = self.last_loc
-            x2, y2, _ = self.curr_loc
-            buf = 4
-            length = 2
+        # if self.last_action == 1:
+        #     x1, y1, t1 = self.last_loc
+        #     x2, y2, _ = self.curr_loc
+        #     buf = 4
+        #     length = 2
 
-            if abs(x1 - x2) < 0.05 and abs(y1 - y2) < 0.05:
-                self.col_width += 2
-                if self.col_width == 7:
-                    length = 4
-                    buf = 3
-                self.col_width = min(self.col_width, 5)
-            else:
-                self.col_width = 1
+        #     if abs(x1 - x2) < 0.05 and abs(y1 - y2) < 0.05:
+        #         self.col_width += 2
+        #         if self.col_width == 7:
+        #             length = 4
+        #             buf = 3
+        #         self.col_width = min(self.col_width, 5)
+        #     else:
+        #         self.col_width = 1
 
-            dist = pu.get_l2_distance(x1, x2, y1, y2)
-            if dist < args.collision_threshold:  # Collision
-                width = self.col_width
-                for i in range(length):
-                    for j in range(width):
-                        wx = x1 + 0.05 * (
-                            (i + buf) * np.cos(np.deg2rad(t1))
-                            + (j - width // 2) * np.sin(np.deg2rad(t1))
-                        )
-                        wy = y1 + 0.05 * (
-                            (i + buf) * np.sin(np.deg2rad(t1))
-                            - (j - width // 2) * np.cos(np.deg2rad(t1))
-                        )
-                        r, c = wy, wx
-                        r, c = (
-                            int(r * 100 / args.map_resolution),
-                            int(c * 100 / args.map_resolution),
-                        )
-                        [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
-                        self.collision_map[r, c] = 1
+        #     dist = pu.get_l2_distance(x1, x2, y1, y2)
+        #     if dist < args.collision_threshold:  # Collision
+        #         width = self.col_width
+        #         for i in range(length):
+        #             for j in range(width):
+        #                 wx = x1 + 0.05 * (
+        #                     (i + buf) * np.cos(np.deg2rad(t1))
+        #                     + (j - width // 2) * np.sin(np.deg2rad(t1))
+        #                 )
+        #                 wy = y1 + 0.05 * (
+        #                     (i + buf) * np.sin(np.deg2rad(t1))
+        #                     - (j - width // 2) * np.cos(np.deg2rad(t1))
+        #                 )
+        #                 r, c = wy, wx
+        #                 r, c = (
+        #                     int(r / args.map_resolution),
+        #                     int(c / args.map_resolution),
+        #                 )
+        #                 [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
+        #                 self.collision_map[r, c] = 1
 
         stg, stop = self._get_stg(map_pred, start, np.copy(goal), planning_window)
 
@@ -472,53 +482,48 @@ class FrontierExploreAgent:
             os.makedirs(ep_dir)
 
         map_pred = inputs["map_pred"]
-        exp_pred = inputs["exp_pred"]
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = inputs["pose_pred"]
-
         goal = inputs["goal"]
-        sem_map = inputs["sem_map_pred"]
 
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
 
-        sem_map += 5
+        occpancy_mask = np.rint(map_pred) == 100
+        unknown_mask = np.rint(map_pred) == -1
+        free_mask = np.rint(map_pred) == 0
+        # vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
 
-        no_cat_mask = sem_map == 20
-        map_mask = np.rint(map_pred) == 1
-        exp_mask = np.rint(exp_pred) == 1
-        vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
-
-        sem_map[no_cat_mask] = 0
-        m1 = np.logical_and(no_cat_mask, exp_mask)
-        sem_map[m1] = 2
-
-        m2 = np.logical_and(no_cat_mask, map_mask)
-        sem_map[m2] = 1
-
-        sem_map[vis_mask] = 3
+        map_pred[unknown_mask] = 0
+        map_pred[free_mask] = 1
+        map_pred[occpancy_mask] = 3
 
         selem = skimage.morphology.disk(4)
         goal_mat = 1 - skimage.morphology.binary_dilation(goal, selem) != True
-
         goal_mask = goal_mat == 1
-        sem_map[goal_mask] = 4
+        map_pred[goal_mask] = 2
 
-        color_pal = [int(x * 255.0) for x in color_palette]
-        sem_map_vis = Image.new("P", (sem_map.shape[1], sem_map.shape[0]))
-        sem_map_vis.putpalette(color_pal)
-        sem_map_vis.putdata(sem_map.flatten().astype(np.uint8))
-        sem_map_vis = sem_map_vis.convert("RGB")
-        sem_map_vis = np.flipud(sem_map_vis)
+        # convert heat map to rgb image
+        map_pred_vis = (map_pred / 3.0 * 255).astype(
+            np.uint8
+        )  # convert to CV_8UC1 format
+        map_pred_vis = np.flipud(map_pred_vis)  # flip y axis
+        map_pred_vis = cv2.applyColorMap(map_pred_vis, cv2.COLORMAP_VIRIDIS)
+        # color_pal = [int(x * 255.0) for x in color_palette]
+        # sem_map_vis = Image.new("P", (sem_map.shape[1], sem_map.shape[0]))
+        # sem_map_vis.putpalette(color_pal)
+        # sem_map_vis.putdata(sem_map.flatten().astype(np.uint8))
+        # sem_map_vis = sem_map_vis.convert("RGB")
+        # sem_map_vis = np.flipud(sem_map_vis)
 
-        sem_map_vis = sem_map_vis[:, :, [2, 1, 0]]
-        sem_map_vis = cv2.resize(
-            sem_map_vis, (480, 480), interpolation=cv2.INTER_NEAREST
+        # map_pred_vis = map_pred_vis[:, [2, 1, 0]]
+        map_pred_vis = cv2.resize(
+            map_pred_vis, (480, 480), interpolation=cv2.INTER_NEAREST
         )
-        self.vis_image[50:530, 15:655] = self.rgb_vis
-        self.vis_image[50:530, 670:1150] = sem_map_vis
+        # self.vis_image[50:530, 15:655] = self.rgb_vis
+        self.vis_image[50:530, 670:1150, :] = map_pred_vis
 
         pos = (
-            (start_x * 100.0 / args.map_resolution - gy1) * 480 / map_pred.shape[0],
-            (map_pred.shape[1] - start_y * 100.0 / args.map_resolution + gx1)
+            (start_x / args.map_resolution - gy1) * 480 / map_pred.shape[0],
+            (map_pred.shape[1] - start_y / args.map_resolution + gx1)
             * 480
             / map_pred.shape[1],
             np.deg2rad(-start_o),

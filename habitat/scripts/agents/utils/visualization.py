@@ -67,7 +67,7 @@ def init_sem_image(goal_name, legend):
     return vis_image
 
 
-def init_occ_image(goal_name, legend):
+def init_occ_image(goal_name, legend=None):
     vis_image = np.ones((655, 1165, 3)).astype(np.uint8) * 255
     font = cv2.FONT_HERSHEY_SIMPLEX
     fontScale = 1
@@ -102,7 +102,8 @@ def init_occ_image(goal_name, legend):
     vis_image[530, 670:1150] = color
 
     # draw legend
-    lx, ly, _ = legend.shape
-    vis_image[537 : 537 + lx, 155 : 155 + ly, :] = legend
+    if legend != None:
+        lx, ly, _ = legend.shape
+        vis_image[537 : 537 + lx, 155 : 155 + ly, :] = legend
 
     return vis_image

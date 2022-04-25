@@ -100,7 +100,7 @@
     <arg name="gen_scan"                default="false"/> <!-- only works with depth image and if not subscribing to scan topic-->
     
     <arg name="gen_depth"                  default="false" /> <!-- Generate depth image from scan_cloud -->
-    <arg name="gen_depth_decimation"       default="1" />
+    <arg name="gen_depth_decimation"       default="4" />
     <arg name="gen_depth_fill_holes_size"  default="0" />
     <arg name="gen_depth_fill_iterations"  default="1" />
     <arg name="gen_depth_fill_holes_error" default="0.1" />
@@ -157,11 +157,28 @@
     <arg unless="$(arg rgbd_sync)"  name="rgbd_topic_relay"          default="$(arg rgbd_topic)_relay"/>
     
     <!-- custom arguments START -->
-    <arg name="grid_cellsize" default="0.015"/>
-    <arg name="grid_depthdecimation" default="1"/> 
     <arg name="use_action_for_goal" default="false" />
     <arg name="map_topic" default="grid_map" />
     <arg name="move_base_topic" default="move_base" />
+    <arg name="grid_global_min_size" default="5.0"/> <!-- min map size (meter) -->
+    <!--<arg name="proj_max_ground_height" default="0.3"/>  points  -->
+    <!-- <arg name="proj_max_height" default="1.5"/> points higher than this height will be ignored on 2d map -->
+    <!-- map parameters -->
+    <!-- grid_3d: A 3D occupancy grid is required if you want an OctoMap (3D ray tracing). 
+        Set to false if you want only a 2D map, the cloud will be projected on xy plane. 
+        A 2D map can be still generated if checked, but it requires more memory and time to generate it.-->
+    <arg name="grid_3d" default="false"/> 
+    <!-- grid_ray_tracing: Ray tracing is done for each occupied cell, filling unknown space between the sensor and occupied cells. 
+        If Grid/3D=true, RTAB-Map should be built with OctoMap support, otherwise 3D ray tracing is ignored.-->
+    <arg name="grid_ray_tracing" default="true"/>
+    <arg name="grid_cell_size" default="0.05"/>
+    <arg name="grid_depth_decimation" default="1"/> 
+    <arg name="grid_normals_segmentation" default="true"/> <!-- by default predict ground from point normals-->
+    <arg name="grid_max_ground_height" default="0.20"/> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_cluster_radius" default="0.2"/> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
+    <arg name="grid_noise_filtering_min_neighbors" default="5"/> <!-- [Noise filtering minimum neighbors.] -->
+    <arg name="grid_noise_filtering_radius" default="0.0"/> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->               
+    
     <!-- custom arguments END -->
 
 
@@ -373,10 +390,20 @@
         <param name="gen_depth_fill_holes_error" type="double" value="$(arg gen_depth_fill_holes_error)" />
         
         <!-- custom parameters START -->
-        <param name="Grid/CellSize" type="double" value="$(arg grid_cellsize)"/>
-        <param name="Grid/DepthDecimation" type="int" value="$(arg grid_depthdecimation)"/> 
+        <param name="GridGlobal/MinSize" type="double" value="$(arg grid_global_min_size)"/>
+        <param name="Grid/3D" type="bool" value="$(arg grid_3d)"/>
+        <param name="Grid/RayTracing" type="bool" value="$(arg grid_ray_tracing)"/> 
+        <param name="Grid/CellSize" type="double" value="$(arg grid_cell_size)"/>
+        <param name="Grid/DepthDecimation" type="int" value="$(arg grid_depth_decimation)"/> 
+        <param name="Grid/NormalsSegmentation" type="bool" value="$(arg grid_normals_segmentation)"/>
+        <param name="Grid/MaxGroundHeight" type="double" value="$(arg grid_max_ground_height)"/>
+        <param name="Grid/ClusterRadius" type="double" value="$(arg grid_cluster_radius)"/>
+        <param name="Grid/NoiseFilteringMinNeighbors" type="int" value="$(arg grid_noise_filtering_min_neighbors)"/>
+        <param name="Grid/NoiseFilteringRadius" type="double" value="$(arg grid_noise_filtering_radius)"/>
+        
         <!-- use actionlib to send goals to move_base -->
         <param name="use_action_for_goal" type="bool" value="$(arg use_action_for_goal)" />
+        
         <!-- custom parameters END -->
 
         <remap from="rgb/image"       to="$(arg rgb_topic_relay)"/>
