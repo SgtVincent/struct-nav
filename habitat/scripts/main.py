@@ -17,8 +17,8 @@ from utils import transformation
 
 # parameters used for debuging with python debugger
 DEFAULT_RATE = 1
-# DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
-DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
+DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
+# DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
 DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
 DEFAULT_AGENT_TYPE = "frontier_explore"  # "random_walk"
 DEFAULT_GOAL_RADIUS = 0.25

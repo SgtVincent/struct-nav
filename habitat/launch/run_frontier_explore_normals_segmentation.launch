@@ -31,13 +31,13 @@
         <!-- custom arguments -->
 
         <!-- map parameters-->
-        <arg name="grid_3d" value="false"/> 
+        <arg name="grid_3d" value="true"/> 
         <arg name="grid_ray_tracing" value="true"/>
         <arg name="grid_cell_size" value="0.05"/>
         <arg name="grid_depth_decimation" value="4"/> 
-        <arg name="grid_normals_segmentation" value="false"/> <!-- by default predict ground from point normals-->
-        <arg name="grid_max_ground_height" value="0.20"/> <!-- used function when grid_normals_segmentation is false -->
-        <arg name="grid_min_ground_height" value="-0.05"/> <!-- used function when grid_normals_segmentation is false -->
+        <arg name="grid_normals_segmentation" value="true"/> <!-- by default predict ground from point normals-->
+        <!-- <arg name="grid_max_ground_height" value="0.05"/> --> <!-- used function when grid_normals_segmentation is false -->
+        <!-- <arg name="grid_min_ground_height" value="-0.01"/> --> <!-- used function when grid_normals_segmentation is false -->
         <arg name="grid_cluster_radius" value="0.2"/> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
         <arg name="grid_noise_filtering_min_neighbors" value="5"/> <!-- [Noise filtering minimum neighbors.] -->
         <arg name="grid_noise_filtering_radius" value="0.5"/> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->  

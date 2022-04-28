@@ -22,7 +22,6 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String, Header
 from visualization_msgs.msg import MarkerArray, Marker
 
-
 from envs.utils.fmm_planner import FMMPlanner
 from envs.habitat.objectgoal_env import ObjectGoalEnv
 
@@ -140,7 +139,51 @@ class FrontierExploreAgent:
         self.last_action = None
         if args.visualize or args.print_images:
             self.vis_image = vu.init_occ_image(self.goal_name)  # , self.legend)
-        return
+
+    def parse_ros_messages(self):
+        odom_msg: Odometry = self.odom_msg
+        grid_map_msg: OccupancyGrid = self.grid_map_msg
+
+        grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
+            grid_map_msg.info.height, grid_map_msg.info.width
+        )
+        # self.reset(grid_map.shape)
+
+        # TODO: add map expansion logic for following maps
+        # FIXME: the present strategy is simple:
+        # - when grid_map is expanded, drop all previous memory and reallocate
+        # empty maps to record collisions and visited places during running
+        if self.collision_map is None or self.collision_map.shape != grid_map.shape:
+            self.collision_map = np.zeros_like(grid_map)
+            self.visited = np.zeros_like(grid_map)
+            self.visited_vis = np.zeros_like(grid_map)
+            # map_resolution = grid_map_msg.info.resolution
+
+        map_origin_position = grid_map_msg.info.origin.position
+        map_origin = np.array([map_origin_position.x, map_origin_position.y])
+
+        # parse odometry message
+        odom_pose = odom_msg.pose
+        # odom_map_pose: (x, y, x-y rotation angle)
+        odom_map_pose = np.array(
+            [odom_pose.pose.position.x, odom_pose.pose.position.y, 0.0]
+        )
+        # FIXME: there are zero quaternions for unknown reason
+        try:
+            odom_rot = R.from_quat(
+                [
+                    odom_pose.pose.orientation.x,
+                    odom_pose.pose.orientation.y,
+                    odom_pose.pose.orientation.z,
+                    odom_pose.pose.orientation.w,
+                ]
+            )
+            odom_angle = odom_rot.as_euler("zxy", degrees=True)[0]
+        except:
+            odom_angle = 0.0
+
+        odom_map_pose[2] = odom_angle
+        return grid_map, map_origin, odom_map_pose
 
     # wrapper function to execute one step
     def act(self):
@@ -164,55 +207,21 @@ class FrontierExploreAgent:
 
         """
         ############ parse ros messages ################
-        odom_msg: Odometry = self.odom_msg
-        grid_map_msg: OccupancyGrid = self.grid_map_msg
 
         # FIXME: cannot receive grid_map message
-        while odom_msg == None or grid_map_msg == None:
+        while self.odom_msg == None or self.grid_map_msg == None:
             # waiting for data
             return "stay"
 
-        grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
-            grid_map_msg.info.height, grid_map_msg.info.width
-        )
-        # self.reset(grid_map.shape)
-        # FIXME: fix this dummy initialization of maps
-        self.collision_map = np.zeros_like(grid_map)
-        self.visited = np.zeros_like(grid_map)
-        self.visited_vis = np.zeros_like(grid_map)
-        # map_resolution = grid_map_msg.info.resolution
-        map_resolution = self.args.map_resolution
-        map_origin_position = grid_map_msg.info.origin.position
-        map_origin = np.array([map_origin_position.x, map_origin_position.y])
-
-        # parse odometry message
-        odom_pose = odom_msg.pose
-        odom_position_2d = np.array(
-            [
-                odom_pose.pose.position.x,
-                odom_pose.pose.position.y,
-            ]
-        )
-        # FIXME: there are zero quaternions for unknown reason
-        try:
-            odom_rot = R.from_quat(
-                [
-                    odom_pose.pose.orientation.x,
-                    odom_pose.pose.orientation.y,
-                    odom_pose.pose.orientation.z,
-                    odom_pose.pose.orientation.w,
-                ]
-            )
-            odom_angle = odom_rot.as_euler("zxy", degrees=True)[0]
-        except:
-            odom_angle = 0
-
+        grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
         ##################  generate frontiers and goals ##############
+        map_resolution = self.args.map_resolution
+
         frontiers, goals = frontier_goals(
             grid_map,
             map_origin,
             map_resolution,
-            odom_position_2d,
+            odom_map_pose[:2],
             cluster_trashhole=self.args.cluster_trashhole,
             num_goals=1,
         )
@@ -222,6 +231,9 @@ class FrontierExploreAgent:
         self.publish_frontiers(frontiers, goals)
 
         ################### generate action by planners ################
+        # convert ros-format grid_map to object-goal-nav style maps
+        occupancy_map = (grid_map == 100).astype(np.float32)
+        explore_map = (grid_map >= 0).astype(np.float32)
 
         # convert (x,y) goal center to goal map
         goal_map = np.zeros_like(grid_map)
@@ -230,12 +242,14 @@ class FrontierExploreAgent:
         goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
         p_input = {}
-        p_input["map_pred"] = grid_map.astype(np.float64)
-        # p_input["exp_pred"] = local_map[e, 1, :, :]
+        p_input["map_pred"] = occupancy_map
+        p_input["exp_pred"] = explore_map
         p_input["pose_pred"] = np.zeros(7)
         # NOTE: in plan() function, the position is in map frame
-        p_input["pose_pred"][:2] = odom_position_2d - map_origin
-        p_input["pose_pred"][2] = odom_angle
+        p_input["pose_pred"][:2] = odom_map_pose[:2] - map_origin
+        # NOTE: in plan() function, xy-angle is calculated in pixel_x-pixel_y (y-x)
+        # frame, instead of world xy-frame, need to plus 90 degree for correction
+        p_input["pose_pred"][2] = odom_map_pose[2] + 90
         p_input["pose_pred"][3:] = np.array(
             [0, grid_map.shape[0], 0, grid_map.shape[1]]
         )
@@ -415,25 +429,39 @@ class FrontierExploreAgent:
 
         stg, stop = self._get_stg(map_pred, start, np.copy(goal), planning_window)
 
+        # visualize long-term/short-term goal and agent pose
         if DEBUG_VIS:
             from matplotlib import pyplot as plt
             from matplotlib import cm
             from skimage.draw import disk
             from skimage.draw import rectangle
 
+            # import agents.utils.visualization as vu
+            # import cv2
             # plt.rcParams["figure.figsize"] = [7.00, 3.50]
             plt.rcParams["figure.autolayout"] = True
 
+            # visualize map
+            exp_pred = np.rint(planner_inputs["exp_pred"])
             vis_map = np.copy(map_pred)
-            vis_map[map_pred == -1] = 0  # unknown
-            vis_map[map_pred == 0] = 1  # free space
+            vis_map[exp_pred == 0] = 0  # unknown
+            vis_map[(map_pred == 0) & (exp_pred == 1)] = 1  # free space
             vis_map[map_pred > 0] = 4  # obstacle
             goal_vis = skimage.morphology.binary_dilation(
                 goal, skimage.morphology.disk(3)
             )
+
+            # visualize long/short-term goals
             vis_map[goal_vis == 1] = 2  # disk for long-term goal
             rr, cc = rectangle(np.array(stg) - 2, extent=7, shape=vis_map.shape)
             vis_map[rr.astype(int), cc.astype(int)] = 3  # rect for short-term goal
+
+            # visualize agent
+            pos = [start[0], start[1], start_o]
+            agent_arrow = vu.get_contour_points(pos, origin=(0, 0), size=5)
+            color = (255, 0, 0)
+            plt.fill(agent_arrow[:, 1], agent_arrow[:, 0], facecolor="red")
+
             plt.imshow(vis_map, origin="lower")
 
         # Deterministic Local Policy
@@ -511,18 +539,20 @@ class FrontierExploreAgent:
         if not os.path.exists(ep_dir):
             os.makedirs(ep_dir)
 
-        map_pred = inputs["map_pred"]
+        occupancy_map = inputs["map_pred"]
+        explore_map = inputs["exp_pred"]
+        map_pred = np.zeros_like(occupancy_map)
+
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = inputs["pose_pred"]
         goal = inputs["goal"]
-
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
 
-        occpancy_mask = np.rint(map_pred) == 100
-        unknown_mask = np.rint(map_pred) == -1
-        free_mask = np.rint(map_pred) == 0
+        occpancy_mask = occupancy_map == 1
+        # unknown_mask = explore_map == 0
+        free_mask = (explore_map == 1) & (occupancy_map != 1)
         # vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
 
-        map_pred[unknown_mask] = 0
+        # map_pred[unknown_mask] = 0 # default is 0
         map_pred[free_mask] = 1
         map_pred[occpancy_mask] = 3
 

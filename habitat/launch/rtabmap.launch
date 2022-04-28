@@ -175,10 +175,11 @@
     <arg name="grid_depth_decimation" default="1"/> 
     <arg name="grid_normals_segmentation" default="true"/> <!-- by default predict ground from point normals-->
     <arg name="grid_max_ground_height" default="0.20"/> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_min_ground_height" default="-0.05"/> <!-- used function when grid_normals_segmentation is false -->
     <arg name="grid_cluster_radius" default="0.2"/> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
     <arg name="grid_noise_filtering_min_neighbors" default="5"/> <!-- [Noise filtering minimum neighbors.] -->
     <arg name="grid_noise_filtering_radius" default="0.0"/> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->               
-    
+    <arg name="proj_max_height" default="1.0"/> <!-- mapping maximum height of points used for projection -->
     <!-- custom arguments END -->
 
 
@@ -397,10 +398,11 @@
         <param name="Grid/DepthDecimation" type="int" value="$(arg grid_depth_decimation)"/> 
         <param name="Grid/NormalsSegmentation" type="bool" value="$(arg grid_normals_segmentation)"/>
         <param name="Grid/MaxGroundHeight" type="double" value="$(arg grid_max_ground_height)"/>
+        <param name="Grid/MinGroundHeight" type="double" value="$(arg grid_min_ground_height)"/>
         <param name="Grid/ClusterRadius" type="double" value="$(arg grid_cluster_radius)"/>
         <param name="Grid/NoiseFilteringMinNeighbors" type="int" value="$(arg grid_noise_filtering_min_neighbors)"/>
         <param name="Grid/NoiseFilteringRadius" type="double" value="$(arg grid_noise_filtering_radius)"/>
-        
+        <param name="proj_max_height" type="double" value="$(arg proj_max_height)"/>
         <!-- use actionlib to send goals to move_base -->
         <param name="use_action_for_goal" type="bool" value="$(arg use_action_for_goal)" />
         

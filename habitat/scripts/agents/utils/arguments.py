@@ -46,7 +46,7 @@ def get_args(silence_mode=False):
                                 (default: 0)""",
     )
     parser.add_argument(
-        "--print_images", type=int, default=1, help="1: save visualization as images"
+        "--print_images", type=int, default=0, help="1: save visualization as images"
     )
 
     # Environment, dataset and episode specifications
@@ -154,7 +154,7 @@ def get_args(silence_mode=False):
     parser.add_argument("--collision_threshold", type=float, default=0.20)
 
     # Frontier Exploration
-    parser.add_argument("--cluster_trashhole", type=float, default=0.3)
+    parser.add_argument("--cluster_trashhole", type=float, default=0.2)
 
     if silence_mode:
         # use default arguments

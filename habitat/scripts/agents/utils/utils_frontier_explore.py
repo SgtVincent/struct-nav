@@ -1,5 +1,6 @@
 from matplotlib import docstring
 import numpy as np
+import skimage
 from skimage.measure import find_contours
 
 # import matplotlib.pyplot as plt
@@ -7,6 +8,9 @@ from skimage.measure import find_contours
 # import plotly.express as px
 
 DEBUG_VIS = False
+if DEBUG_VIS:
+    from matplotlib import pyplot as plt
+    from matplotlib import cm
 
 
 class UnionFind:
@@ -68,7 +72,9 @@ def group_frontier_grid(grids, distance=1):
     return [list(x) for x in disjSets.values()]
 
 
-def get_frontiers(map_raw, map_origin, map_resolution, cluster_trashhole):
+def get_frontiers(
+    map_raw, map_origin, map_resolution, cluster_trashhole, dilate_size=3
+):
 
     # save current occupancy grid for reliable computations
     saved_map = np.copy(map_raw)
@@ -76,42 +82,84 @@ def get_frontiers(map_raw, map_origin, map_resolution, cluster_trashhole):
     # compute contours
     contours_negative = find_contours(saved_map, -1.0, fully_connected="high")
     contours_positive = find_contours(saved_map, 1.0, fully_connected="high")
+    contours_negative = np.concatenate(contours_negative, axis=0).astype(int)
+    contours_positive = np.concatenate(contours_positive, axis=0).astype(int)
 
-    # wait until Ocuupancy grid output features
-    # temporalUpdate = 30s (max wait time) / see launch file
-    # if len(contours_negative) == 0 or len(contours_positive) == 0:
-    #     rospy.sleep(10)
-    #     controller()
+    ################## Improvement Trial 2 ##########################
+    # Idea: dilate positive frontiers since frontiers should be away from obstacles
+    # Result:
 
+    contours_negative_map = np.zeros_like(saved_map)
+    contours_positive_map = np.zeros_like(saved_map)
+
+    contours_negative_map[contours_negative[:, 0], contours_negative[:, 1]] = 1.0
+    contours_positive_map[contours_positive[:, 0], contours_positive[:, 1]] = 1.0
+
+    # dilate contours_positive_map, which is boundary of obstacles
+    selem = skimage.morphology.disk(dilate_size)
+    contours_positive_dilated = skimage.morphology.binary_dilation(
+        contours_positive_map, selem
+    )
+    contours_negative_map[contours_positive_dilated == 1] = 0
+    candidates = np.argwhere(contours_negative_map == 1)
+    # NOTE: Do not forget to convert (row, col) to (x, y) !!!!
+    candidates = candidates[:, [1, 0]]
     # translate contours to map frame
-    contours_negative = np.concatenate(contours_negative, axis=0)
-    for index in range(len(contours_negative)):
-        contours_negative[index][0] = round(
-            contours_negative[index][0] * map_resolution + map_origin[0], 2
-        )
-        contours_negative[index][1] = round(
-            contours_negative[index][1] * map_resolution + map_origin[1], 2
-        )
-
-    # translate contours to map frame
-    contours_positive = np.concatenate(contours_positive, axis=0)
-    for index in range(len(contours_positive)):
-        contours_positive[index][0] = round(
-            contours_positive[index][0] * map_resolution + map_origin[0], 2
-        )
-        contours_positive[index][1] = round(
-            contours_positive[index][1] * map_resolution + map_origin[1], 2
-        )
+    candidates = candidates * map_resolution + map_origin
+    # convert set of frotiers into a list (hasable type data structre)
+    candidates = candidates.tolist()
+    candidates = [tuple(x) for x in candidates]
 
     # convert contour np arrays into sets
-    set_negative = set([tuple(x) for x in contours_negative])
-    set_positive = set([tuple(x) for x in contours_positive])
+    # set_negative = set([tuple(x) for x in contours_negative])
+    # set_positive = set([tuple(x) for x in contours_positive])
 
     # perform set difference operation to find candidates
-    candidates = set_negative.difference(set_positive)
+    # candidates = set_negative.difference(set_positive)
+
+    # translate contours to map frame
+    # for index in range(len(contours_negative)):
+    #     contours_negative[index][0] = round(
+    #         contours_negative[index][0] * map_resolution + map_origin[0], 2
+    #     )
+    #     contours_negative[index][1] = round(
+    #         contours_negative[index][1] * map_resolution + map_origin[1], 2
+    #     )
+
+    # translate contours to map frame
+    # for index in range(len(contours_positive)):
+    #     contours_positive[index][0] = round(
+    #         contours_positive[index][0] * map_resolution + map_origin[0], 2
+    #     )
+    #     contours_positive[index][1] = round(
+    #         contours_positive[index][1] * map_resolution + map_origin[1], 2
+    #     )
 
     # convert set of frotiers into a list (hasable type data structre)
-    candidates = [x for x in candidates]
+    # candidates = [x for x in candidates]
+
+    if DEBUG_VIS:
+        # from matplotlib import pyplot as plt
+        # from matplotlib import cm
+
+        # plt.rcParams["figure.figsize"] = [7.00, 3.50]
+        plt.rcParams["figure.autolayout"] = True
+
+        map_vis = np.copy(saved_map) + 1
+        map_vis[saved_map >= 100] = 2.0  # obstacle
+        im = plt.imshow(map_vis)
+        contours_candidates_vis = (np.array(candidates) - map_origin) / map_resolution
+        plt.scatter(
+            contours_candidates_vis[:, 0],
+            contours_candidates_vis[:, 1],
+            s=1,
+            color="red",
+        )
+        # Invert y-axis
+        ax = plt.gca()
+        ax.invert_yaxis()
+
+        plt.show()
 
     # group candidates points into clusters based on distance
     candidates = group_frontier_grid(candidates, cluster_trashhole)
@@ -207,7 +255,7 @@ def frontier_goals(
 
 
     Args:
-        map_raw (_type_): (M,N) 2D int map, -1 for unknown, 0 for free space
+        map_raw (_type_): (M,N) 2D int map, -1 for unknown, 0 for free space, 100 for obstacle
         map_origin (_type_): world frame coordinates [x,y] of map origin [0,0]
         map_resolution (_type_): real-world space size for one pixel
         current_position (_type_): current robot position [x,y] in world frame
@@ -219,6 +267,16 @@ def frontier_goals(
         goals (numpy.Array): (num_goals, 2) positions of goals
 
     """
+    ###################### Improvement Trial 1 #########################
+    # NOTE: small free space grids near obstacle & unknown grids lead to undesired
+    # frontier grids, which leads to bad frontier center, first filter out those
+    # small area by dilation of obstacle map
+    # Result: not working well
+    # selem = skimage.morphology.disk(3)  # make sure be consistent with planner
+    # occupancy_map = (map_raw == 100).astype(int)
+    # map_dilated = np.copy(map_raw)
+    # occupancy_dilated = skimage.morphology.binary_dilation(occupancy_map, selem)
+    # map_dilated[occupancy_dilated == 1] = 100.0
 
     frontiers = get_frontiers(map_raw, map_origin, map_resolution, cluster_trashhole)
     centroids = compute_centroids(frontiers, map_resolution)
@@ -226,8 +284,8 @@ def frontier_goals(
 
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
-        from matplotlib import pyplot as plt
-        from matplotlib import cm
+        # from matplotlib import pyplot as plt
+        # from matplotlib import cm
 
         # plt.rcParams["figure.figsize"] = [7.00, 3.50]
         plt.rcParams["figure.autolayout"] = True
@@ -240,7 +298,24 @@ def frontier_goals(
         colormap = cm.get_cmap("plasma")
         num_f = len(frontiers_vis)
         for i, f in enumerate(frontiers_vis):
-            plt.scatter(f[:, 1], f[:, 0], color=colormap(float(i) / num_f))
+            plt.scatter(f[:, 0], f[:, 1], color=colormap(float(i) / num_f))
+        # visualize centroids
+        centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
+        sizes = centroids[:, 2] * 2
+        N = centroids_vis.shape[0]
+        colors = colormap(np.arange(0, N) / float(N))
+        plt.scatter(
+            x=centroids_vis[:, 0], y=centroids_vis[:, 1], s=sizes, c=colors, alpha=0.6
+        )
+        # visualize goals
+        goals_vis = (np.array(goals) - map_origin) / map_resolution
+        n_goals = len(goals)
+        alphas = np.linspace(0, 1, num=(n_goals + 2))
+        for i, g in enumerate(goals_vis):
+            plt.plot(
+                g[0], g[1], color="red", marker="X", markersize=20, alpha=alphas[i + 1]
+            )
+
         # Invert y-axis
         ax = plt.gca()
         ax.invert_yaxis()
