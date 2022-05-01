@@ -139,5 +139,20 @@ model/SSG/data
 model/SSG/CVPR21/*.pth
 data/model_dump/*
 
+# python build
+build/
+dist/
+############ habitat-ros ignore #######################
+habitat/scripts/tmp
+
+############ habitat-recognition ignore ##################
+habitat_recognition/tb_logs/
+habitat_recognition/.vscode
+# with least modification to original code, log directory is auto generated 
+habitat_recognition/scripts/exp
+.vscode/settings.json
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/browse.*
 # output data
 output/

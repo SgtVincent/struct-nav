@@ -29,17 +29,17 @@ class HabitatObservationPublisher:
 
     def __init__(
         self,
-        rgb_topic=None,
-        depth_topic=None,
-        camera_info_topic=None,
-        true_pose_topic=None,
-        camera_info_file=None,
+        rgb_topic="",
+        depth_topic="",
+        camera_info_topic="",
+        true_pose_topic="",
+        camera_info_file="",
     ):
         """Initialize publisher with topic handles."""
         self.cvbridge = CvBridge()
 
         # Initialize camera info publisher.
-        if camera_info_topic is not None:
+        if len(camera_info_topic) > 0:
             self.publish_camera_info = True
             self.camera_info_publisher = rospy.Publisher(
                 camera_info_topic, CameraInfo, latch=True, queue_size=100
@@ -49,7 +49,7 @@ class HabitatObservationPublisher:
             self.publish_camera_info = False
 
         # Initialize RGB image publisher.
-        if rgb_topic is not None:
+        if len(rgb_topic) > 0:
             self.publish_rgb = True
             self.image_publisher = rospy.Publisher(
                 rgb_topic, Image, latch=True, queue_size=100
@@ -58,7 +58,7 @@ class HabitatObservationPublisher:
             self.publish_rgb = False
 
         # Initialize depth image publisher.
-        if depth_topic is not None:
+        if len(depth_topic) > 0:
             self.publish_depth = True
             self.depth_publisher = rospy.Publisher(
                 depth_topic, Image, latch=True, queue_size=100
@@ -67,7 +67,8 @@ class HabitatObservationPublisher:
             self.publish_depth = False
 
         # Initialize position publisher.
-        if true_pose_topic is not None:
+        # if len(true_pose_topic) > 0:
+        if False:
             self.publish_true_pose = True
             self.pose_publisher = rospy.Publisher(
                 true_pose_topic, PoseStamped, latch=True, queue_size=100
@@ -90,9 +91,7 @@ class HabitatObservationPublisher:
 
         # Publish depth image.
         if self.publish_depth:
-            depth = self.cvbridge.cv2_to_imgmsg(
-                observations["depth"] * DEPTH_SCALE
-            )
+            depth = self.cvbridge.cv2_to_imgmsg(observations["depth"] * DEPTH_SCALE)
             depth.header.stamp = cur_time
             depth.header.frame_id = "base_scan"
             self.depth_publisher.publish(depth)
