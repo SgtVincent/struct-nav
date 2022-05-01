@@ -1,0 +1,4 @@
+model:
+  name: 'deepset'
+  hidden_dim: 256
+  aggr: 'mean'
