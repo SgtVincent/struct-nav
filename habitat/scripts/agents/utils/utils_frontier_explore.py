@@ -218,7 +218,7 @@ def compute_goals(centroids, current_position, num_goals=3):
         )
 
         # compute length / distance
-        utility = centroids[index][2] / man_dist
+        utility = centroids[index][2] ** 2 / man_dist
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility

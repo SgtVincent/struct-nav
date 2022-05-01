@@ -46,5 +46,6 @@
     "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts"
   ],
   "cSpell.words": ["hais"],
-  "python.linting.enabled": true
+  "python.linting.enabled": true,
+  "cmake.configureOnOpen": false
 }

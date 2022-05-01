@@ -616,37 +616,14 @@ class FrontierExploreAgent:
     def publish_frontiers(self, frontiers, goals):
 
         marker_arr = MarkerArray()
-        color_map = cm.get_cmap("plasma")
-        # publish frontiers
-        for i, f in enumerate(frontiers):
-
-            marker = Marker()
-            marker.header = Header()
-            marker.header.frame_id = "map"
-            marker.id = i
-            marker.type = marker.SPHERE
-            marker.scale.x = f[2] / 1000.0
-            marker.scale.y = f[2] / 1000.0
-            marker.scale.z = f[2] / 1000.0
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-            marker.color.a = 0.5
-            marker.pose.orientation.w = 1.0
-            marker.pose.position.x = f[0]
-            marker.pose.position.y = f[1]
-            marker.pose.position.z = 0.5
-
-            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
-            marker_arr.markers.append(marker)
+        # color_map = cm.get_cmap("plasma")
         # publish goals
-        num_frontiers = frontiers.shape[0]
         for i, g in enumerate(goals):
 
             marker = Marker()
             marker.header = Header()
             marker.header.frame_id = "map"
-            marker.id = i + num_frontiers  # avoid overwrite
+            marker.id = i  # avoid overwrite
             marker.type = marker.SPHERE
             marker.scale.x = 0.5
             marker.scale.y = 0.5
@@ -658,6 +635,30 @@ class FrontierExploreAgent:
             marker.pose.orientation.w = 1.0
             marker.pose.position.x = g[0]
             marker.pose.position.y = g[1]
+            marker.pose.position.z = 0.5
+
+            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
+            marker_arr.markers.append(marker)
+
+        # publish frontiers
+        num_goals = goals.shape[0]
+        for i, f in enumerate(frontiers):
+
+            marker = Marker()
+            marker.header = Header()
+            marker.header.frame_id = "map"
+            marker.id = i + num_goals
+            marker.type = marker.SPHERE
+            marker.scale.x = f[2] / 1000.0
+            marker.scale.y = f[2] / 1000.0
+            marker.scale.z = f[2] / 1000.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+            marker.color.a = 0.5
+            marker.pose.orientation.w = 1.0
+            marker.pose.position.x = f[0]
+            marker.pose.position.y = f[1]
             marker.pose.position.z = 0.5
 
             # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
