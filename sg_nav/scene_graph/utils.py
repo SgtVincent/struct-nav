@@ -236,6 +236,13 @@ def visualize_scene_graph(scene_graph,
     # if save_file:
     #     o3d.io.write_point_cloud(save_file, scene_o3d, write_ascii=True)
 
+def visualize_point_clouds(points):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points[:, :3])
+    if points.shape[1] == 6:
+        pcd.colors = o3d.utility.Vector3dVector(points[:, 3:6])
+    o3d.visualization.draw_geometries([pcd])
+
 def display_image_arr(sizes, img_arr, block=True):
     row, col = sizes
     f, axarr = plt.subplots(row, col)
