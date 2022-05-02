@@ -13,6 +13,7 @@ from tqdm import tqdm, trange
 from torch_geometric.utils.loop import add_self_loops, remove_self_loops
 from torch_geometric.loader import DataLoader
 import logging
+import wandb
 
 # local import
 from scene_graph.scene_graph_cls import SceneGraphHabitat 
@@ -22,13 +23,13 @@ from scene_graph.scene_graph_pred import SceneGraphPredictor
 from scene_graph.data_sampler import DataSampler, PyGDatasetWrapper
 from dataset.habitat.utils import mp3d_obj_nav_class_list as obj_nav_class_list
 from models.deepset import Deepset
-from models.deepgnn import DeeperGCN
+from models.deepgnn import DeeperGCN, DeeperMLP
 from utils import cal_model_parms, set_seed, save_checkpoint, load_checkpoint
 from utils.logger import setup_logger, generate_exp_directory, resume_exp_directory
 from utils.training import build_optimizer, build_scheduler
 from utils.wandb import Wandb
 from utils.config import config
-import wandb 
+from vis_ros.vis_obj_segmentation import SCANNET20_Label_Names
 
 
 def parse_option():
@@ -42,27 +43,52 @@ def parse_option():
     return args, config
 
 def cfg_paths(config):
-    config.data.train_scene_ply_path = os.path.join(
-        config.data.data_root, config.data.train_scene_name, f'{config.data.train_scene_name}_semantic.ply')
-    config.data.train_scene_glb_path = os.path.join(
-        config.data.data_root, config.data.train_scene_name, f'{config.data.train_scene_name}.glb')
-    config.data.train_pclseg_path = os.path.join(
-        config.data.data_root, config.data.train_scene_name, f'{config.data.train_scene_name}_pclseg.txt')
-    config.data.train_pcl_normals_path = os.path.join(
-        config.data.data_root, config.data.train_scene_name, f'{config.data.train_scene_name}_normals.npy')
-    config.data.train_shortest_path_dir = os.path.join(
-        config.data.data_root, config.data.train_scene_name, f'shortest_paths')
+    config.data.train_scene_ply_paths = []
+    config.data.train_scene_glb_paths = []
+    config.data.train_pclseg_paths = []
+    config.data.train_pcl_normals_paths = []
+    config.data.train_shortest_path_dirs = []
+    config.data.val_scene_ply_paths = []
+    config.data.val_scene_glb_paths = []
+    config.data.val_pclseg_paths = []
+    config.data.val_pcl_normals_paths = []
+    config.data.val_shortest_path_dirs = []
 
-    config.data.val_scene_ply_path = os.path.join(
-        config.data.data_root, config.data.val_scene_name, f'{config.data.val_scene_name}_semantic.ply')
-    config.data.val_scene_glb_path = os.path.join(
-        config.data.data_root, config.data.val_scene_name, f'{config.data.val_scene_name}.glb')
-    config.data.val_pclseg_path = os.path.join(
-        config.data.data_root, config.data.val_scene_name, f'{config.data.val_scene_name}_pclseg.txt')
-    config.data.val_pcl_normals_path = os.path.join(
-        config.data.data_root, config.data.val_scene_name, f'{config.data.val_scene_name}_normals.npy')
-    config.data.val_shortest_path_dir = os.path.join(
-        config.data.data_root, config.data.val_scene_name, f'shortest_paths')
+    for train_scene_name in config.data.train_scene_names:
+        train_scene_ply_path = os.path.join(
+            config.data.data_root, train_scene_name, f'{train_scene_name}_semantic.ply')
+        train_scene_glb_path = os.path.join(
+            config.data.data_root, train_scene_name, f'{train_scene_name}.glb')
+        train_pclseg_path = os.path.join(
+            config.data.data_root, train_scene_name, f'{train_scene_name}_pclseg.txt')
+        train_pcl_normals_path = os.path.join(
+            config.data.data_root, train_scene_name, f'{train_scene_name}_normals.npy')
+        train_shortest_path_dir = os.path.join(
+            config.data.data_root, train_scene_name, f'shortest_paths')
+
+        config.data.train_scene_ply_paths.append(train_scene_ply_path)
+        config.data.train_scene_glb_paths.append(train_scene_glb_path)
+        config.data.train_pclseg_paths.append(train_pclseg_path)
+        config.data.train_pcl_normals_paths.append(train_pcl_normals_path)
+        config.data.train_shortest_path_dirs.append(train_shortest_path_dir)
+
+    for val_scene_name in config.data.val_scene_names:
+        val_scene_ply_path = os.path.join(
+            config.data.data_root, val_scene_name, f'{val_scene_name}_semantic.ply')
+        val_scene_glb_path = os.path.join(
+            config.data.data_root, val_scene_name, f'{val_scene_name}.glb')
+        val_pclseg_path = os.path.join(
+            config.data.data_root, val_scene_name, f'{val_scene_name}_pclseg.txt')
+        val_pcl_normals_path = os.path.join(
+            config.data.data_root, val_scene_name, f'{val_scene_name}_normals.npy')
+        val_shortest_path_dir = os.path.join(
+            config.data.data_root, val_scene_name, f'shortest_paths')
+        
+        config.data.val_scene_ply_paths.append(val_scene_ply_path)
+        config.data.val_scene_glb_paths.append(val_scene_glb_path)
+        config.data.val_pclseg_paths.append(val_pclseg_path)
+        config.data.val_pcl_normals_paths.append(val_pcl_normals_path)
+        config.data.val_shortest_path_dirs.append(val_shortest_path_dir)
 
     return config
 
@@ -111,8 +137,29 @@ def extract_scene_graph_feature(config, sg_config, scene_settings):
         results = feature_extractor.predict(object_nodes)
         pred_obj_prob = results['pred_obj_prob']
         edges = results['edges']
+
+        ###############################
+        pred_labels = results['pred_obj_label']
+        pred_names = [SCANNET20_Label_Names[i] for i in pred_labels]
+        gt_names = scene_graph.object_layer.get_class_names(scene_graph.object_layer.obj_ids)
+        print("pred_names", pred_names)
+        print("gt_names", gt_names)
         
     return scene_graph, pred_obj_prob, edges.t(), map_ids2idx
+
+def get_dataloader(config, sg_config, scene_settings, shortest_path_dir, obj_nav_class_list, batch_size=16, shuffle=True):
+    scene_graph, graph_feat, edges, map_ids2idx = extract_scene_graph_feature(
+        config,
+        sg_config,
+        scene_settings)
+
+    # Scene graph sampler
+    sampler = DataSampler(
+        sg_config, scene_graph, shortest_path_dir, obj_nav_class_list)
+
+    dataset = PyGDatasetWrapper(sampler, graph_feat.cpu(), edges.cpu(), map_ids2idx)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    return loader
 
 
 class SceneGraphTrainer(object):
@@ -157,7 +204,7 @@ class SceneGraphTrainer(object):
                                             y.float().to(device=g_pred.device).view(g_pred.size(0), -1))
                     n_pred = F.log_softmax(n_logits, dim=1)
                     n_loss = self.n_loss_fn(n_pred, n_y.to(device=n_pred.device))
-                    loss = g_loss + n_loss * self.loss_w
+                    loss = 0* g_loss + n_loss * self.loss_w ########
                     loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
@@ -194,7 +241,8 @@ class SceneGraphTrainer(object):
                             'val_iou': val_iou,
                             'learning_rate': optimizer.param_groups[0]['lr']}
                 self.summary_writer.add_scalars('training', log_dict, i+1)
-                wandb.log(log_dict)
+                if self.config.wandb.use_wandb:
+                    wandb.log(log_dict)
         load_checkpoint(self.config, self.model,
                         load_path=os.path.join(self.config.ckpt_dir,
                         f'{self.config.logname}_ckpt_best.pth'),
@@ -223,7 +271,7 @@ class SceneGraphTrainer(object):
                                         y.float().to(device=g_pred.device).view(g_pred.size(0), -1))
                 n_pred = F.log_softmax(n_logits, dim=1)
                 n_loss = self.n_loss_fn(n_pred, n_y.to(device=n_pred.device))
-                loss = g_loss + n_loss * self.loss_w
+                loss = 0* g_loss + n_loss * self.loss_w #########
 
                 g_loss = g_loss.data.cpu().numpy()
                 n_loss = n_loss.data.cpu().numpy()
@@ -306,43 +354,28 @@ if __name__ == "__main__":
         ############ load ground truth pointclouds ####################
         sg_config = SceneGraphHabitatConfig()
 
-        ############ Training Scene ###########
-        train_scene_settings = {"scene_glb_path": config.data.train_scene_glb_path,
-                                "scene_name": config.data.train_scene_name,
-                                "scene_ply_path": config.data.train_scene_ply_path,
-                                "pclseg_path": config.data.train_pclseg_path,
-                                "pcl_normals_path": config.data.train_pcl_normals_path}
+        ############ Training Scenes ###########
+        train_loaders = []
+        for i in range(len(config.data.train_scene_names)):
+            train_scene_settings = {"scene_glb_path": config.data.train_scene_glb_paths[i],
+                                    "scene_name": config.data.train_scene_names[i],
+                                    "scene_ply_path": config.data.train_scene_ply_paths[i],
+                                    "pclseg_path": config.data.train_pclseg_paths[i],
+                                    "pcl_normals_path": config.data.train_pcl_normals_paths[i]}
+            train_loader = get_dataloader(config, sg_config, train_scene_settings, config.data.train_shortest_path_dirs[i],
+                                    obj_nav_class_list, batch_size=16, shuffle=True)
+            train_loaders.append(train_loader)
 
-        train_scene_graph, train_graph_feat, train_edges, train_map_ids2idx = extract_scene_graph_feature(
-            config,
-            sg_config,
-            train_scene_settings)
-
-        # Scene graph sampler
-        train_sampler = DataSampler(
-            sg_config, train_scene_graph, config.data.train_shortest_path_dir, obj_nav_class_list)
-
-        train_dataset = PyGDatasetWrapper(train_sampler, train_graph_feat.cpu(), train_edges.cpu(), train_map_ids2idx)
-        train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-
-        ############ Val Scene ###########
-        val_scene_settings = {"scene_glb_path": config.data.val_scene_glb_path,
-                                "scene_name": config.data.val_scene_name,
-                                "scene_ply_path": config.data.val_scene_ply_path,
-                                "pclseg_path": config.data.val_pclseg_path,
-                                "pcl_normals_path": config.data.val_pcl_normals_path}
-
-        val_scene_graph, val_graph_feat, val_edges, val_map_ids2idx = extract_scene_graph_feature(
-            config,
-            sg_config,
-            val_scene_settings)
-
-        # Scene graph sampler
-        val_sampler = DataSampler(
-            sg_config, val_scene_graph, config.data.val_shortest_path_dir, obj_nav_class_list)
-
-        val_dataset = PyGDatasetWrapper(val_sampler, val_graph_feat.cpu(), val_edges.cpu(), val_map_ids2idx)
-        val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+        val_loaders = []
+        for i in range(len(config.data.val_scene_names)):
+            val_scene_settings = {"scene_glb_path": config.data.val_scene_glb_paths[i],
+                                    "scene_name": config.data.val_scene_names[i],
+                                    "scene_ply_path": config.data.val_scene_ply_paths[i],
+                                    "pclseg_path": config.data.val_pclseg_paths[i],
+                                    "pcl_normals_path": config.data.val_pcl_normals_paths[i]}
+            val_loader = get_dataloader(config, sg_config, val_scene_settings, config.data.val_shortest_path_dirs[i],
+                                    obj_nav_class_list, batch_size=16, shuffle=False)
+            val_loaders.append(val_loader)
 
         # Scene graph executor
         print(config)
@@ -350,12 +383,12 @@ if __name__ == "__main__":
         if config.model.name == "deepset":
             model = Deepset(config.model.hidden_dim, config.data.out_dim,
                             x_dim=config.data.in_dim, pool=config.model.aggr).to(device)
-            train_args = (train_loader, train_graph_feat, train_map_ids2idx,
-                          val_loader, val_graph_feat, val_map_ids2idx)
         elif config.model.name == 'deepgnn':
-            model = DeeperGCN(config.data.in_dim, config.model.hidden_dim, config.data.out_dim,
+            # model = DeeperGCN(config.data.in_dim, config.model.hidden_dim, config.data.out_dim,
+            #                  num_layers=config.model.num_layers, aggr=config.model.aggr).to(device)
+            model = DeeperMLP(config.data.in_dim, config.model.hidden_dim, config.data.out_dim,
                               num_layers=config.model.num_layers, aggr=config.model.aggr).to(device)
-            train_args = (train_loader, val_loader)
+        
         
         print(model)
         total_params, train_params = cal_model_parms(model)
@@ -382,7 +415,13 @@ if __name__ == "__main__":
                 _, _, val_miou = trainer.val(val_loader, epoch=-1)
                 logging.info(f'\nval mIoU is {val_miou}\n ')
                 exit()
-        trainer.train(*train_args)
+
+        num_loops = 100
+        for _ in range(num_loops): 
+            for i in range(len(config.data.train_scene_names)):
+                # train_args = (train_loaders[i], val_loaders[0])
+                train_args = (train_loaders[i], train_loaders[i])
+                trainer.train(*train_args)
 
     elif config.mode == "offline":
         with open(config.data.scene_graph_dump_path, "rb") as f:
