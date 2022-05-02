@@ -4,8 +4,10 @@
 data:
   dataset: 'matterport'
   data_root: '/home/lig/dataset/scene_datasets/mp3d/'
-  train_scene_name: 'e9zR4mvMWw7' # '17DRP5sb8fy'
-  val_scene_name: '17DRP5sb8fy' # 'e9zR4mvMWw7'
+  train_scene_names: ['17DRP5sb8fy'] #, '2azQ1b91cZZ', 'ARNzJeq3xxb'] # '17DRP5sb8fy'
+  val_scene_names: ['17DRP5sb8fy'] #  '17DRP5sb8fy', 'e9zR4mvMWw7'
+  # train_scene_name: 'e9zR4mvMWw7' # '17DRP5sb8fy'
+  # val_scene_name: '17DRP5sb8fy' # 'e9zR4mvMWw7'
   in_dim: 20
   out_dim: 21
   scene_graph_dump_path: '/home/junting/project_cvl/SceneGraphNav/data/model_dump/mp3d_model_dump.pkl'
@@ -15,7 +17,7 @@ data:
 # ---------------------------------------------------------------------------- #
 training:
   batch_size: 16
-  num_epochs: 1000
+  num_epochs: 10
   warmup_epoch:  -1
   val_freq: 2
   save_freq: 100
