@@ -9,5 +9,5 @@ expname: null
 expid: null
 
 wandb:
-  use_wandb: True
+  use_wandb: False
   entity: null
