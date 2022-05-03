@@ -1,0 +1,21 @@
+<launch>
+
+<!-- this script is the archived version for version rollback-->
+
+
+<include file="$(find habitat_ros)/launch/habitat_agent.launch"/>
+
+<node pkg="tf" type="static_transform_publisher" name="blink2cam" args="0 0 0 -0.70710678 0 0 0.70710678 base_link camera_link 100" />
+<!-- <node pkg="tf" type="static_transform_publisher" name="world2odom" args="0 0 0 -0.70710678 0 0 0.70710678 world odom 100" /> -->
+<include file="$(find rtabmap_ros)/launch/rtabmap.launch">
+    <arg name="rtabmap_args" value="--delete_db_on_start --Grid/CellSize 0.015 --Crid/DepthDecimation 1"/>
+    <!-- <arg name="ground_truth_frame_id" value="world"/> -->
+    <arg name="frame_id" value="base_link"/>
+    <arg name="rviz" value="true"/>
+    <arg name="rtabmapviz" value="false"/>
+    <arg name="depth_topic" value="/camera/depth/image"/>
+    <arg name="rgb_topic" value="/camera/rgb/image"/>
+    <arg name="camera_info_topic" value="/camera/rgb/camera_info"/>
+    <arg name="approx_sync" value="false"/>
+</include>
+</launch>

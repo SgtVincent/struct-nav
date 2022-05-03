@@ -1,0 +1,11 @@
+{
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "[python]": {
+    
+        "gitlens.codeLens.symbolScopes": [
+            "!Module"
+        ],
+        "editor.wordBasedSuggestions": false
+    }
+}
