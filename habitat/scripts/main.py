@@ -43,14 +43,18 @@ def main():
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
     rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
     depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image")
-    camera_info_topic = rospy.get_param("~camera_info_topic", "/camera/rgb/camera_info")
+    camera_info_topic = rospy.get_param(
+        "~camera_info_topic", "/camera/rgb/camera_info"
+    )
     true_pose_topic = rospy.get_param("~true_pose_topic", "")
     cloud_topic = rospy.get_param("~cloud_topic", "/rtabmap/cloud_map")
 
     # topics for planning
     if agent_type in ["frontier_explore"]:
         odom_topic = rospy.get_param("~odom_topic", "/odom")
-        grid_map_topic = rospy.get_param("~grid_map_topic", "/rtabmap/grid_map")
+        grid_map_topic = rospy.get_param(
+            "~grid_map_topic", "/rtabmap/grid_map"
+        )
         frontiers_topic = rospy.get_param("~frontiers_topic", "/frontiers")
         # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
 

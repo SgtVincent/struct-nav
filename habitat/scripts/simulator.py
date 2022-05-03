@@ -49,7 +49,8 @@ def make_cfg(settings):
             "turn_left", habitat_sim.agent.ActuationSpec(amount=0.0)  # 30.0
         ),
         "move_forward": habitat_sim.agent.ActionSpec(
-            "move_forward", habitat_sim.agent.ActuationSpec(amount=0.25),  # 0.25
+            "move_forward",
+            habitat_sim.agent.ActuationSpec(amount=0.25),  # 0.25
         ),
         "turn_left": habitat_sim.agent.ActionSpec(
             "turn_left", habitat_sim.agent.ActuationSpec(amount=10.0)  # 30.0
@@ -115,10 +116,15 @@ def init_sim(test_scene):
     # Get agent state
     agent_state = agent.get_state()
     print(
-        "agent_state: position", agent_state.position, "rotation", agent_state.rotation,
+        "agent_state: position",
+        agent_state.position,
+        "rotation",
+        agent_state.rotation,
     )
     print("sensor_states:", agent_state.sensor_states)
 
-    action_names = list(cfg.agents[sim_settings["default_agent"]].action_space.keys())
+    action_names = list(
+        cfg.agents[sim_settings["default_agent"]].action_space.keys()
+    )
 
     return sim, action_names

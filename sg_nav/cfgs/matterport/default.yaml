@@ -1,35 +1,37 @@
 # ---------------------------------------------------------------------------- #
-# data 
+# data
 # ---------------------------------------------------------------------------- #
 data:
-  dataset: 'matterport'
-  data_root: '/home/lig/dataset/scene_datasets/mp3d/'
-  train_scene_name: 'e9zR4mvMWw7' # '17DRP5sb8fy'
-  val_scene_name: '17DRP5sb8fy' # 'e9zR4mvMWw7'
+  dataset: "matterport"
+  data_root: "/home/lig/dataset/scene_datasets/mp3d/"
+  train_scene_names: ["17DRP5sb8fy"] #, '2azQ1b91cZZ', 'ARNzJeq3xxb'] # '17DRP5sb8fy'
+  val_scene_names: ["17DRP5sb8fy"] #  '17DRP5sb8fy', 'e9zR4mvMWw7'
+  # train_scene_name: 'e9zR4mvMWw7' # '17DRP5sb8fy'
+  # val_scene_name: '17DRP5sb8fy' # 'e9zR4mvMWw7'
   in_dim: 20
   out_dim: 21
-  scene_graph_dump_path: '/home/junting/project_cvl/SceneGraphNav/data/model_dump/mp3d_model_dump.pkl'
+  scene_graph_dump_path: "/home/junting/project_cvl/SceneGraphNav/data/model_dump/mp3d_model_dump.pkl"
 
 # ---------------------------------------------------------------------------- #
 # Training options
 # ---------------------------------------------------------------------------- #
 training:
   batch_size: 16
-  num_epochs: 1000
-  warmup_epoch:  -1
+  num_epochs: 10
+  warmup_epoch: -1
   val_freq: 2
   save_freq: 100
   # print_freq: 10
 
 lr_scheduler:
-  name: 'multistep'  # step,cosine
-  decay_steps: '100,300,600,1000'
+  name: "multistep" # step,cosine
+  decay_steps: "100,300,600,1000"
   decay_rate: 0.5
   on_epoch: True
 
 optimizer:
-  name: 'adam'
-  lr: 0.001 
+  name: "adam"
+  lr: 0.001
   weight_decay: 0.0000001
   eps: 0.001
 
@@ -42,9 +44,9 @@ rel_dist_thresh: 2.0
 # ---------------------------------------------------------------------------- #
 # logging
 # ---------------------------------------------------------------------------- #
-log_dir: './log/habitat'
+log_dir: "./log/habitat"
 visualize: False
 
 wandb:
-  project: StructNav  # name of the wandb project
+  project: StructNav # name of the wandb project
   entity: lightaime # *will automatically merge with the parent yaml*

@@ -91,7 +91,9 @@ class HabitatObservationPublisher:
 
         # Publish depth image.
         if self.publish_depth:
-            depth = self.cvbridge.cv2_to_imgmsg(observations["depth"] * DEPTH_SCALE)
+            depth = self.cvbridge.cv2_to_imgmsg(
+                observations["depth"] * DEPTH_SCALE
+            )
             depth.header.stamp = cur_time
             depth.header.frame_id = "base_scan"
             self.depth_publisher.publish(depth)

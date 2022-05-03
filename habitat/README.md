@@ -29,7 +29,11 @@ Integrate Habitat simulator with ROS
 
 8. Install [Rtabmap-ros](https://github.com/introlab/rtabmap_ros)
 
-9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite`
+<<<<<<< HEAD 9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite`
+
+=======
+
+> > > > > > > 70b01e994fc7e3318b56468537da0b5872b8076b
 
 ## Launch habitat node
 

@@ -91,7 +91,7 @@ def gen_shortest_path_for_scene(scene_graph, save_dir):
                 snap_info = "" if start_exact else f", not navigable, snapped to {start}"
                 print(f"start point {free_space_points[i,:]}", snap_info)
             shortest_path_dict = {
-                "start": start,
+                "start": np.copy(start),
                 "start_exact": start_exact,
             }
 
@@ -116,7 +116,11 @@ def gen_shortest_path_for_scene(scene_graph, save_dir):
             shortest_path_dict.update({
                 "found_path": found_path,
                 "geodesic_distance": geodesic_distance,
+<<<<<<< HEAD
                 "path_points": path_points
+=======
+                "path_points": np.copy(path_points)
+>>>>>>> 70b01e994fc7e3318b56468537da0b5872b8076b
             })
             map_idx = idx_arr[i]
             obj_geomap_and_shpath_dict["geodesic_dist_map"][map_idx[0],
