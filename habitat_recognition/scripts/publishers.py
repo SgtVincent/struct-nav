@@ -1,15 +1,16 @@
 """Publisher helpers."""
 
+import struct
+
 import numpy as np
-import rospy
-import yaml
-import ros_numpy
 import open3d as o3d
-from std_msgs.msg import Header
+import ros_numpy
+import rospy
+import sensor_msgs.point_cloud2 as pc2
+import yaml
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2, PointField
-import sensor_msgs.point_cloud2 as pc2
-import struct
+from std_msgs.msg import Header
 
 DEPTH_SCALE = 1
 

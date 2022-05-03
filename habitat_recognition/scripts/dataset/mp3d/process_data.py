@@ -1,13 +1,15 @@
 # xyz_origin, rgb, label, instance_label
 
-import os
-import numpy as np
 import argparse
+import os
+import time
 from multiprocessing import Pool
+
+import numpy as np
 import open3d as o3d
 from parso import parse
 from plyfile import PlyData, PlyElement
-import time
+
 
 # generate vertex instance segmentation label by voting of triangle faces containing this vertex
 def generate_vertex_inst_label(scans_dir, scene_name):
@@ -90,4 +92,3 @@ if __name__ == "__main__":
         zip_args = [(args.scan_dir, scene) for scene in scene_names]
         with Pool(processes=8) as p:
             p.starmap(wrap_save_vertex_inst_label, zip_args)
-

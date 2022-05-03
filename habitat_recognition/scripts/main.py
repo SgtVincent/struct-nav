@@ -1,22 +1,23 @@
 #! /usr/bin/env python
 import os
 import sys
-import rospy
+
 import numpy as np
 import open3d as o3d
-
-# from std_msgs.msg import Int32, Header, ColorRGBA
-from visualization_msgs.msg import MarkerArray, Marker
-from geometry_msgs.msg import Quaternion, Pose, Point, Vector3
+import rospy
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from publishers import PointCloudPublisher
 
 # local import
 from simulator import init_sim
 from subscribers import PointCloudSubscriber
-from publishers import PointCloudPublisher
 from utils.transformation import coo_rtab2mp3d
 
 # from models.detector_votenet import DetectorVoteNet
-from utils.vis_utils import semantic_scene_to_markerarray, create_inst_pcl
+from utils.vis_utils import create_inst_pcl, semantic_scene_to_markerarray
+
+# from std_msgs.msg import Int32, Header, ColorRGBA
+from visualization_msgs.msg import Marker, MarkerArray
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 # MODEL_DIR = os.path.join(ROOT_DIR, "models")

@@ -144,6 +144,7 @@ build/
 dist/
 ############ habitat-ros ignore #######################
 habitat/scripts/tmp
+habitat_ros
 
 ############ habitat-recognition ignore ##################
 habitat_recognition/tb_logs/
@@ -156,3 +157,8 @@ habitat_recognition/scripts/exp
 .vscode/browse.*
 # output data
 output/
+
+
+############ sg_nav ignore ##################
+sg_nav/log/
+sg_nav/wandb/

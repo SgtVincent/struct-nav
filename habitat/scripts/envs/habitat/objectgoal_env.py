@@ -1,16 +1,17 @@
-import json
 import bz2
 import gzip
+import json
+
 import _pickle as cPickle
+import envs.utils.pose as pu
 import gym
 import numpy as np
 import quaternion
 import skimage.morphology
-import habitat
-
-from envs.utils.fmm_planner import FMMPlanner
 from envs.constants import coco_categories
-import envs.utils.pose as pu
+from envs.utils.fmm_planner import FMMPlanner
+
+import habitat
 
 
 class ObjectGoalEnv(habitat.RLEnv):
@@ -27,7 +28,9 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         # Loading dataset info file
         self.split = config_env.DATASET.SPLIT
-        self.episodes_dir = config_env.DATASET.EPISODES_DIR.format(split=self.split)
+        self.episodes_dir = config_env.DATASET.EPISODES_DIR.format(
+            split=self.split
+        )
 
         dataset_info_file = self.episodes_dir + "{split}_info.pbz2".format(
             split=self.split
@@ -84,13 +87,16 @@ class ObjectGoalEnv(habitat.RLEnv):
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
 
         if self.scene_path != self.last_scene_path:
-            episodes_file = self.episodes_dir + "content/{}_episodes.json.gz".format(
-                scene_name
+            episodes_file = (
+                self.episodes_dir
+                + "content/{}_episodes.json.gz".format(scene_name)
             )
 
             print("Loading episodes from: {}".format(episodes_file))
             with gzip.open(episodes_file, "r") as f:
-                self.eps_data = json.loads(f.read().decode("utf-8"))["episodes"]
+                self.eps_data = json.loads(f.read().decode("utf-8"))[
+                    "episodes"
+                ]
 
             self.eps_data_idx = 0
             self.last_scene_path = self.scene_path
@@ -115,12 +121,17 @@ class ObjectGoalEnv(habitat.RLEnv):
         object_boundary = args.success_dist
         map_resolution = args.map_resolution
         selem = skimage.morphology.disk(2)
-        traversible = skimage.morphology.binary_dilation(sem_map[0], selem) != True
+        traversible = (
+            skimage.morphology.binary_dilation(sem_map[0], selem) != True
+        )
         traversible = 1 - traversible
         planner = FMMPlanner(traversible)
-        selem = skimage.morphology.disk(int(object_boundary * 100.0 / map_resolution))
+        selem = skimage.morphology.disk(
+            int(object_boundary * 100.0 / map_resolution)
+        )
         goal_map = (
-            skimage.morphology.binary_dilation(sem_map[goal_idx + 1], selem) != True
+            skimage.morphology.binary_dilation(sem_map[goal_idx + 1], selem)
+            != True
         )
         goal_map = 1 - goal_map
         planner.set_multi_goal(goal_map)
@@ -139,7 +150,8 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.map_obj_origin = map_obj_origin
 
         self.starting_distance = (
-            self.gt_planner.fmm_dist[self.starting_loc] / 20.0 + self.object_boundary
+            self.gt_planner.fmm_dist[self.starting_loc] / 20.0
+            + self.object_boundary
         )
         self.prev_distance = self.starting_distance
         self._env.sim.set_agent_state(pos, rot)
@@ -193,7 +205,9 @@ class ObjectGoalEnv(habitat.RLEnv):
                     goal_name = key
 
             selem = skimage.morphology.disk(2)
-            traversible = skimage.morphology.binary_dilation(sem_map[0], selem) != True
+            traversible = (
+                skimage.morphology.binary_dilation(sem_map[0], selem) != True
+            )
             traversible = 1 - traversible
 
             planner = FMMPlanner(traversible)
@@ -202,7 +216,10 @@ class ObjectGoalEnv(habitat.RLEnv):
                 int(object_boundary * 100.0 / map_resolution)
             )
             goal_map = (
-                skimage.morphology.binary_dilation(sem_map[goal_idx + 1], selem) != True
+                skimage.morphology.binary_dilation(
+                    sem_map[goal_idx + 1], selem
+                )
+                != True
             )
             goal_map = 1 - goal_map
 
@@ -213,7 +230,9 @@ class ObjectGoalEnv(habitat.RLEnv):
             m3 = planner.fmm_dist < (args.max_d - object_boundary) * 20.0
 
             possible_starting_locs = np.logical_and(m1, m2)
-            possible_starting_locs = np.logical_and(possible_starting_locs, m3) * 1.0
+            possible_starting_locs = (
+                np.logical_and(possible_starting_locs, m3) * 1.0
+            )
             if possible_starting_locs.sum() != 0:
                 loc_found = True
             else:
@@ -255,7 +274,8 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.map_obj_origin = map_obj_origin
 
         self.starting_distance = (
-            self.gt_planner.fmm_dist[self.starting_loc] / 20.0 + self.object_boundary
+            self.gt_planner.fmm_dist[self.starting_loc] / 20.0
+            + self.object_boundary
         )
         self.prev_distance = self.starting_distance
 
@@ -398,9 +418,13 @@ class ObjectGoalEnv(habitat.RLEnv):
 
     def get_reward(self, observations):
         curr_loc = self.sim_continuous_to_sim_map(self.get_sim_location())
-        self.curr_distance = self.gt_planner.fmm_dist[curr_loc[0], curr_loc[1]] / 20.0
+        self.curr_distance = (
+            self.gt_planner.fmm_dist[curr_loc[0], curr_loc[1]] / 20.0
+        )
 
-        reward = (self.prev_distance - self.curr_distance) * self.args.reward_coeff
+        reward = (
+            self.prev_distance - self.curr_distance
+        ) * self.args.reward_coeff
 
         self.prev_distance = self.curr_distance
         return reward
@@ -450,7 +474,9 @@ class ObjectGoalEnv(habitat.RLEnv):
         x = -agent_state.position[2]
         y = -agent_state.position[0]
         axis = quaternion.as_euler_angles(agent_state.rotation)[0]
-        if (axis % (2 * np.pi)) < 0.1 or (axis % (2 * np.pi)) > 2 * np.pi - 0.1:
+        if (axis % (2 * np.pi)) < 0.1 or (
+            axis % (2 * np.pi)
+        ) > 2 * np.pi - 0.1:
             o = quaternion.as_euler_angles(agent_state.rotation)[1]
         else:
             o = 2 * np.pi - quaternion.as_euler_angles(agent_state.rotation)[1]
@@ -462,6 +488,8 @@ class ObjectGoalEnv(habitat.RLEnv):
         """Returns dx, dy, do pose change of the agent relative to the last
         timestep."""
         curr_sim_pose = self.get_sim_location()
-        dx, dy, do = pu.get_rel_pose_change(curr_sim_pose, self.last_sim_location)
+        dx, dy, do = pu.get_rel_pose_change(
+            curr_sim_pose, self.last_sim_location
+        )
         self.last_sim_location = curr_sim_pose
         return dx, dy, do

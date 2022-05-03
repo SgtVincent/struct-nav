@@ -11,6 +11,7 @@ Author: Or Litany and Charles R. Qi
 
 import os
 import sys
+
 import torch
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +21,6 @@ import numpy as np
 
 # Mesh IO
 import trimesh
-
 
 # ----------------------------------------
 # Precision and Recall
@@ -67,7 +67,7 @@ def multi_scene_precision_recall(
 def single_scene_precision_recall(labels, pred, iou_thresh, conf_thresh):
     """Compute P and R for predicted bounding boxes. Ignores classes!
     Args:
-        labels: (N x bbox) ground-truth bounding boxes (6 dims) 
+        labels: (N x bbox) ground-truth bounding boxes (6 dims)
         pred: (M x (bbox + conf)) predicted bboxes with confidence and maybe classification
     Returns:
         TP, FP, FN
@@ -111,7 +111,7 @@ def precision_recall(TP, FP, FN):
 def calc_iou(box_a, box_b):
     """Computes IoU of two axis aligned bboxes.
     Args:
-        box_a, box_b: 6D of center and lengths        
+        box_a, box_b: 6D of center and lengths
     Returns:
         iou
     """
@@ -192,4 +192,3 @@ if __name__ == "__main__":
     assert TP == 1 and FP == 0 and FN == 1
     assert precision_recall(TP, FP, FN) == (1, 0.5)
     print("Precition Recall test -- PASSED")
-

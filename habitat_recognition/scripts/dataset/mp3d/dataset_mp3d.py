@@ -1,12 +1,12 @@
+import math
 import os
 import sys
 
 import numpy as np
-import scipy
 import open3d as o3d
+import scipy
 import torch
 import yaml
-import math
 
 # TODO: separate data configuration from HAIS configuration
 from dataset.mp3d.config_mp3d import ConfigMP3D
@@ -167,4 +167,3 @@ class DatasetMP3D:
                 instance_label[instance_label == instance_label.max()] = j
             j += 1
         return instance_label
-

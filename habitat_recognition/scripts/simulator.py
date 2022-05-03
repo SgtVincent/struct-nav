@@ -1,6 +1,7 @@
 import random
-import numpy as np
+
 import habitat_sim
+import numpy as np
 
 
 def make_cfg(settings):

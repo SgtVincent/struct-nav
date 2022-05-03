@@ -9,7 +9,10 @@ def get_contour_points(pos, origin, size=20):
         int(x + size / 1.5 * np.cos(o + np.pi * 4 / 3)) + origin[0],
         int(y + size / 1.5 * np.sin(o + np.pi * 4 / 3)) + origin[1],
     )
-    pt3 = (int(x + size * np.cos(o)) + origin[0], int(y + size * np.sin(o)) + origin[1])
+    pt3 = (
+        int(x + size * np.cos(o)) + origin[0],
+        int(y + size * np.sin(o)) + origin[1],
+    )
     pt4 = (
         int(x + size / 1.5 * np.cos(o - np.pi * 4 / 3)) + origin[0],
         int(y + size / 1.5 * np.sin(o - np.pi * 4 / 3)) + origin[1],
@@ -38,7 +41,14 @@ def init_sem_image(goal_name, legend):
     textX = (640 - textsize[0]) // 2 + 15
     textY = (50 + textsize[1]) // 2
     vis_image = cv2.putText(
-        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+        vis_image,
+        text,
+        (textX, textY),
+        font,
+        fontScale,
+        color,
+        thickness,
+        cv2.LINE_AA,
     )
 
     text = "Predicted Semantic Map"
@@ -46,7 +56,14 @@ def init_sem_image(goal_name, legend):
     textX = 640 + (480 - textsize[0]) // 2 + 30
     textY = (50 + textsize[1]) // 2
     vis_image = cv2.putText(
-        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+        vis_image,
+        text,
+        (textX, textY),
+        font,
+        fontScale,
+        color,
+        thickness,
+        cv2.LINE_AA,
     )
 
     # draw outlines
@@ -79,7 +96,14 @@ def init_occ_image(goal_name, legend=None):
     textX = (640 - textsize[0]) // 2 + 15
     textY = (50 + textsize[1]) // 2
     vis_image = cv2.putText(
-        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+        vis_image,
+        text,
+        (textX, textY),
+        font,
+        fontScale,
+        color,
+        thickness,
+        cv2.LINE_AA,
     )
 
     text = "Predicted Occupancy Map"
@@ -87,7 +111,14 @@ def init_occ_image(goal_name, legend=None):
     textX = 640 + (480 - textsize[0]) // 2 + 30
     textY = (50 + textsize[1]) // 2
     vis_image = cv2.putText(
-        vis_image, text, (textX, textY), font, fontScale, color, thickness, cv2.LINE_AA
+        vis_image,
+        text,
+        (textX, textY),
+        font,
+        fontScale,
+        color,
+        thickness,
+        cv2.LINE_AA,
     )
 
     # draw outlines

@@ -21,12 +21,12 @@
     Ref: https://raw.githubusercontent.com/rbgirshick/py-faster-rcnn/master/lib/datasets/voc_eval.py
 """
 import numpy as np
-from utils.metric_util import calc_iou  # axis-aligned 3D box IoU
 from utils.box_util import box3d_iou
+from utils.metric_util import calc_iou  # axis-aligned 3D box IoU
 
 
 def voc_ap(rec, prec, use_07_metric=False):
-    """ ap = voc_ap(rec, prec, [use_07_metric])
+    """ap = voc_ap(rec, prec, [use_07_metric])
     Compute VOC AP given precision and recall.
     If use_07_metric is true, uses the
     VOC 07 11 point method (default:False).
@@ -60,8 +60,8 @@ def voc_ap(rec, prec, use_07_metric=False):
 
 
 def get_iou(bb1, bb2):
-    """ Compute IoU of two bounding boxes.
-        ** Define your bod IoU function HERE **
+    """Compute IoU of two bounding boxes.
+    ** Define your bod IoU function HERE **
     """
     # pass
     iou3d = calc_iou(bb1, bb2)
@@ -80,17 +80,17 @@ def get_iou_main(get_iou_func, args):
 def eval_det_cls(
     pred, gt, ovthresh=0.25, use_07_metric=False, get_iou_func=get_iou
 ):
-    """ Generic functions to compute precision/recall for object detection
-        for a single class.
-        Input:
-            pred: map of {img_id: [(bbox, score)]} where bbox is numpy array
-            gt: map of {img_id: [bbox]}
-            ovthresh: scalar, iou threshold
-            use_07_metric: bool, if True use VOC07 11 point method
-        Output:
-            rec: numpy array of length nd
-            prec: numpy array of length nd
-            ap: scalar, average precision
+    """Generic functions to compute precision/recall for object detection
+    for a single class.
+    Input:
+        pred: map of {img_id: [(bbox, score)]} where bbox is numpy array
+        gt: map of {img_id: [bbox]}
+        ovthresh: scalar, iou threshold
+        use_07_metric: bool, if True use VOC07 11 point method
+    Output:
+        rec: numpy array of length nd
+        prec: numpy array of length nd
+        ap: scalar, average precision
     """
 
     # construct gt objects
@@ -177,17 +177,17 @@ def eval_det_cls_wrapper(arguments):
 def eval_det(
     pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_func=get_iou
 ):
-    """ Generic functions to compute precision/recall for object detection
-        for multiple classes.
-        Input:
-            pred_all: map of {img_id: [(classname, bbox, score)]}
-            gt_all: map of {img_id: [(classname, bbox)]}
-            ovthresh: scalar, iou threshold
-            use_07_metric: bool, if true use VOC07 11 point method
-        Output:
-            rec: {classname: rec}
-            prec: {classname: prec_all}
-            ap: {classname: scalar}
+    """Generic functions to compute precision/recall for object detection
+    for multiple classes.
+    Input:
+        pred_all: map of {img_id: [(classname, bbox, score)]}
+        gt_all: map of {img_id: [(classname, bbox)]}
+        ovthresh: scalar, iou threshold
+        use_07_metric: bool, if true use VOC07 11 point method
+    Output:
+        rec: {classname: rec}
+        prec: {classname: prec_all}
+        ap: {classname: scalar}
     """
     pred = {}  # map {classname: pred}
     gt = {}  # map {classname: gt}
@@ -233,17 +233,17 @@ from multiprocessing import Pool
 def eval_det_multiprocessing(
     pred_all, gt_all, ovthresh=0.25, use_07_metric=False, get_iou_func=get_iou
 ):
-    """ Generic functions to compute precision/recall for object detection
-        for multiple classes.
-        Input:
-            pred_all: map of {img_id: [(classname, bbox, score)]}
-            gt_all: map of {img_id: [(classname, bbox)]}
-            ovthresh: scalar, iou threshold
-            use_07_metric: bool, if true use VOC07 11 point method
-        Output:
-            rec: {classname: rec}
-            prec: {classname: prec_all}
-            ap: {classname: scalar}
+    """Generic functions to compute precision/recall for object detection
+    for multiple classes.
+    Input:
+        pred_all: map of {img_id: [(classname, bbox, score)]}
+        gt_all: map of {img_id: [(classname, bbox)]}
+        ovthresh: scalar, iou threshold
+        use_07_metric: bool, if true use VOC07 11 point method
+    Output:
+        rec: {classname: rec}
+        prec: {classname: prec_all}
+        ap: {classname: scalar}
     """
     pred = {}  # map {classname: pred}
     gt = {}  # map {classname: gt}
@@ -295,4 +295,3 @@ def eval_det_multiprocessing(
         print(classname, ap[classname])
 
     return rec, prec, ap
-

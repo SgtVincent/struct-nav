@@ -1,6 +1,6 @@
-from matplotlib import docstring
 import numpy as np
 import skimage
+from matplotlib import docstring
 from skimage.measure import find_contours
 
 # import matplotlib.pyplot as plt
@@ -9,8 +9,8 @@ from skimage.measure import find_contours
 
 DEBUG_VIS = False
 if DEBUG_VIS:
-    from matplotlib import pyplot as plt
     from matplotlib import cm
+    from matplotlib import pyplot as plt
 
 
 class UnionFind:
@@ -92,8 +92,12 @@ def get_frontiers(
     contours_negative_map = np.zeros_like(saved_map)
     contours_positive_map = np.zeros_like(saved_map)
 
-    contours_negative_map[contours_negative[:, 0], contours_negative[:, 1]] = 1.0
-    contours_positive_map[contours_positive[:, 0], contours_positive[:, 1]] = 1.0
+    contours_negative_map[
+        contours_negative[:, 0], contours_negative[:, 1]
+    ] = 1.0
+    contours_positive_map[
+        contours_positive[:, 0], contours_positive[:, 1]
+    ] = 1.0
 
     # dilate contours_positive_map, which is boundary of obstacles
     selem = skimage.morphology.disk(dilate_size)
@@ -148,7 +152,9 @@ def get_frontiers(
         map_vis = np.copy(saved_map) + 1
         map_vis[saved_map >= 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
-        contours_candidates_vis = (np.array(candidates) - map_origin) / map_resolution
+        contours_candidates_vis = (
+            np.array(candidates) - map_origin
+        ) / map_resolution
         plt.scatter(
             contours_candidates_vis[:, 0],
             contours_candidates_vis[:, 1],
@@ -278,7 +284,9 @@ def frontier_goals(
     # occupancy_dilated = skimage.morphology.binary_dilation(occupancy_map, selem)
     # map_dilated[occupancy_dilated == 1] = 100.0
 
-    frontiers = get_frontiers(map_raw, map_origin, map_resolution, cluster_trashhole)
+    frontiers = get_frontiers(
+        map_raw, map_origin, map_resolution, cluster_trashhole
+    )
     centroids = compute_centroids(frontiers, map_resolution)
     goals = compute_goals(centroids, current_position, num_goals)
 
@@ -294,7 +302,9 @@ def frontier_goals(
         map_vis[map_vis > 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
 
-        frontiers_vis = [(np.array(f) - map_origin) / map_resolution for f in frontiers]
+        frontiers_vis = [
+            (np.array(f) - map_origin) / map_resolution for f in frontiers
+        ]
         colormap = cm.get_cmap("plasma")
         num_f = len(frontiers_vis)
         for i, f in enumerate(frontiers_vis):
@@ -305,7 +315,11 @@ def frontier_goals(
         N = centroids_vis.shape[0]
         colors = colormap(np.arange(0, N) / float(N))
         plt.scatter(
-            x=centroids_vis[:, 0], y=centroids_vis[:, 1], s=sizes, c=colors, alpha=0.6
+            x=centroids_vis[:, 0],
+            y=centroids_vis[:, 1],
+            s=sizes,
+            c=colors,
+            alpha=0.6,
         )
         # visualize goals
         goals_vis = (np.array(goals) - map_origin) / map_resolution
@@ -313,7 +327,12 @@ def frontier_goals(
         alphas = np.linspace(0, 1, num=(n_goals + 2))
         for i, g in enumerate(goals_vis):
             plt.plot(
-                g[0], g[1], color="red", marker="X", markersize=20, alpha=alphas[i + 1]
+                g[0],
+                g[1],
+                color="red",
+                marker="X",
+                markersize=20,
+                alpha=alphas[i + 1],
             )
 
         # Invert y-axis

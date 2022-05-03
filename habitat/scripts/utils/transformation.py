@@ -1,14 +1,14 @@
 """This is a collection of helper funtions for transformation."""
 
 import copy
+import sys
 
 import numpy as np
-from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
-from habitat_sim.agent import Agent
-from geometry_msgs.msg import TransformStamped, PoseStamped
 import rospy
 import tf2_ros
-import sys
+from geometry_msgs.msg import PoseStamped, TransformStamped
+from habitat_sim.agent import Agent
+from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
 
 # NOTE: tf2_geometry_msgs depends on cython library PyKDL, which is compiled when
 # installing ros-xxx-full package. Need to add path to this package to sys.path
@@ -36,11 +36,11 @@ def publish_agent_init_tf(agent: Agent, sensor_id="rgb", instant_pub=True):
     2. from base_link (agent base) to mp3d_link
     3. from mp3d_link to camera_link (habitat camera frame)
 
-    NOTE: the default rotation in habitat is: 
+    NOTE: the default rotation in habitat is:
     /* rotation = quatf::FromTwoVectors(-vec3f::UnitZ(),vec3f::UnitY()) */
     From habitat->world: simply [x, y, z] -> [x, z, -y]
     From world->habitat: simply [x, y, z] -> [x, -z, y]
-    
+
     For more details, please refer to readme or ./img/tf_tree.png
     """
     broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -148,8 +148,8 @@ def publish_agent_init_tf(agent: Agent, sensor_id="rgb", instant_pub=True):
 
 if __name__ == "__main__":
 
-    from simulator import init_sim
     from geometry_msgs.msg import Transform
+    from simulator import init_sim
 
     rospy.init_node("test_tf")
     test_scene = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"

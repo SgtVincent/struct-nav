@@ -1,15 +1,15 @@
 import torch
 import torch.nn.functional as F
 from torch.nn import LayerNorm, Linear, ReLU
+from torch_geometric.nn import (
+    DeepGCNLayer,
+    GENConv,
+    global_add_pool,
+    global_max_pool,
+    global_mean_pool,
+)
 from torch_scatter import scatter
 from tqdm import tqdm
-
-from torch_geometric.nn import DeepGCNLayer, GENConv
-from torch_geometric.nn import (
-    global_add_pool,
-    global_mean_pool,
-    global_max_pool,
-)
 
 
 class DeeperGCN(torch.nn.Module):
@@ -130,4 +130,3 @@ class DeeperMLP(torch.nn.Module):
             g_out = global_max_pool(g_out, batch)
         n_out = self.n_lin(x)
         return g_out, n_out
-

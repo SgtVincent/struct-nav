@@ -1,9 +1,10 @@
 import copy
-import numpy as np
-import matplotlib.pyplot as plt
-import open3d as o3d
-import os
 import csv
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import open3d as o3d
 
 
 def get_glb_path(scan_dir, scan_name):
@@ -121,4 +122,3 @@ def read_label_mapping(filename, label_from="mpcat40", label_to="nyu40"):
         for row in reader:
             mapping[row[col_from]] = int(row[col_to])
     return mapping
-

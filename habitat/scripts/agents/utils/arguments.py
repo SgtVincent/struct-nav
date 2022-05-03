@@ -2,9 +2,13 @@ import argparse
 
 
 def get_args(silence_mode=False):
-    parser = argparse.ArgumentParser(description="Goal-Oriented-Semantic-Exploration")
+    parser = argparse.ArgumentParser(
+        description="Goal-Oriented-Semantic-Exploration"
+    )
     # General Arguments
-    parser.add_argument("--seed", type=int, default=1, help="random seed (default: 1)")
+    parser.add_argument(
+        "--seed", type=int, default=1, help="random seed (default: 1)"
+    )
 
     # Logging, loading models, visualization
     parser.add_argument(
@@ -25,7 +29,10 @@ def get_args(silence_mode=False):
         help="path to dump models and log (default: ./tmp/)",
     )
     parser.add_argument(
-        "--exp_name", type=str, default="eval", help="experiment name (default: eval)"
+        "--exp_name",
+        type=str,
+        default="eval",
+        help="experiment name (default: eval)",
     )
     parser.add_argument(
         "--load",
@@ -46,7 +53,10 @@ def get_args(silence_mode=False):
                                 (default: 0)""",
     )
     parser.add_argument(
-        "--print_images", type=int, default=0, help="1: save visualization as images"
+        "--print_images",
+        type=int,
+        default=0,
+        help="1: save visualization as images",
     )
 
     # Environment, dataset and episode specifications
@@ -65,7 +75,11 @@ def get_args(silence_mode=False):
         help="Frame height (default:480)",
     )
     parser.add_argument(
-        "-fw", "--frame_width", type=int, default=160, help="Frame width (default:160)"
+        "-fw",
+        "--frame_width",
+        type=int,
+        default=160,
+        help="Frame width (default:160)",
     )
     parser.add_argument(
         "-fh",
@@ -106,7 +120,10 @@ def get_args(silence_mode=False):
         help="horizontal field of view in degrees (default 79.0)",
     )
     parser.add_argument(
-        "--turn_angle", type=float, default=30, help="Agent turn angle in degrees"
+        "--turn_angle",
+        type=float,
+        default=30,
+        help="Agent turn angle in degrees",
     )
     parser.add_argument(
         "--min_depth",

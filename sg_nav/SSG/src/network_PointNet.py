@@ -1,20 +1,21 @@
-'''
+"""
 The code here is modified from https://github.com/charlesq34/pointnet under MIT License
-'''
-if __name__ == '__main__' and __package__ is None:
+"""
+if __name__ == "__main__" and __package__ is None:
     from os import sys
-    sys.path.append('../')
 
+    sys.path.append("../")
+
+import numpy as np
+import SSG.src.op_utils as op_utils
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.nn.parallel
 import torch.utils.data
-from torch.autograd import Variable
-import numpy as np
-import torch.nn.functional as F
-from SSG.src.pointnet.graph import GraphTripleConvNet
 from SSG.src.networks_base import BaseNetwork
-import SSG.src.op_utils as op_utils
+from SSG.src.pointnet.graph import GraphTripleConvNet
+from torch.autograd import Variable
 
 
 class STN3d(nn.Module):
@@ -34,7 +35,6 @@ class STN3d(nn.Module):
         self.bn4 = nn.BatchNorm1d(512)
         self.bn5 = nn.BatchNorm1d(256)
 
-
     def forward(self, x):
         batchsize = x.size()[0]
         x = self.relu(self.bn1(self.conv1(x)))
@@ -45,9 +45,15 @@ class STN3d(nn.Module):
         x = self.relu(self.bn4(self.fc1(x)))
         x = self.relu(self.bn5(self.fc2(x)))
         x = self.fc3(x)
-        iden = Variable(torch.from_numpy(
-            np.array([1,0,0,0,1,0,0,0,1]).astype(np.float32))
-        ).view(1,9).repeat(batchsize,1)
+        iden = (
+            Variable(
+                torch.from_numpy(
+                    np.array([1, 0, 0, 0, 1, 0, 0, 0, 1]).astype(np.float32)
+                )
+            )
+            .view(1, 9)
+            .repeat(batchsize, 1)
+        )
         if x.is_cuda:
             iden = iden.cuda()
         x = x + iden
@@ -63,7 +69,7 @@ class STNkd(nn.Module):
         self.conv3 = torch.nn.Conv1d(128, 1024, 1)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k*k)
+        self.fc3 = nn.Linear(256, k * k)
         self.relu = nn.ReLU()
         self.bn1 = nn.BatchNorm1d(64)
         self.bn2 = nn.BatchNorm1d(128)
@@ -83,24 +89,35 @@ class STNkd(nn.Module):
         x = self.relu(self.bn5(self.fc2(x)))
         x = self.fc3(x)
         # iden = Variable(torch.from_numpy(np.eye(self.k).flatten().astype(np.float32))).view(1,self.k*self.k).repeat(batchsize,1)
-        iden = Variable(torch.eye(self.k).view(1,self.k*self.k).repeat(batchsize,1))
+        iden = Variable(
+            torch.eye(self.k).view(1, self.k * self.k).repeat(batchsize, 1)
+        )
         if x.is_cuda:
             iden = iden.cuda()
         x = x + iden
         x = x.view(-1, self.k, self.k)
         return x
 
+
 class PointNetfeat(BaseNetwork):
-    def __init__(self, global_feat = True, input_transform = True, feature_transform = False, 
-                 point_size=3, out_size=1024, batch_norm = True,
-                 init_weights=True, pointnet_str:str=None):
+    def __init__(
+        self,
+        global_feat=True,
+        input_transform=True,
+        feature_transform=False,
+        point_size=3,
+        out_size=1024,
+        batch_norm=True,
+        init_weights=True,
+        pointnet_str: str = None,
+    ):
         super(PointNetfeat, self).__init__()
-        self.name = 'pnetenc'
+        self.name = "pnetenc"
         self.use_batch_norm = batch_norm
         self.relu = nn.ReLU()
         self.point_size = point_size
         self.out_size = out_size
-        
+
         self.conv1 = torch.nn.Conv1d(point_size, 64, 1)
         self.conv2 = torch.nn.Conv1d(64, 128, 1)
         self.conv3 = torch.nn.Conv1d(128, out_size, 1)
@@ -111,50 +128,54 @@ class PointNetfeat(BaseNetwork):
         self.global_feat = global_feat
         self.input_transform = input_transform
         self.feature_transform = feature_transform
-        
+
         if input_transform:
             assert pointnet_str is not None
-            self.pointnet_str=pointnet_str
+            self.pointnet_str = pointnet_str
             self.stn = STN3d(point_size=point_size)
         if self.feature_transform:
             self.fstn = STNkd(k=64)
-            
+
         if init_weights:
-            self.init_weights('constant', 1, target_op = 'BatchNorm')
-            self.init_weights('xavier_normal', 1)
+            self.init_weights("constant", 1, target_op="BatchNorm")
+            self.init_weights("xavier_normal", 1)
 
     def forward(self, x, return_meta=False):
-        assert x.ndim >2
+        assert x.ndim > 2
         n_pts = x.size()[2]
         if self.input_transform:
             trans = self.stn(x)
             x = x.transpose(2, 1)
-            if self.pointnet_str is None and self.point_size ==3:
-                x[:,:,:3] = torch.bmm(x[:,:,:3], trans)
+            if self.pointnet_str is None and self.point_size == 3:
+                x[:, :, :3] = torch.bmm(x[:, :, :3], trans)
             elif self.point_size > 3:
-                assert self.pointnet_str is not None 
+                assert self.pointnet_str is not None
                 for i in len(self.pointnet_str):
                     p = self.pointnet_str[i]
-                    offset = i*3
-                    offset_ = (i+1)*3
-                    if p == 'p' or p == 'n': # point and normal
-                        x[:,:,offset:offset_] = torch.bmm(x[:,:,offset:offset_], trans)
+                    offset = i * 3
+                    offset_ = (i + 1) * 3
+                    if p == "p" or p == "n":  # point and normal
+                        x[:, :, offset:offset_] = torch.bmm(
+                            x[:, :, offset:offset_], trans
+                        )
             x = x.transpose(2, 1)
         else:
             trans = torch.zeros([1])
-        
+
         x = self.conv1(x)
         if self.use_batch_norm:
             self.bn1(x)
         x = self.relu(x)
-        
+
         if self.feature_transform:
             trans_feat = self.fstn(x)
-            x = x.transpose(2,1)
+            x = x.transpose(2, 1)
             x = torch.bmm(x, trans_feat)
-            x = x.transpose(2,1)
+            x = x.transpose(2, 1)
         else:
-            trans_feat = torch.zeros([1]) # cannot be None in tracing. change to 0
+            trans_feat = torch.zeros(
+                [1]
+            )  # cannot be None in tracing. change to 0
         pointfeat = x
         x = self.conv2(x)
         if self.use_batch_norm:
@@ -164,49 +185,63 @@ class PointNetfeat(BaseNetwork):
         if self.use_batch_norm:
             self.bn3(x)
         x = self.relu(x)
-        
+
         x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, self.out_size)
-        
+
         if self.global_feat:
             if return_meta:
                 return x, trans, trans_feat
             else:
                 return x
-            
+
         else:
             x = x.view(-1, self.out_size, 1).repeat(1, 1, n_pts)
             if not return_meta:
                 return torch.cat([x, pointfeat], 1)
             return torch.cat([x, pointfeat], 1), trans, trans_feat
-    def trace(self, pth = './tmp',name_prefix=''):
+
+    def trace(self, pth="./tmp", name_prefix=""):
         import os
-        x = torch.rand(1, self.point_size,512)
-        names_i = ['x']
-        names_o = ['y']
-        name = name_prefix+'_'+self.name
-        input_ = (x)
-        dynamic_axes = {names_i[0]:{0:'n_node', 2:'n_pts'}}
-        op_utils.export(self, input_, os.path.join(pth, name), 
-                        input_names=names_i, output_names=names_o, 
-                        dynamic_axes = dynamic_axes)
-        
+
+        x = torch.rand(1, self.point_size, 512)
+        names_i = ["x"]
+        names_o = ["y"]
+        name = name_prefix + "_" + self.name
+        input_ = x
+        dynamic_axes = {names_i[0]: {0: "n_node", 2: "n_pts"}}
+        op_utils.export(
+            self,
+            input_,
+            os.path.join(pth, name),
+            input_names=names_i,
+            output_names=names_o,
+            dynamic_axes=dynamic_axes,
+        )
+
         names = dict()
-        names['model_'+name] = dict()
-        names['model_'+name]['path'] = name
-        names['model_'+name]['input']=names_i
-        names['model_'+name]['output']=names_o
+        names["model_" + name] = dict()
+        names["model_" + name]["path"] = name
+        names["model_" + name]["input"] = names_i
+        names["model_" + name]["output"] = names_o
         return names
-        
+
 
 class PointNetCls(BaseNetwork):
-    def __init__(self, k=2, in_size=1024, batch_norm = True, drop_out = True,init_weights=True):
+    def __init__(
+        self,
+        k=2,
+        in_size=1024,
+        batch_norm=True,
+        drop_out=True,
+        init_weights=True,
+    ):
         super(PointNetCls, self).__init__()
-        self.name = 'pnetcls'
-        self.in_size=in_size
+        self.name = "pnetcls"
+        self.in_size = in_size
         self.k = k
         self.use_batch_norm = batch_norm
-        self.use_drop_out   = drop_out
+        self.use_drop_out = drop_out
         self.fc1 = nn.Linear(in_size, 512)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, k)
@@ -218,14 +253,15 @@ class PointNetCls(BaseNetwork):
         self.relu = nn.ReLU()
 
         if init_weights:
-            self.init_weights('constant', 1, target_op = 'BatchNorm')
-            self.init_weights('xavier_normal', 1)
+            self.init_weights("constant", 1, target_op="BatchNorm")
+            self.init_weights("xavier_normal", 1)
+
     def forward(self, x):
         x = self.fc1(x)
         if self.use_batch_norm:
             x = self.bn1(x)
         x = self.relu(x)
-        
+
         x = self.fc2(x)
         if self.use_drop_out:
             x = self.dropout(x)
@@ -235,31 +271,43 @@ class PointNetCls(BaseNetwork):
 
         x = self.fc3(x)
         return F.log_softmax(x, dim=1)
-    def trace(self, pth = './tmp',name_prefix=''):
+
+    def trace(self, pth="./tmp", name_prefix=""):
         import os
+
         x = torch.rand(1, self.in_size)
-        names_i = ['x']
-        names_o = ['y']
-        name = name_prefix+'_'+self.name
-        input_ = (x)
-        op_utils.export(self, input_, os.path.join(pth, name), 
-                        input_names=names_i, output_names=names_o, 
-                        dynamic_axes = {names_i[0]:{0:'n_node', 2:'n_pts'}})
+        names_i = ["x"]
+        names_o = ["y"]
+        name = name_prefix + "_" + self.name
+        input_ = x
+        op_utils.export(
+            self,
+            input_,
+            os.path.join(pth, name),
+            input_names=names_i,
+            output_names=names_o,
+            dynamic_axes={names_i[0]: {0: "n_node", 2: "n_pts"}},
+        )
         names = dict()
-        names['model_'+name] = dict()
-        names['model_'+name]['path'] = name
-        names['model_'+name]['input']=names_i
-        names['model_'+name]['output']=names_o
+        names["model_" + name] = dict()
+        names["model_" + name]["path"] = name
+        names["model_" + name]["input"] = names_i
+        names["model_" + name]["output"] = names_o
         return names
 
 
 class PointNetRelCls(BaseNetwork):
-
-    def __init__(self, k=2, in_size=1024, batch_norm = True, drop_out = True,
-                 init_weights=True):
+    def __init__(
+        self,
+        k=2,
+        in_size=1024,
+        batch_norm=True,
+        drop_out=True,
+        init_weights=True,
+    ):
         super(PointNetRelCls, self).__init__()
-        self.name = 'pnetcls'
-        self.in_size=in_size
+        self.name = "pnetcls"
+        self.in_size = in_size
         self.use_bn = batch_norm
         self.use_drop_out = drop_out
         self.fc1 = nn.Linear(in_size, 512)
@@ -273,8 +321,9 @@ class PointNetRelCls(BaseNetwork):
         self.relu = nn.ReLU()
 
         if init_weights:
-            self.init_weights('constant', 1, target_op = 'BatchNorm')
-            self.init_weights('xavier_normal', 1)
+            self.init_weights("constant", 1, target_op="BatchNorm")
+            self.init_weights("xavier_normal", 1)
+
     def forward(self, x):
         x = self.fc1(x)
         if self.use_bn:
@@ -287,31 +336,44 @@ class PointNetRelCls(BaseNetwork):
             x = self.bn2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1) #, trans, trans_feat
-    def trace(self, pth = './tmp',name_prefix=''):
+        return F.log_softmax(x, dim=1)  # , trans, trans_feat
+
+    def trace(self, pth="./tmp", name_prefix=""):
         import os
+
         x = torch.rand(1, self.in_size)
-        names_i = ['x']
-        names_o = ['y']
-        name = name_prefix+'_'+self.name
-        input_ = (x)
-        op_utils.export(self, input_, os.path.join(pth, name), 
-                        input_names=names_i, output_names=names_o, 
-                        dynamic_axes = {names_i[0]:{0:'n_node', 2:'n_pts'}})
+        names_i = ["x"]
+        names_o = ["y"]
+        name = name_prefix + "_" + self.name
+        input_ = x
+        op_utils.export(
+            self,
+            input_,
+            os.path.join(pth, name),
+            input_names=names_i,
+            output_names=names_o,
+            dynamic_axes={names_i[0]: {0: "n_node", 2: "n_pts"}},
+        )
         names = dict()
-        names['model_'+name] = dict()
-        names['model_'+name]['path'] = name
-        names['model_'+name]['input']=names_i
-        names['model_'+name]['output']=names_o
+        names["model_" + name] = dict()
+        names["model_" + name]["path"] = name
+        names["model_" + name]["input"] = names_i
+        names["model_" + name]["output"] = names_o
         return names
 
-class PointNetRelClsMulti(BaseNetwork):
 
-    def __init__(self, k=2, in_size=1024, batch_norm = True, drop_out = True,
-                 init_weights=True):
+class PointNetRelClsMulti(BaseNetwork):
+    def __init__(
+        self,
+        k=2,
+        in_size=1024,
+        batch_norm=True,
+        drop_out=True,
+        init_weights=True,
+    ):
         super(PointNetRelClsMulti, self).__init__()
-        self.name = 'pnetcls'
-        self.in_size=in_size
+        self.name = "pnetcls"
+        self.in_size = in_size
         self.use_bn = batch_norm
         self.use_drop_out = drop_out
         self.fc1 = nn.Linear(in_size, 512)
@@ -326,8 +388,9 @@ class PointNetRelClsMulti(BaseNetwork):
         self.relu = nn.ReLU()
 
         if init_weights:
-            self.init_weights('constant', 1, target_op = 'BatchNorm')
-            self.init_weights('xavier_normal', 1)
+            self.init_weights("constant", 1, target_op="BatchNorm")
+            self.init_weights("xavier_normal", 1)
+
     def forward(self, x):
         x = self.fc1(x)
         if self.use_bn:
@@ -342,21 +405,28 @@ class PointNetRelClsMulti(BaseNetwork):
         x = self.fc3(x)
         x = torch.sigmoid(x)
         return x
-    def trace(self, pth = './tmp',name_prefix=''):
+
+    def trace(self, pth="./tmp", name_prefix=""):
         import os
+
         x = torch.rand(1, self.in_size)
-        names_i = ['x']
-        names_o = ['y']
-        name = name_prefix+'_'+self.name
-        op_utils.export(self, (x), os.path.join(pth, name), 
-                        input_names=names_i, output_names=names_o, 
-                        dynamic_axes = {names_i[0]:{0:'n_node', 2:'n_pts'}})
-        
+        names_i = ["x"]
+        names_o = ["y"]
+        name = name_prefix + "_" + self.name
+        op_utils.export(
+            self,
+            (x),
+            os.path.join(pth, name),
+            input_names=names_i,
+            output_names=names_o,
+            dynamic_axes={names_i[0]: {0: "n_node", 2: "n_pts"}},
+        )
+
         names = dict()
-        names['model_'+name] = dict()
-        names['model_'+name]['path'] = name
-        names['model_'+name]['input']=names_i
-        names['model_'+name]['output']=names_o
+        names["model_" + name] = dict()
+        names["model_" + name]["path"] = name
+        names["model_" + name]["input"] = names_i
+        names["model_" + name]["output"] = names_o
         return names
 
 
@@ -489,7 +559,7 @@ class PointNetRelClsMulti(BaseNetwork):
 #         self.dim_hidden_feature = 512
 #         self.pooling = pooling
 #         self.n_layers = n_layers
-        
+
 #         self.obj_pred_from_gcn = obj_pred_from_gcn
 #         self.feature_transform = feature_transform
 
@@ -507,8 +577,8 @@ class PointNetRelClsMulti(BaseNetwork):
 #         if self.with_relpn:
 #             self.relpn = _RelPN(feat_dim=out_size, with_bbox=with_bbox)
 
-#         self.gcn = GraphTripleConvNet(input_dim_obj=out_size, 
-#                                       num_layers=n_layers, residual=residual, pooling=pooling,            
+#         self.gcn = GraphTripleConvNet(input_dim_obj=out_size,
+#                                       num_layers=n_layers, residual=residual, pooling=pooling,
 #                                       input_dim_pred=out_size,
 #                                       hidden_dim=self.dim_hidden_feature) # TODO: what should the other params be?
 
@@ -547,12 +617,12 @@ class PointNetRelClsMulti(BaseNetwork):
 #                 rels, _, _ = self.feat_relationship(rels_points[i*batch_size:i*batch_size+current_bsize])
 
 #                 rels_feats.append(rels)
-                
+
 #             print('end rel loop')
 
 #             objs_feats = torch.cat(objs_feats, 0)
 #             rels_feats = torch.cat(rels_feats, 0)
-        
+
 #         else:
 #         '''
 #         objs_feats, _, _ = self.feat_object(objs_points)
@@ -597,15 +667,19 @@ class PointNetRelClsMulti(BaseNetwork):
 
 #         return objs_cls, full_rels_cls, target_rels, relpn_loss
 
+
 def feature_transform_regularizer(trans):
     d = trans.size()[1]
     batchsize = trans.size()[0]
     I = torch.eye(d)[None, :, :]
     if trans.is_cuda:
         I = I.cuda()
-    loss = torch.mean(torch.norm(torch.bmm(trans, trans.transpose(2,1)) - I, dim=(1,2)))
+    loss = torch.mean(
+        torch.norm(torch.bmm(trans, trans.transpose(2, 1)) - I, dim=(1, 2))
+    )
     return loss
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     model = PointNetCls()
-    model.trace('./tmp')
+    model.trace("./tmp")

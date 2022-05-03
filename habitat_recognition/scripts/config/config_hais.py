@@ -1,5 +1,6 @@
 import os
 from os.path import dirname, join
+
 import numpy as np
 
 CONFIG_DIR = dirname(os.path.abspath(__file__))

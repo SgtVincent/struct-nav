@@ -8,20 +8,20 @@
 """
 import os
 import sys
+
 import numpy as np
 import torch
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 
-from eval.eval_det import eval_det_cls, eval_det_multiprocessing
-from eval.eval_det import get_iou_obb
+from eval.eval_det import eval_det_cls, eval_det_multiprocessing, get_iou_obb
+from utils.box_util import extract_pc_in_box3d, get_3d_box
 from utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
-from utils.box_util import get_3d_box, extract_pc_in_box3d
 
 
 def flip_axis_to_camera(pc):
-    """ Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
+    """Flip X-right,Y-forward,Z-up to X-right,Y-down,Z-forward
     Input and output are both (N,3) array
     """
     pc2 = np.copy(pc)
@@ -38,7 +38,7 @@ def flip_axis_to_depth(pc):
 
 
 def softmax(x):
-    """ Numpy function for softmax"""
+    """Numpy function for softmax"""
     shape = x.shape
     probs = np.exp(x - np.max(x, axis=len(shape) - 1, keepdims=True))
     probs /= np.sum(probs, axis=len(shape) - 1, keepdims=True)
@@ -46,8 +46,8 @@ def softmax(x):
 
 
 def parse_predictions(end_points, config_dict):
-    """ Parse predictions to OBB parameters and suppress overlapping boxes
-    
+    """Parse predictions to OBB parameters and suppress overlapping boxes
+
     Args:
         end_points: dict
             {point_clouds, center, heading_scores, heading_residuals,
@@ -269,8 +269,8 @@ def parse_predictions(end_points, config_dict):
 
 
 def parse_groundtruths(end_points, config_dict):
-    """ Parse groundtruth labels to OBB parameters.
-    
+    """Parse groundtruth labels to OBB parameters.
+
     Args:
         end_points: dict
             {center_label, heading_class_label, heading_residual_label,
@@ -334,7 +334,7 @@ def parse_groundtruths(end_points, config_dict):
 
 
 class APCalculator(object):
-    """ Calculating Average Precision """
+    """Calculating Average Precision"""
 
     def __init__(self, ap_iou_thresh=0.25, class2type_map=None):
         """
@@ -348,8 +348,8 @@ class APCalculator(object):
         self.reset()
 
     def step(self, batch_pred_map_cls, batch_gt_map_cls):
-        """ Accumulate one batch of prediction and groundtruth.
-        
+        """Accumulate one batch of prediction and groundtruth.
+
         Args:
             batch_pred_map_cls: a list of lists [[(pred_cls, pred_box_params, score),...],...]
             batch_gt_map_cls: a list of lists [[(gt_cls, gt_box_params),...],...]
@@ -364,8 +364,7 @@ class APCalculator(object):
             self.scan_cnt += 1
 
     def compute_metrics(self):
-        """ Use accumulated predictions and groundtruths to compute Average Precision.
-        """
+        """Use accumulated predictions and groundtruths to compute Average Precision."""
         rec, prec, ap = eval_det_multiprocessing(
             self.pred_map_cls,
             self.gt_map_cls,

@@ -2,36 +2,34 @@ import enum
 import math
 import os
 import time
+
+import agents.utils.visualization as vu
 import cv2
-from matplotlib.pyplot import grid
-from matplotlib import cm
+import envs.utils.pose as pu
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-import skimage.morphology
-from PIL import Image
-from torchvision import transforms
-from habitat_sim import Simulator
-from scipy.spatial.transform import Rotation as R
-from yaml import Mark
 
 # ros packages
 import rospy
-from nav_msgs.msg import Path, Odometry, OccupancyGrid
-from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import String, Header
-from visualization_msgs.msg import MarkerArray, Marker
-
-from envs.utils.fmm_planner import FMMPlanner
-from envs.habitat.objectgoal_env import ObjectGoalEnv
+import skimage.morphology
+from agents.utils.arguments import get_args
+from agents.utils.utils_frontier_explore import frontier_goals
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette
-import envs.utils.pose as pu
-from agents.utils.utils_frontier_explore import frontier_goals
-import agents.utils.visualization as vu
-from agents.utils.arguments import get_args
-
+from envs.habitat.objectgoal_env import ObjectGoalEnv
+from envs.utils.fmm_planner import FMMPlanner
+from geometry_msgs.msg import PoseStamped
+from habitat_sim import Simulator
+from matplotlib import cm
+from matplotlib.pyplot import grid
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
+from PIL import Image
+from scipy.spatial.transform import Rotation as R
+from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Header, String
+from torchvision import transforms
+from visualization_msgs.msg import Marker, MarkerArray
+from yaml import Mark
 
 """
 FrontierExploreAgent arguments:
@@ -91,7 +89,9 @@ class FrontierExploreAgent:
         self.frontiers_topic = self.args.frontiers_topic
         # self.goal_topic = self.args.goal_topic
 
-        self.sub_odom = rospy.Subscriber(self.odom_topic, Odometry, self.callback_odom)
+        self.sub_odom = rospy.Subscriber(
+            self.odom_topic, Odometry, self.callback_odom
+        )
         print(f"subscribing to {self.odom_topic}...")
 
         self.sub_grid_map = rospy.Subscriber(
@@ -113,7 +113,9 @@ class FrontierExploreAgent:
         if args.visualize or args.print_images:
             self.legend = cv2.imread("docs/legend.png")
             self.rgb_vis = None
-            self.vis_image = vu.init_occ_image(self.goal_name)  # , self.legend)
+            self.vis_image = vu.init_occ_image(
+                self.goal_name
+            )  # , self.legend)
 
     def reset(self, map_shape):
         args = self.args
@@ -138,7 +140,9 @@ class FrontierExploreAgent:
         # ]
         self.last_action = None
         if args.visualize or args.print_images:
-            self.vis_image = vu.init_occ_image(self.goal_name)  # , self.legend)
+            self.vis_image = vu.init_occ_image(
+                self.goal_name
+            )  # , self.legend)
 
     def parse_ros_messages(self):
         odom_msg: Odometry = self.odom_msg
@@ -153,7 +157,10 @@ class FrontierExploreAgent:
         # FIXME: the present strategy is simple:
         # - when grid_map is expanded, drop all previous memory and reallocate
         # empty maps to record collisions and visited places during running
-        if self.collision_map is None or self.collision_map.shape != grid_map.shape:
+        if (
+            self.collision_map is None
+            or self.collision_map.shape != grid_map.shape
+        ):
             self.collision_map = np.zeros_like(grid_map)
             self.visited = np.zeros_like(grid_map)
             self.visited_vis = np.zeros_like(grid_map)
@@ -237,7 +244,9 @@ class FrontierExploreAgent:
 
         # convert (x,y) goal center to goal map
         goal_map = np.zeros_like(grid_map)
-        pixel_position = ((goal_position - map_origin) / map_resolution).astype(int)
+        pixel_position = (
+            (goal_position - map_origin) / map_resolution
+        ).astype(int)
         # NOTE: (x,y) is (col, row) in image
         goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
@@ -357,7 +366,9 @@ class FrontierExploreAgent:
         # FIXME: neural slam has local planning window
         # now planning is running on global map, not scalable
         # fix this problem later
-        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = planner_inputs["pose_pred"]
+        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = planner_inputs[
+            "pose_pred"
+        ]
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
         assert gx1 == 0 and gy1 == 0
         planning_window = [gx1, gx2, gy1, gy2]
@@ -427,14 +438,15 @@ class FrontierExploreAgent:
         #                 [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
         #                 self.collision_map[r, c] = 1
 
-        stg, stop = self._get_stg(map_pred, start, np.copy(goal), planning_window)
+        stg, stop = self._get_stg(
+            map_pred, start, np.copy(goal), planning_window
+        )
 
         # visualize long-term/short-term goal and agent pose
         if DEBUG_VIS:
-            from matplotlib import pyplot as plt
             from matplotlib import cm
-            from skimage.draw import disk
-            from skimage.draw import rectangle
+            from matplotlib import pyplot as plt
+            from skimage.draw import disk, rectangle
 
             # import agents.utils.visualization as vu
             # import cv2
@@ -453,8 +465,12 @@ class FrontierExploreAgent:
 
             # visualize long/short-term goals
             vis_map[goal_vis == 1] = 2  # disk for long-term goal
-            rr, cc = rectangle(np.array(stg) - 2, extent=7, shape=vis_map.shape)
-            vis_map[rr.astype(int), cc.astype(int)] = 3  # rect for short-term goal
+            rr, cc = rectangle(
+                np.array(stg) - 2, extent=7, shape=vis_map.shape
+            )
+            vis_map[
+                rr.astype(int), cc.astype(int)
+            ] = 3  # rect for short-term goal
 
             # visualize agent
             pos = [start[0], start[1], start_o]
@@ -469,7 +485,9 @@ class FrontierExploreAgent:
             action = 0  # Stop
         else:
             (stg_x, stg_y) = stg
-            angle_st_goal = math.degrees(math.atan2(stg_x - start[0], stg_y - start[1]))
+            angle_st_goal = math.degrees(
+                math.atan2(stg_x - start[0], stg_y - start[1])
+            )
             angle_agent = (start_o) % 360.0
             if angle_agent > 180:
                 angle_agent -= 360
@@ -506,9 +524,12 @@ class FrontierExploreAgent:
 
         # FIXME: collision_map and visited_map not functioning now
         traversible = (
-            skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem) != True
+            skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem)
+            != True
         )
-        traversible[self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 0
+        traversible[
+            self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1
+        ] = 0
         traversible[self.visited[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 1
 
         traversible[

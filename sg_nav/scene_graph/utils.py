@@ -1,15 +1,13 @@
-import numpy as np
-
 import os
 
+import numpy as np
 import open3d as o3d
+import quaternion as qt
+from dataset.habitat.utils import getOBB, read_house_file
+from habitat_sim.scene import SemanticObject, SemanticScene
+from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation as R
-from habitat_sim.scene import SemanticScene, SemanticObject
-from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
-import quaternion as qt
-
-from dataset.habitat.utils import read_house_file, getOBB
 
 ###################### grid map ###############################
 
@@ -349,7 +347,7 @@ def asvoid(arr):
     """
     arr = np.ascontiguousarray(arr)
     if np.issubdtype(arr.dtype, np.floating):
-        """ Care needs to be taken here since
+        """Care needs to be taken here since
         np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
         Adding 0. converts -0. to 0.
         """

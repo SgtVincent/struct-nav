@@ -81,7 +81,7 @@ def init_sim(test_scene):
         "seed": 1,  # used in the random navigation
         "enable_physics": False,  # kinematics only
     }
-    
+
     cfg = make_cfg(sim_settings)
     # Needed to handle out of order cell run in Colab
     sim = habitat_sim.Simulator(cfg)
@@ -112,4 +112,3 @@ def init_sim(test_scene):
     )
 
     return sim, action_names, sim_settings
-

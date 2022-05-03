@@ -194,4 +194,3 @@ if __name__ == "__main__":
     a = np.random.random((100, 5))
     print(nms_2d(a, 0.9))
     print(nms_2d_faster(a, 0.9))
-

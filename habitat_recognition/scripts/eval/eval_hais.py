@@ -1,15 +1,17 @@
+import datetime
 import os
-from re import L 
-import numpy as np 
-import datetime 
-import time 
-import open3d as o3d 
+import time
+from re import L
+
+import numpy as np
+import open3d as o3d
 
 # local import 
 from config.config_hais import ConfigHAIS
-from dataset.mp3d.utils import read_label_mapping, read_house_file, getOBB
+from dataset.mp3d.utils import getOBB, read_house_file, read_label_mapping
 from eval.ap_helper import APCalculator
 from tensorboardX import SummaryWriter
+
 
 class EvaluatorHAIS:
     def __init__(self, scene_name, config=ConfigHAIS()) -> None:

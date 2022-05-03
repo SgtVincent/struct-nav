@@ -1,10 +1,11 @@
 import queue
 
-import rospy
-from sensor_msgs.msg import PointCloud2
-import ros_numpy
 import numpy as np
 import open3d as o3d
+import ros_numpy
+import rospy
+from sensor_msgs.msg import PointCloud2
+
 
 class PointCloudSubscriber:
     """Subscriber for point cloud."""
@@ -34,24 +35,20 @@ class PointCloudSubscriber:
         if self._clouds_queue.full():  # If queue is full, pop one.
             self._clouds_queue.get(timeout=0.001)
         self._clouds_queue.put(ros_cloud, timeout=0.001)  # Push cloud to queue
-    
+
     def cloud_ros2o3d(self, ros_cloud):
         field_names = [field.name for field in ros_cloud.fields]
         open3d_cloud = o3d.geometry.PointCloud()
         if "rgb" in field_names:
             points = ros_numpy.point_cloud2.pointcloud2_to_array(ros_cloud)
             points = ros_numpy.point_cloud2.split_rgb_field(points)
-            xyz = np.vstack((points['x'], points['y'], points['z'])).T
-            rgb = np.vstack((points['r'], points['g'], points['b'])).T
-             # combine
+            xyz = np.vstack((points["x"], points["y"], points["z"])).T
+            rgb = np.vstack((points["r"], points["g"], points["b"])).T
+            # combine
             open3d_cloud.points = o3d.utility.Vector3dVector(xyz)
-            open3d_cloud.colors = o3d.utility.Vector3dVector(
-                rgb / 255.0
-            )
+            open3d_cloud.colors = o3d.utility.Vector3dVector(rgb / 255.0)
         else:
             xyz = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(ros_cloud)
             open3d_cloud.points = o3d.utility.Vector3dVector(xyz)
-        
+
         return open3d_cloud
-
-

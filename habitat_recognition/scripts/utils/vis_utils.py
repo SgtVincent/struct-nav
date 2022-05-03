@@ -1,13 +1,14 @@
-import numpy as np
 import os
-import rospy
-import open3d as o3d
+
 import geometry_msgs.msg
-from habitat_sim.scene import SemanticScene, SemanticObject
-from std_msgs.msg import Int32, Header, ColorRGBA
-from visualization_msgs.msg import MarkerArray, Marker
-from geometry_msgs.msg import Quaternion, Pose, Point, Vector3
+import numpy as np
+import open3d as o3d
+import rospy
+from geometry_msgs.msg import Point, Pose, Quaternion, Vector3
+from habitat_sim.scene import SemanticObject, SemanticScene
 from matplotlib import cm
+from std_msgs.msg import ColorRGBA, Header, Int32
+from visualization_msgs.msg import Marker, MarkerArray
 
 # local import
 # from utils.box_util import get_3d_box

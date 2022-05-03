@@ -1,7 +1,7 @@
+import HAIS_OP
 import torch
 from torch.autograd import Function
 
-import HAIS_OP
 
 class HierarchicalAggregation(Function):
     @staticmethod

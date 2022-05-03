@@ -7,4 +7,3 @@ class ConfigMP3D:
         self.dataset = "mp3d"
 
         self.ap_calculators = [0.5]  # [0.25, 0.5]
-

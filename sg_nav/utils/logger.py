@@ -3,13 +3,13 @@ import functools
 import logging
 import os
 import os.path as osp
-import sys
-from termcolor import colored
-
-import time
-import shortuuid
 import pathlib
 import shutil
+import sys
+import time
+
+import shortuuid
+from termcolor import colored
 
 
 class _ColorfulFormatter(logging.Formatter):
@@ -25,7 +25,10 @@ class _ColorfulFormatter(logging.Formatter):
         log = super(_ColorfulFormatter, self).formatMessage(record)
         if record.levelno == logging.WARNING:
             prefix = colored("WARNING", "red", attrs=["blink"])
-        elif record.levelno == logging.ERROR or record.levelno == logging.CRITICAL:
+        elif (
+            record.levelno == logging.ERROR
+            or record.levelno == logging.CRITICAL
+        ):
             prefix = colored("ERROR", "red", attrs=["blink", "underline"])
         else:
             return log
@@ -35,7 +38,12 @@ class _ColorfulFormatter(logging.Formatter):
 # so that calling setup_logger multiple times won't add many handlers
 @functools.lru_cache()
 def setup_logger(
-    output=None, distributed_rank=0, *, color=True, name="moco", abbrev_name=None
+    output=None,
+    distributed_rank=0,
+    *,
+    color=True,
+    name="moco",
+    abbrev_name=None,
 ):
     """
     Initialize the detectron2 logger and set its verbosity level to "INFO".
@@ -57,7 +65,8 @@ def setup_logger(
         abbrev_name = name
 
     plain_formatter = logging.Formatter(
-        "[%(asctime)s] %(name)s %(levelname)s: %(message)s", datefmt="%m/%d %H:%M:%S"
+        "[%(asctime)s] %(name)s %(levelname)s: %(message)s",
+        datefmt="%m/%d %H:%M:%S",
     )
     # stdout logging: master only
     if distributed_rank == 0:
@@ -116,19 +125,19 @@ def generate_exp_directory(config, expname=None, expid=None, logname=None):
 
     if logname is None:
         if expid is None:
-            expid = time.strftime('%Y%m%d-%H%M%S-') + str(shortuuid.uuid())
+            expid = time.strftime("%Y%m%d-%H%M%S-") + str(shortuuid.uuid())
         if isinstance(expname, list):
-            expname = '-'.join(expname)
-        logname = '-'.join([expname, expid])
+            expname = "-".join(expname)
+        logname = "-".join([expname, expid])
     config.logname = logname
     config.log_dir = os.path.join(config.log_dir, config.logname)
-    config.ckpt_dir = os.path.join(config.log_dir, 'checkpoint')
-    config.code_dir = os.path.join(config.log_dir, 'code')
+    config.ckpt_dir = os.path.join(config.log_dir, "checkpoint")
+    config.code_dir = os.path.join(config.log_dir, "code")
     pathlib.Path(config.ckpt_dir).mkdir(parents=True, exist_ok=True)
     pathlib.Path(config.code_dir).mkdir(parents=True, exist_ok=True)
 
-    shutil.copytree('models', osp.join(config.code_dir, 'models'))
-    shutil.copytree('function', osp.join(config.code_dir, 'function'))
+    shutil.copytree("models", osp.join(config.code_dir, "models"))
+    shutil.copytree("function", osp.join(config.code_dir, "function"))
 
 
 def resume_exp_directory(config, load_path):
@@ -141,15 +150,15 @@ def resume_exp_directory(config, load_path):
     Returns:
         the expname, jobname, and folders into config
     """
-    
-    if os.path.basename(os.path.dirname(config.load_path)) == 'checkpoint':
+
+    if os.path.basename(os.path.dirname(config.load_path)) == "checkpoint":
         config.log_dir = os.path.dirname(os.path.dirname(config.load_path))
         config.logname = os.path.basename(config.log_dir)
-        config.ckpt_dir = os.path.join(config.log_dir, 'checkpoint')
+        config.ckpt_dir = os.path.join(config.log_dir, "checkpoint")
     else:
-        expid = time.strftime('%Y%m%d-%H%M%S-') + str(shortuuid.uuid())
-        config.logname = '_'.join([os.path.basename(config.load_path), expid])
+        expid = time.strftime("%Y%m%d-%H%M%S-") + str(shortuuid.uuid())
+        config.logname = "_".join([os.path.basename(config.load_path), expid])
         config.log_dir = os.path.join(config.log_dir, config.logname)
-        config.ckpt_dir = os.path.join(config.log_dir, 'checkpoint')
+        config.ckpt_dir = os.path.join(config.log_dir, "checkpoint")
     os.makedirs(config.ckpt_dir, exist_ok=True)
-    config.wandb.tags = ['resume']
+    config.wandb.tags = ["resume"]

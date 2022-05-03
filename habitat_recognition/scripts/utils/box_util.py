@@ -12,8 +12,7 @@ Last modified: Jul 2019
 from __future__ import print_function
 
 import numpy as np
-from scipy.spatial import ConvexHull
-from scipy.spatial import Delaunay
+from scipy.spatial import ConvexHull, Delaunay
 
 
 def in_hull(p, hull):
@@ -23,25 +22,25 @@ def in_hull(p, hull):
 
 
 def extract_pc_in_box3d(pc, box3d):
-    """ pc: (N,3), box3d: (8,3) """
+    """pc: (N,3), box3d: (8,3)"""
     box3d_roi_inds = in_hull(pc[:, 0:3], box3d)
     return pc[box3d_roi_inds, :], box3d_roi_inds
 
 
 def polygon_clip(subjectPolygon, clipPolygon):
-    """ Clip a polygon with another polygon.
+    """Clip a polygon with another polygon.
 
-   Ref: https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#Python
+    Ref: https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#Python
 
-   Args:
-     subjectPolygon: a list of (x,y) 2d points, any polygon.
-     clipPolygon: a list of (x,y) 2d points, has to be *convex*
-   Note:
-     **points have to be counter-clockwise ordered**
+    Args:
+      subjectPolygon: a list of (x,y) 2d points, any polygon.
+      clipPolygon: a list of (x,y) 2d points, has to be *convex*
+    Note:
+      **points have to be counter-clockwise ordered**
 
-   Return:
-     a list of (x,y) vertex point for the intersection polygon.
-   """
+    Return:
+      a list of (x,y) vertex point for the intersection polygon.
+    """
 
     def inside(p):
         return (cp2[0] - cp1[0]) * (p[1] - cp1[1]) > (cp2[1] - cp1[1]) * (
@@ -81,14 +80,14 @@ def polygon_clip(subjectPolygon, clipPolygon):
 
 
 def poly_area(x, y):
-    """ Ref: http://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates """
+    """Ref: http://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates"""
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 
 def convex_hull_intersection(p1, p2):
-    """ Compute area of two convex hull's intersection area.
-        p1,p2 are a list of (x,y) tuples of hull vertices.
-        return a list of (x,y) for the intersection and its volume
+    """Compute area of two convex hull's intersection area.
+    p1,p2 are a list of (x,y) tuples of hull vertices.
+    return a list of (x,y) for the intersection and its volume
     """
     inter_p = polygon_clip(p1, p2)
     if inter_p is not None:
@@ -99,7 +98,7 @@ def convex_hull_intersection(p1, p2):
 
 
 def box3d_vol(corners):
-    """ corners: (8,3) no assumption on axis direction """
+    """corners: (8,3) no assumption on axis direction"""
     a = np.sqrt(np.sum((corners[0, :] - corners[1, :]) ** 2))
     b = np.sqrt(np.sum((corners[1, :] - corners[2, :]) ** 2))
     c = np.sqrt(np.sum((corners[0, :] - corners[4, :]) ** 2))
@@ -113,7 +112,7 @@ def is_clockwise(p):
 
 
 def box3d_iou(corners1, corners2):
-    """ Compute 3D bounding box IoU.
+    """Compute 3D bounding box IoU.
 
     Input:
         corners1: numpy array (8,3), assume up direction is negative Y
@@ -192,7 +191,7 @@ def get_iou(bb1, bb2):
 
 
 def box2d_iou(box1, box2):
-    """ Compute 2D bounding box IoU.
+    """Compute 2D bounding box IoU.
 
     Input:
         box1: tuple of (xmin,ymin,xmax,ymax)
@@ -234,9 +233,9 @@ def roty_batch(t):
 
 
 def get_3d_box(box_size, heading_angle, center):
-    """ box_size is array(l,w,h), heading_angle is radius clockwise from pos x axis, center is xyz of box center
-        output (8,3) array for 3D box cornders
-        Similar to utils/compute_orientation_3d
+    """box_size is array(l,w,h), heading_angle is radius clockwise from pos x axis, center is xyz of box center
+    output (8,3) array for 3D box cornders
+    Similar to utils/compute_orientation_3d
     """
     R = roty(heading_angle)
     l, w, h = box_size
@@ -252,7 +251,7 @@ def get_3d_box(box_size, heading_angle, center):
 
 
 def get_3d_box_batch(box_size, heading_angle, center):
-    """ box_size: [x1,x2,...,xn,3]
+    """box_size: [x1,x2,...,xn,3]
         heading_angle: [x1,x2,...,xn]
         center: [x1,x2,...,xn,3]
     Return:
@@ -284,9 +283,9 @@ if __name__ == "__main__":
 
     # Function for polygon ploting
     import matplotlib
-    from matplotlib.patches import Polygon
-    from matplotlib.collections import PatchCollection
     import matplotlib.pyplot as plt
+    from matplotlib.collections import PatchCollection
+    from matplotlib.patches import Polygon
 
     def plot_polys(plist, scale=500.0):
         fig, ax = plt.subplots()

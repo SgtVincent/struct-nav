@@ -1,6 +1,7 @@
 import argparse
-import yaml
 import os
+
+import yaml
 
 
 def get_parser():

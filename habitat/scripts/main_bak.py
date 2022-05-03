@@ -55,7 +55,11 @@ def main():
     # ros pub and sub
     rate = rospy.Rate(rate_value)
     publisher = HabitatObservationPublisher(
-        rgb_topic, depth_topic, camera_info_topic, true_pose_topic, camera_info_file,
+        rgb_topic,
+        depth_topic,
+        camera_info_topic,
+        true_pose_topic,
+        camera_info_file,
     )
     # action_publisher = rospy.Publisher(
     #     "habitat_action", Int32, latch=True, queue_size=100

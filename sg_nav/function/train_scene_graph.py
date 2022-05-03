@@ -1,38 +1,39 @@
 import argparse
-import os
 import json
-from tkinter import X
-import numpy as np
-from dataset.habitat.simulator import init_sim
+import logging
+import os
 import pickle
+from tkinter import X
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm, trange
-from torch_geometric.utils.loop import add_self_loops, remove_self_loops
-from torch_geometric.loader import DataLoader
-import logging
 import wandb
+from dataset.habitat.simulator import init_sim
+from dataset.habitat.utils import mp3d_obj_nav_class_list as obj_nav_class_list
+from models.deepgnn import DeeperGCN, DeeperMLP
+from models.deepset import Deepset
+from scene_graph.config import SceneGraphHabitatConfig
+from scene_graph.data_sampler import DataSampler, PyGDatasetWrapper
 
 # local import
 from scene_graph.scene_graph_cls import SceneGraphHabitat
-from scene_graph.config import SceneGraphHabitatConfig
-from scene_graph.utils import visualize_scene_graph
 from scene_graph.scene_graph_pred import SceneGraphPredictor
-from scene_graph.data_sampler import DataSampler, PyGDatasetWrapper
-from dataset.habitat.utils import mp3d_obj_nav_class_list as obj_nav_class_list
-from models.deepset import Deepset
-from models.deepgnn import DeeperGCN, DeeperMLP
-from utils import cal_model_parms, set_seed, save_checkpoint, load_checkpoint
+from scene_graph.utils import visualize_scene_graph
+from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.loader import DataLoader
+from torch_geometric.utils.loop import add_self_loops, remove_self_loops
+from tqdm import tqdm, trange
+from utils import cal_model_parms, load_checkpoint, save_checkpoint, set_seed
+from utils.config import config
 from utils.logger import (
-    setup_logger,
     generate_exp_directory,
     resume_exp_directory,
+    setup_logger,
 )
 from utils.training import build_optimizer, build_scheduler
 from utils.wandb import Wandb
-from utils.config import config
 from vis_ros.vis_obj_segmentation import SCANNET20_Label_Names
 
 

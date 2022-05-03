@@ -1,13 +1,14 @@
 import os
 import sys
 import time
+
 import numpy as np
-import scipy
 import open3d as o3d
+import scipy
 import torch
 import yaml
-from tensorboardX import SummaryWriter
 from dataset.mp3d.config_mp3d import ConfigMP3D
+from tensorboardX import SummaryWriter
 
 # local import
 ##################################################################
@@ -19,13 +20,13 @@ HAIS_DIR = os.path.join(FILE_DIR, "HAIS")
 LIB_DIR = os.path.join(HAIS_DIR, "lib")
 sys.path.append(HAIS_DIR)
 
-from models.HAIS.model.hais.hais import HAIS, model_fn_decorator
-from models.HAIS.util.utils import checkpoint_restore
 from config.config_hais import ConfigHAIS
 from dataset.mp3d.dataset_mp3d import DatasetMP3D
 
 # import wrapper functions of C++ ops
 from models.HAIS.lib.hais_ops.functions import hais_ops
+from models.HAIS.model.hais.hais import HAIS, model_fn_decorator
+from models.HAIS.util.utils import checkpoint_restore
 
 # DEBUG utilities
 VIS_SUBSAMPLE = False
@@ -347,4 +348,3 @@ if __name__ == "__main__":
     # o3d_pcl = o3d.io.read_triangle_mesh(ply_path)
     o3d_pcl = o3d.io.read_point_cloud(ply_path)
     result = seg_hais.predict(o3d_pcl)
-

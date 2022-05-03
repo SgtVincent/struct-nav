@@ -1,18 +1,18 @@
 import math
 import os
+
+import agents.utils.visualization as vu
 import cv2
+import envs.utils.pose as pu
 import numpy as np
 import skimage.morphology
-from PIL import Image
-from torchvision import transforms
-
-from envs.utils.fmm_planner import FMMPlanner
-from envs.habitat.objectgoal_env import ObjectGoalEnv
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette
-import envs.utils.pose as pu
-import agents.utils.visualization as vu
+from envs.habitat.objectgoal_env import ObjectGoalEnv
+from envs.utils.fmm_planner import FMMPlanner
+from PIL import Image
+from torchvision import transforms
 
 
 class SemExpEnvAgent(ObjectGoalEnv):
@@ -31,7 +31,8 @@ class SemExpEnvAgent(ObjectGoalEnv):
             [
                 transforms.ToPILImage(),
                 transforms.Resize(
-                    (args.frame_height, args.frame_width), interpolation=Image.NEAREST
+                    (args.frame_height, args.frame_width),
+                    interpolation=Image.NEAREST,
                 ),
             ]
         )
@@ -166,7 +167,9 @@ class SemExpEnvAgent(ObjectGoalEnv):
         goal = planner_inputs["goal"]
 
         # Get pose prediction and global policy planning window
-        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = planner_inputs["pose_pred"]
+        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = planner_inputs[
+            "pose_pred"
+        ]
         gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
         planning_window = [gx1, gx2, gy1, gy2]
 
@@ -230,17 +233,23 @@ class SemExpEnvAgent(ObjectGoalEnv):
                             int(r * 100 / args.map_resolution),
                             int(c * 100 / args.map_resolution),
                         )
-                        [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
+                        [r, c] = pu.threshold_poses(
+                            [r, c], self.collision_map.shape
+                        )
                         self.collision_map[r, c] = 1
 
-        stg, stop = self._get_stg(map_pred, start, np.copy(goal), planning_window)
+        stg, stop = self._get_stg(
+            map_pred, start, np.copy(goal), planning_window
+        )
 
         # Deterministic Local Policy
         if stop and planner_inputs["found_goal"] == 1:
             action = 0  # Stop
         else:
             (stg_x, stg_y) = stg
-            angle_st_goal = math.degrees(math.atan2(stg_x - start[0], stg_y - start[1]))
+            angle_st_goal = math.degrees(
+                math.atan2(stg_x - start[0], stg_y - start[1])
+            )
             angle_agent = (start_o) % 360.0
             if angle_agent > 180:
                 angle_agent -= 360
@@ -263,7 +272,10 @@ class SemExpEnvAgent(ObjectGoalEnv):
 
         [gx1, gx2, gy1, gy2] = planning_window
 
-        x1, y1, = 0, 0
+        x1, y1, = (
+            0,
+            0,
+        )
         x2, y2 = grid.shape
 
         def add_boundary(mat, value=1):
@@ -273,9 +285,12 @@ class SemExpEnvAgent(ObjectGoalEnv):
             return new_mat
 
         traversible = (
-            skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem) != True
+            skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem)
+            != True
         )
-        traversible[self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 0
+        traversible[
+            self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1
+        ] = 0
         traversible[self.visited[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 1
 
         traversible[
@@ -305,7 +320,9 @@ class SemExpEnvAgent(ObjectGoalEnv):
         rgb = obs[:, :, :3]
         depth = obs[:, :, 3:4]
 
-        sem_seg_pred = self._get_sem_pred(rgb.astype(np.uint8), use_seg=use_seg)
+        sem_seg_pred = self._get_sem_pred(
+            rgb.astype(np.uint8), use_seg=use_seg
+        )
         depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 
         ds = args.env_frame_width // args.frame_width  # Downscaling factor
@@ -315,7 +332,9 @@ class SemExpEnvAgent(ObjectGoalEnv):
             sem_seg_pred = sem_seg_pred[ds // 2 :: ds, ds // 2 :: ds]
 
         depth = np.expand_dims(depth, axis=2)
-        state = np.concatenate((rgb, depth, sem_seg_pred), axis=2).transpose(2, 0, 1)
+        state = np.concatenate((rgb, depth, sem_seg_pred), axis=2).transpose(
+            2, 0, 1
+        )
 
         return state
 
@@ -397,7 +416,9 @@ class SemExpEnvAgent(ObjectGoalEnv):
         self.vis_image[50:530, 670:1150] = sem_map_vis
 
         pos = (
-            (start_x * 100.0 / args.map_resolution - gy1) * 480 / map_pred.shape[0],
+            (start_x * 100.0 / args.map_resolution - gy1)
+            * 480
+            / map_pred.shape[0],
             (map_pred.shape[1] - start_y * 100.0 / args.map_resolution + gx1)
             * 480
             / map_pred.shape[1],

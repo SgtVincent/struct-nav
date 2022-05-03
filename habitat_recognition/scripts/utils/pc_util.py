@@ -26,10 +26,10 @@ except:
     sys.exit(-1)
 
 
+import matplotlib.pyplot as pyplot
+
 # Mesh IO
 import trimesh
-
-import matplotlib.pyplot as pyplot
 
 # ----------------------------------------
 # Point Cloud Sampling
@@ -37,8 +37,7 @@ import matplotlib.pyplot as pyplot
 
 
 def random_sampling(pc, num_sample, replace=None, return_choices=False):
-    """ Input is NxC, output is num_samplexC
-    """
+    """Input is NxC, output is num_samplexC"""
     if replace is None:
         replace = pc.shape[0] < num_sample
     choices = np.random.choice(pc.shape[0], num_sample, replace=replace)
@@ -56,8 +55,8 @@ def random_sampling(pc, num_sample, replace=None, return_choices=False):
 def point_cloud_to_volume_batch(
     point_clouds, vsize=12, radius=1.0, flatten=True
 ):
-    """ Input is BxNx3 batch of point cloud
-        Output is Bx(vsize^3)
+    """Input is BxNx3 batch of point cloud
+    Output is Bx(vsize^3)
     """
     vol_list = []
     for b in range(point_clouds.shape[0]):
@@ -75,9 +74,9 @@ def point_cloud_to_volume_batch(
 
 
 def point_cloud_to_volume(points, vsize, radius=1.0):
-    """ input is Nx3 points.
-        output is vsize*vsize*vsize
-        assumes points are in range [-radius, radius]
+    """input is Nx3 points.
+    output is vsize*vsize*vsize
+    assumes points are in range [-radius, radius]
     """
     vol = np.zeros((vsize, vsize, vsize))
     voxel = 2 * radius / float(vsize)
@@ -88,8 +87,8 @@ def point_cloud_to_volume(points, vsize, radius=1.0):
 
 
 def volume_to_point_cloud(vol):
-    """ vol is occupancy grid (value = 0 or 1) of size vsize*vsize*vsize
-        return Nx3 numpy array.
+    """vol is occupancy grid (value = 0 or 1) of size vsize*vsize*vsize
+    return Nx3 numpy array.
     """
     vsize = vol.shape[0]
     assert vol.shape[1] == vsize and vol.shape[1] == vsize
@@ -108,9 +107,9 @@ def volume_to_point_cloud(vol):
 def point_cloud_to_volume_v2_batch(
     point_clouds, vsize=12, radius=1.0, num_sample=128
 ):
-    """ Input is BxNx3 a batch of point cloud
-        Output is BxVxVxVxnum_samplex3
-        Added on Feb 19
+    """Input is BxNx3 a batch of point cloud
+    Output is BxVxVxVxnum_samplex3
+    Added on Feb 19
     """
     vol_list = []
     for b in range(point_clouds.shape[0]):
@@ -122,12 +121,12 @@ def point_cloud_to_volume_v2_batch(
 
 
 def point_cloud_to_volume_v2(points, vsize, radius=1.0, num_sample=128):
-    """ input is Nx3 points
-        output is vsize*vsize*vsize*num_sample*3
-        assumes points are in range [-radius, radius]
-        samples num_sample points in each voxel, if there are less than
-        num_sample points, replicate the points
-        Added on Feb 19
+    """input is Nx3 points
+    output is vsize*vsize*vsize*num_sample*3
+    assumes points are in range [-radius, radius]
+    samples num_sample points in each voxel, if there are less than
+    num_sample points, replicate the points
+    Added on Feb 19
     """
     vol = np.zeros((vsize, vsize, vsize, num_sample, 3))
     voxel = 2 * radius / float(vsize)
@@ -165,9 +164,9 @@ def point_cloud_to_volume_v2(points, vsize, radius=1.0, num_sample=128):
 def point_cloud_to_image_batch(
     point_clouds, imgsize, radius=1.0, num_sample=128
 ):
-    """ Input is BxNx3 a batch of point cloud
-        Output is BxIxIxnum_samplex3
-        Added on Feb 19
+    """Input is BxNx3 a batch of point cloud
+    Output is BxIxIxnum_samplex3
+    Added on Feb 19
     """
     img_list = []
     for b in range(point_clouds.shape[0]):
@@ -179,12 +178,12 @@ def point_cloud_to_image_batch(
 
 
 def point_cloud_to_image(points, imgsize, radius=1.0, num_sample=128):
-    """ input is Nx3 points
-        output is imgsize*imgsize*num_sample*3
-        assumes points are in range [-radius, radius]
-        samples num_sample points in each pixel, if there are less than
-        num_sample points, replicate the points
-        Added on Feb 19
+    """input is Nx3 points
+    output is imgsize*imgsize*num_sample*3
+    assumes points are in range [-radius, radius]
+    samples num_sample points in each pixel, if there are less than
+    num_sample points, replicate the points
+    Added on Feb 19
     """
     img = np.zeros((imgsize, imgsize, num_sample, 3))
     pixel = 2 * radius / float(imgsize)
@@ -221,7 +220,7 @@ def point_cloud_to_image(points, imgsize, radius=1.0, num_sample=128):
 
 
 def read_ply(filename):
-    """ read XYZ point cloud from filename PLY file """
+    """read XYZ point cloud from filename PLY file"""
     plydata = PlyData.read(filename)
     pc = plydata["vertex"].data
     pc_array = np.array([[x, y, z] for x, y, z in pc])
@@ -229,7 +228,7 @@ def read_ply(filename):
 
 
 def write_ply(points, filename, text=True):
-    """ input: Nx3, write points to filename as PLY format. """
+    """input: Nx3, write points to filename as PLY format."""
     points = [
         (points[i, 0], points[i, 1], points[i, 2])
         for i in range(points.shape[0])
@@ -242,7 +241,7 @@ def write_ply(points, filename, text=True):
 def write_ply_color(
     points, labels, filename, num_classes=None, colormap=pyplot.cm.jet
 ):
-    """ Color (N,3) points with labels (N) within range 0 ~ num_classes-1 as OBJ file """
+    """Color (N,3) points with labels (N) within range 0 ~ num_classes-1 as OBJ file"""
     labels = labels.astype(int)
     N = points.shape[0]
     if num_classes is None:
@@ -276,7 +275,7 @@ def write_ply_color(
 
 
 def write_ply_rgb(points, colors, out_filename, num_classes=None):
-    """ Color (N,3) points with RGB colors (N,3) within range [0,255] as OBJ file """
+    """Color (N,3) points with RGB colors (N,3) within range [0,255] as OBJ file"""
     colors = colors.astype(int)
     N = points.shape[0]
     fout = open(out_filename, "w")
@@ -295,7 +294,7 @@ def write_ply_rgb(points, colors, out_filename, num_classes=None):
 
 
 def pyplot_draw_point_cloud(points, output_filename):
-    """ points is a Nx3 numpy array """
+    """points is a Nx3 numpy array"""
     import matplotlib.pyplot as plt
 
     fig = plt.figure()
@@ -308,8 +307,8 @@ def pyplot_draw_point_cloud(points, output_filename):
 
 
 def pyplot_draw_volume(vol, output_filename):
-    """ vol is of size vsize*vsize*vsize
-        output an image to output_filename
+    """vol is of size vsize*vsize*vsize
+    output an image to output_filename
     """
     points = volume_to_point_cloud(vol)
     pyplot_draw_point_cloud(points, output_filename)
@@ -319,7 +318,7 @@ def pyplot_draw_volume(vol, output_filename):
 # Simple Point manipulations
 # ----------------------------------------
 def rotate_point_cloud(points, rotation_matrix=None):
-    """ Input: (n,3), Output: (n,3) """
+    """Input: (n,3), Output: (n,3)"""
     # Rotate in-place around Z axis.
     if rotation_matrix is None:
         rotation_angle = np.random.uniform() * 2 * np.pi
@@ -333,8 +332,8 @@ def rotate_point_cloud(points, rotation_matrix=None):
 
 
 def rotate_pc_along_y(pc, rot_angle):
-    """ Input ps is NxC points with first 3 channels as XYZ
-        z is facing forward, x is left ward, y is downward
+    """Input ps is NxC points with first 3 channels as XYZ
+    z is facing forward, x is left ward, y is downward
     """
     cosval = np.cos(rot_angle)
     sinval = np.sin(rot_angle)
@@ -378,10 +377,10 @@ def rotz(t):
 # BBox
 # ----------------------------------------
 def bbox_corner_dist_measure(crnr1, crnr2):
-    """ compute distance between box corners to replace iou
+    """compute distance between box corners to replace iou
     Args:
         crnr1, crnr2: Nx3 points of box corners in camera axis (y points down)
-        output is a scalar between 0 and 1        
+        output is a scalar between 0 and 1
     """
 
     dist = sys.maxsize
@@ -402,10 +401,10 @@ def bbox_corner_dist_measure(crnr1, crnr2):
 
 
 def point_cloud_to_bbox(points):
-    """ Extract the axis aligned box from a pcl or batch of pcls
+    """Extract the axis aligned box from a pcl or batch of pcls
     Args:
         points: Nx3 points or BxNx3
-        output is 6 dim: xyz pos of center and 3 lengths        
+        output is 6 dim: xyz pos of center and 3 lengths
     """
     which_dim = (
         len(points.shape) - 2
@@ -548,7 +547,7 @@ def write_oriented_bbox_camera_coord(scene_bbox, out_filename):
 def write_lines_as_cylinders(pcl, filename, rad=0.005, res=64):
     """Create lines represented as cylinders connecting pairs of 3D points
     Args:
-        pcl: (N x 2 x 3 numpy array): N pairs of xyz pos             
+        pcl: (N x 2 x 3 numpy array): N pairs of xyz pos
         filename: (string) filename for the output mesh (ply) file
         rad: radius for the cylinder
         res: number of sections used to create the cylinder
@@ -627,4 +626,3 @@ if __name__ == "__main__":
     print(bbox_corner_dist_measure(crnr1, crnr2))
 
     print("tests PASSED")
-

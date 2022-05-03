@@ -29,9 +29,13 @@ def get_r_matrix(ax_, angle):
     if np.abs(angle) > ANGLE_EPS:
         S_hat = np.array(
             [[0.0, -ax[2], ax[1]], [ax[2], 0.0, -ax[0]], [-ax[1], ax[0], 0.0]],
-            dtype=np.float32)
-        R = np.eye(3) + np.sin(angle) * S_hat + \
-            (1 - np.cos(angle)) * (np.linalg.matrix_power(S_hat, 2))
+            dtype=np.float32,
+        )
+        R = (
+            np.eye(3)
+            + np.sin(angle) * S_hat
+            + (1 - np.cos(angle)) * (np.linalg.matrix_power(S_hat, 2))
+        )
     else:
         R = np.eye(3)
     return R
@@ -62,7 +66,7 @@ def rotate_camera_to_point_at(up_from, lookat_from, up_to, lookat_to):
             if flip > 0:
                 r2 = get_r_matrix(lookat_to, angle)
             elif flip < 0:
-                r2 = get_r_matrix(lookat_to, -1. * angle)
+                r2 = get_r_matrix(lookat_to, -1.0 * angle)
         else:
             # Angle of rotation is too close to 180 degrees, direction of
             # rotation does not matter.

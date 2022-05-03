@@ -3,23 +3,25 @@
 
 import argparse
 import os
-from habitat.core.simulator import ShortestPathPoint
-import habitat_sim
-from habitat_sim.agent.controls.controls import SceneNodeControl
-import open3d as o3d
-import numpy as np
-from plyfile import PlyData, PlyElement
-from tqdm import tqdm
 import pickle
 import time
 
+import habitat_sim
+import numpy as np
+import open3d as o3d
+from dataset.habitat.simulator import init_sim
+
 # local import
 from dataset.habitat.utils import display_map, display_path
-from dataset.habitat.simulator import init_sim
-from scene_graph.scene_graph_cls import SceneGraphHabitat
+from habitat_sim.agent.controls.controls import SceneNodeControl
+from plyfile import PlyData, PlyElement
 from scene_graph.config import SceneGraphHabitatConfig
-from scene_graph.utils import visualize_scene_graph, getOBB, grid_xz_to_points
+from scene_graph.scene_graph_cls import SceneGraphHabitat
 from scene_graph.scene_graph_pred import SceneGraphPredictor
+from scene_graph.utils import getOBB, grid_xz_to_points, visualize_scene_graph
+from tqdm import tqdm
+
+from habitat.core.simulator import ShortestPathPoint
 
 display = False
 verbose = False
@@ -253,4 +255,3 @@ if __name__ == "__main__":
 
 #             if display:
 #                 display_sample(rgb, semantic, depth)
-

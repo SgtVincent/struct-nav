@@ -38,7 +38,6 @@ import tempfile
 import textwrap
 import traceback
 
-
 # A *check* is a function (of no arguments) that performs a diagnostic,
 # writes log messages, and optionally yields suggestions. Each check
 # runs in isolation; exceptions will be caught and reported.
@@ -425,7 +424,9 @@ def source_trees_without_genfiles():
 
     def has_genfiles(root):
         sample_genfile = os.path.join("compat", "proto", "summary_pb2.py")
-        return os.path.isfile(os.path.join(root, "tensorboard", sample_genfile))
+        return os.path.isfile(
+            os.path.join(root, "tensorboard", sample_genfile)
+        )
 
     def is_bad(root):
         return has_tensorboard(root) and not has_genfiles(root)

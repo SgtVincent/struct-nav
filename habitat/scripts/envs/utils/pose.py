@@ -30,8 +30,8 @@ def get_new_pose(pose, rel_pose_change):
     x += global_dy
     y += global_dx
     o += np.rad2deg(do)
-    if o > 180.:
-        o -= 360.
+    if o > 180.0:
+        o -= 360.0
 
     return x, y, o
 
