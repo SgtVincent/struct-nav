@@ -310,12 +310,18 @@ class HAIS(nn.Module):
         scale,
         mode,
     ):
-        """
-        :param clusters_idx: (SumNPoint, 2), int, [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N, cpu
-        :param clusters_offset: (nCluster + 1), int, cpu
-        :param feats: (N, C), float, cuda
-        :param coords: (N, 3), float, cuda
-        :return:
+        """_summary_
+        Args:
+            clusters_idx (torch.Tensor): (SumNPoint, 2), int, [:, 0] for cluster_id, [:, 1] for corresponding point idxs in N, cpu
+            clusters_offset (torch.Tensor):  (nCluster + 1), int, cpu
+            feats (torch.Tensor): (N, C), float, cuda
+            coords (torch.Tensor): (N, 3), float, cuda
+            fullscale (_type_): _description_
+            scale (_type_): _description_
+            mode (_type_): _description_
+
+        Returns:
+            _type_: _description_
         """
         c_idxs = clusters_idx[:, 1].cuda()
         clusters_feats = feats[c_idxs.long()]

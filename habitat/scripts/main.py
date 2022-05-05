@@ -122,21 +122,22 @@ def main():
         cnt_pub += 1
         # FIXME: consider to move publishing point cloud to data process function
         # in agents
-        if sub_cloud.has_cloud():
-            o3d_cloud = sub_cloud.get_cloud()
-            cnt_sub += 1
+        # NOTE: test if rgbd data has been received by rtabmap
+        # if sub_cloud.has_cloud():
+        #     o3d_cloud = sub_cloud.get_cloud()
+        #     cnt_sub += 1
 
-            num_points = np.asarray(o3d_cloud.points).shape[0]
-            rospy.loginfo(
-                "Publish: {} th images, "
-                "Subscribe: {} th point cloud, "
-                "{} points.".format(cnt_pub, cnt_sub, num_points)
-            )
+        #     num_points = np.asarray(o3d_cloud.points).shape[0]
+        #     rospy.loginfo(
+        #         "Publish: {} th images, "
+        #         "Subscribe: {} th point cloud, "
+        #         "{} points.".format(cnt_pub, cnt_sub, num_points)
+        #     )
 
-            # if VISUALIZE and cnt_sub == 11:
-            #     coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
-            #     o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
-            #     o3d.visualization.draw_geometries([coo, o3d_cloud])
+        # if VISUALIZE and cnt_sub == 11:
+        #     coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
+        #     o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
+        #     o3d.visualization.draw_geometries([coo, o3d_cloud])
 
         # message processing and synchronization should be down in agent.act()
         action = agent.act()

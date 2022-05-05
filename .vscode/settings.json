@@ -21,6 +21,7 @@
   "python.formatting.provider": "black",
   "python.linting.pylintEnabled": true,
   "python.linting.pylintArgs": [
+    "--errors-only",
     "--disable=C0111",
     "--extension-pkg-whitelist=cv2"
   ],
@@ -47,5 +48,8 @@
   ],
   "cSpell.words": ["hais"],
   "python.linting.enabled": true,
-  "cmake.configureOnOpen": false
+  "cmake.configureOnOpen": false,
+  "[xml]": {
+    "editor.defaultFormatter": "redhat.vscode-xml"
+  }
 }

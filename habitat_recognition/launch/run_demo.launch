@@ -1,13 +1,16 @@
 <launch>
+    <arg name="agent_type" default="frontier_explore" />
+    <!-- <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
+    <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" />
+    <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
 
-    <!-- habitat agent & habitat simulator -->
+    <!-- habitat_ros: navigation agent & habitat simulator -->
     <include file="$(find habitat_ros)/launch/habitat_agent.launch">
         <arg name="agent_type" value="frontier_explore" />
-        <!-- <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"/> -->
-        <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" />
+        <arg name="test_scene" value="$(arg test_scene)" />
     </include>
 
-    <!-- rtabmap -->
+    <!-- rtabmap: SLAM system providing 3D reconstruction and 2D map -->
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
 
         <arg name="rtabmap_args" value="--delete_db_on_start" />
@@ -53,7 +56,14 @@
 
     </include>
 
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz" />
-    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
+    <!-- habitat_recognition: parse 3D point clouds into semantic instances -->
+    <!-- <include file="$(find habitat_recognition)/launch/habitat_recognition.launch">
+        <arg name="test_scene" value="$(arg test_scene)" />
+        <arg name="camera_calib" value="$(arg camera_calib)" />
+    </include> -->
+
+    <node pkg="rviz" type="rviz" name="rviz" args=" -d $(find habitat_recognition)/rviz/rgbd.rviz" />
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args=" -d $(find habitat_ros)/rviz/rgbd.rviz"/> -->
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args=" -d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
 
 </launch>
