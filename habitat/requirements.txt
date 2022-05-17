@@ -6,3 +6,5 @@ scikit-image
 scikit-fmm
 transformations
 rospkg
+sip 
+PyQt5-sip==4.19.18

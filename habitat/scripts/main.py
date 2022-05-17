@@ -118,12 +118,13 @@ def main():
 
     action = "stay"  # initial action to get first frame
     while not rospy.is_shutdown():
-        print(f"Step {cnt_action}:simulator execute action {action}")
-        observations = sim.step(action)
-        cnt_action += 1
+        if action != "stay" or cnt_action == 0:
+            print(f"Step {cnt_action}:simulator execute action {action}")
+            observations = sim.step(action)
+            cnt_action += 1
 
-        publisher.publish(observations)
-        cnt_pub += 1
+            publisher.publish(observations)
+            cnt_pub += 1
         # FIXME: consider to move publishing point cloud to data process function
         # in agents
         # NOTE: test if rgbd data has been received by rtabmap
@@ -145,7 +146,7 @@ def main():
 
         # message processing and synchronization should be down in agent.act()
         action = agent.act()
-        rate.sleep()
+        # rate.sleep()
 
 
 if __name__ == "__main__":

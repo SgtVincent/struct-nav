@@ -107,9 +107,9 @@ class FrontierExploreAgent:
         # cached messages
         self.odom_msg = None
         self.grid_map_msg = None
-        self.last_odom_msg_time = 0  # last odom_msg timestamp
-        self.last_grid_map_msg_time = 0  # last grid_map_msg timestamp
-
+        self.last_odom_msg_time = 0.0  # last odom_msg timestamp
+        self.last_grid_map_msg_time = 0.0  # last grid_map_msg timestamp
+        self.last_update_time = 0.0
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
 
@@ -150,6 +150,11 @@ class FrontierExploreAgent:
     def parse_ros_messages(self):
         odom_msg: Odometry = self.odom_msg
         grid_map_msg: OccupancyGrid = self.grid_map_msg
+
+        # update timestamps for last processed messages
+        self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
+        self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
+        self.last_update_time = rospy.Time().now().to_sec()
 
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
@@ -229,12 +234,13 @@ class FrontierExploreAgent:
             == self.grid_map_msg.header.stamp.to_sec()
         ):
             # waiting for data
-            cur_time = genpy.Time().to_sec()
-            time_diff = cur_time - max(
-                self.last_odom_msg_time, self.last_grid_map_msg_time
-            )
+            cur_time = rospy.Time().now().to_sec()
+            time_diff = cur_time - self.last_update_time
+            # time_diff = cur_time - max(
+            #     self.last_odom_msg_time, self.last_grid_map_msg_time
+            # )
             print(
-                f"DEBUG: ros message not updated since {time_diff} seconds ago"
+                f"DEBUG: waiting for message update since {time_diff} seconds ago"
             )
             return "stay"
 
@@ -648,11 +654,9 @@ class FrontierExploreAgent:
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg
-        self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
 
     def callback_grid_map(self, grid_map_msg: OccupancyGrid):
         self.grid_map_msg = grid_map_msg
-        self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
 
     def publish_frontiers(self, frontiers, goals):
 
