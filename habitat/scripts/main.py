@@ -14,7 +14,7 @@ from subscribers import PointCloudSubscriber
 from utils import transformation
 
 # parameters used for debuging with python debugger
-DEFAULT_RATE = 1
+DEFAULT_RATE = 1.0
 # DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
 DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
 DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
@@ -41,6 +41,9 @@ def main():
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
     rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
     depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image")
+    semantic_topic = rospy.get_param(
+        "~semantic_topic", ""
+    )  # "/camera/semantic/image") # not to pulish gt by default
     camera_info_topic = rospy.get_param(
         "~camera_info_topic", "/camera/rgb/camera_info"
     )
@@ -59,11 +62,12 @@ def main():
     # ros pub and sub
     rate = rospy.Rate(rate_value)
     publisher = HabitatObservationPublisher(
-        rgb_topic,
-        depth_topic,
-        camera_info_topic,
-        true_pose_topic,
-        camera_info_file,
+        rgb_topic=rgb_topic,
+        depth_topic=depth_topic,
+        semantic_topic=semantic_topic,
+        camera_info_topic=camera_info_topic,
+        true_pose_topic=true_pose_topic,
+        camera_info_file=camera_info_file,
     )
     # action_publisher = rospy.Publisher(
     #     "habitat_action", Int32, latch=True, queue_size=100

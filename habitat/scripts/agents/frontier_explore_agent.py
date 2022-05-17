@@ -7,6 +7,7 @@ import agents.utils.visualization as vu
 import cv2
 import envs.utils.pose as pu
 import numpy as np
+import genpy
 
 # ros packages
 import rospy
@@ -106,6 +107,8 @@ class FrontierExploreAgent:
         # cached messages
         self.odom_msg = None
         self.grid_map_msg = None
+        self.last_odom_msg_time = 0  # last odom_msg timestamp
+        self.last_grid_map_msg_time = 0  # last grid_map_msg timestamp
 
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
@@ -216,8 +219,23 @@ class FrontierExploreAgent:
         ############ parse ros messages ################
 
         # FIXME: cannot receive grid_map message
-        while self.odom_msg == None or self.grid_map_msg == None:
+        if self.odom_msg == None or self.grid_map_msg == None:
             # waiting for data
+            return "stay"
+
+        if (
+            self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
+            or self.last_grid_map_msg_time
+            == self.grid_map_msg.header.stamp.to_sec()
+        ):
+            # waiting for data
+            cur_time = genpy.Time().to_sec()
+            time_diff = cur_time - max(
+                self.last_odom_msg_time, self.last_grid_map_msg_time
+            )
+            print(
+                f"DEBUG: ros message not updated since {time_diff} seconds ago"
+            )
             return "stay"
 
         grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
@@ -630,9 +648,11 @@ class FrontierExploreAgent:
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg
+        self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
 
     def callback_grid_map(self, grid_map_msg: OccupancyGrid):
         self.grid_map_msg = grid_map_msg
+        self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
 
     def publish_frontiers(self, frontiers, goals):
 

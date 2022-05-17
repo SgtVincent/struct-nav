@@ -4,6 +4,7 @@ import numpy as np
 import rospy
 import transformations as tf
 import yaml
+import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
@@ -31,6 +32,7 @@ class HabitatObservationPublisher:
         self,
         rgb_topic="",
         depth_topic="",
+        semantic_topic="",
         camera_info_topic="",
         true_pose_topic="",
         camera_info_file="",
@@ -66,6 +68,15 @@ class HabitatObservationPublisher:
         else:
             self.publish_depth = False
 
+        # Initialize semantic image publisher
+        if len(semantic_topic) > 0:
+            self.publish_semantic = True
+            self.semantic_publisher = rospy.Publisher(
+                semantic_topic, Image, latch=True, queue_size=100
+            )
+        else:
+            self.publish_semantic = False
+
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
         if False:
@@ -83,20 +94,53 @@ class HabitatObservationPublisher:
         # Publish RGB image.
         if self.publish_rgb:
             # self.image = self.cvbridge.cv2_to_imgmsg(observations['rgb'])
-            image = self.cvbridge.cv2_to_imgmsg(observations["rgb"][:, :, 0:3])
-            image.encoding = "rgb8"
-            image.header.stamp = cur_time
-            image.header.frame_id = "camera_link"
-            self.image_publisher.publish(image)
+            rgb_msg = self.cvbridge.cv2_to_imgmsg(
+                observations["rgb"][:, :, 0:3]
+            )
+            rgb_msg.encoding = "rgb8"
+            rgb_msg.header.stamp = cur_time
+            rgb_msg.header.frame_id = "camera_link"
+            self.image_publisher.publish(rgb_msg)
 
         # Publish depth image.
         if self.publish_depth:
-            depth = self.cvbridge.cv2_to_imgmsg(
+            depth_msg = self.cvbridge.cv2_to_imgmsg(
                 observations["depth"] * DEPTH_SCALE
             )
-            depth.header.stamp = cur_time
-            depth.header.frame_id = "base_scan"
-            self.depth_publisher.publish(depth)
+            depth_msg.header.stamp = cur_time
+            depth_msg.header.frame_id = "base_scan"
+            self.depth_publisher.publish(depth_msg)
+
+        if self.publish_semantic:
+            semantic = observations["semantic"]
+            assert np.max(semantic) < 256  # use uint8 to encode image
+
+            # convert semantic image to rgb color image to publish
+            semantic_color = cv2.applyColorMap(
+                semantic.astype(np.uint8), cv2.COLORMAP_JET
+            )
+            semantic_msg = self.cvbridge.cv2_to_imgmsg(semantic_color)
+            semantic_msg.encoding = "bgr8"  # "rgb8"
+            semantic_msg.header.stamp = cur_time
+            semantic_msg.header.frame_id = "camera_link"
+            self.semantic_publisher.publish(semantic_msg)
+
+            # NOTE: following code could be use as reverse mapping from rgb color iamges
+            # back to semantic images
+            # create an inverse from the colormap to semantic values
+            semantic_values = np.arange(256, dtype=np.uint8)
+            color_values = map(
+                tuple,
+                cv2.applyColorMap(semantic_values, cv2.COLORMAP_JET).reshape(
+                    256, 3
+                ),
+            )
+            color_to_semantic_map = dict(zip(color_values, semantic_values))
+            semantic_decoded = np.apply_along_axis(
+                lambda bgr: color_to_semantic_map[tuple(bgr)],
+                2,
+                semantic_color,
+            )
 
         # Publish camera info.
         if self.publish_camera_info:

@@ -5,6 +5,7 @@
         <arg name="agent_type" value="frontier_explore" />
         <!-- <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"/> -->
         <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" />
+        <arg name="habitat_update_rate" value="2.0" />
     </include>
 
     <!-- rtabmap -->
@@ -21,8 +22,9 @@
 
         <!-- topics  -->
         <!-- input -->
-        <arg name="depth_topic" value="/camera/depth/image" />
+        <!-- <arg name="depth_topic" value="/camera/depth/image" /> -->
         <arg name="rgb_topic" value="/camera/rgb/image" />
+        <!-- <arg name="rgb_topic" value="/camera/semantic/image" /> -->
         <arg name="camera_info_topic" value="/camera/rgb/camera_info" />
         <arg name="scan_topic" value="/scan" />
         <arg name="odom_topic" value="/odom" />
