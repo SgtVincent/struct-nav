@@ -6,5 +6,10 @@ scikit-image
 scikit-fmm
 transformations
 rospkg
-sip 
+open3d
+rospkg
+scikit-fmm
+scikit-image
+sip
+transformations 
 PyQt5-sip==4.19.18
