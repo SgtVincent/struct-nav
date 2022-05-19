@@ -6,7 +6,7 @@ import open3d as o3d
 import rospy
 from agents import FrontierExploreAgent, RandomWalkAgent, SpinningAgent
 from agents.utils.arguments import get_args
-from publishers import HabitatObservationPublisher
+from utils.publishers import HabitatObservationPublisher
 from simulator import init_sim
 
 # from std_msgs.msg import Int32
@@ -99,7 +99,7 @@ def main():
         agent_args.grid_map_topic = grid_map_topic
         agent_args.frontiers_topic = frontiers_topic
         # agent_args.goal_topic = goal_topic
-        agent = FrontierExploreAgent(agent_args, sim)
+        agent = FrontierExploreAgent(agent_args)
         # agent.reset()  # must call this function to initialize agent
 
     else:

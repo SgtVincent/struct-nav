@@ -28,6 +28,32 @@ def coo_rtab2mp3d(o3d_cloud):
     return o3d_cloud_r
 
 
+def publish_static_cam_to_base(sensor_height):
+    # 3. create mp3d_link to camera_link
+    tf_mp3d2cam = TransformStamped()
+
+    tf_mp3d2cam.header.stamp = ros_time
+    tf_mp3d2cam.header.frame_id = "base_link"  # z-axis upright
+    tf_mp3d2cam.child_frame_id = "camera_link"  # y-axis upright
+
+    tf_mp3d2cam.transform.translation.x = 0.0
+    tf_mp3d2cam.transform.translation.y = 0.0
+    tf_mp3d2cam.transform.translation.z = sensor_height
+
+    quat = quat_from_two_vectors(np.array([0, 1, 0]), np.array([0, 0, -1]))
+    tf_mp3d2cam.transform.rotation.x = quat.x
+    tf_mp3d2cam.transform.rotation.y = quat.y
+    tf_mp3d2cam.transform.rotation.z = quat.z
+    tf_mp3d2cam.transform.rotation.w = quat.w
+
+    # transforms = [tf_world2map, tf_mp3d2cam]
+    transforms = [tf_mp3d2cam]
+
+    broadcaster.sendTransform(transforms)
+
+    return transforms
+
+
 def publish_agent_init_tf(agent: Agent, sensor_id="rgb", instant_pub=True):
 
     """

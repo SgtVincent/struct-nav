@@ -1,20 +1,19 @@
+import json
 import bz2
 import gzip
-import json
-
 import _pickle as cPickle
-import envs.utils.pose as pu
 import gym
 import numpy as np
 import quaternion
 import skimage.morphology
-from envs.constants import coco_categories
-from envs.utils.fmm_planner import FMMPlanner
-
 import habitat
 
+from envs.utils.fmm_planner import FMMPlanner
+from envs.constants import coco_categories
+import envs.utils.pose as pu
 
-class ObjectGoalEnv(habitat.RLEnv):
+
+class ObjectGoal_Env(habitat.RLEnv):
     """The Object Goal Navigation environment class. The class is responsible
     for loading the dataset, generating episodes, and computing evaluation
     metrics.
@@ -357,7 +356,7 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         rgb = obs["rgb"].astype(np.uint8)
         depth = obs["depth"]
-        state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
+        # state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
         self.last_sim_location = self.get_sim_location()
 
         # Set info
@@ -366,7 +365,7 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.info["goal_cat_id"] = self.goal_idx
         self.info["goal_name"] = self.goal_name
 
-        return state, self.info
+        return obs, self.info
 
     def step(self, action):
         """Function to take an action in the environment.
@@ -410,7 +409,8 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.timestep += 1
         self.info["time"] = self.timestep
 
-        return state, rew, done, self.info
+        # return state, rew, done, self.info
+        return obs, rew, done, self.info
 
     def get_reward_range(self):
         """This function is not used, Habitat-RLEnv requires this function"""

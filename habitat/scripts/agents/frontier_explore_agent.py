@@ -51,13 +51,12 @@ args.exp_name
 
 DEBUG_VIS = False
 
-
+# this class is designed for running in habitat_sim
 class FrontierExploreAgent:
-    def __init__(self, args, sim: Simulator):
+    def __init__(self, args):
 
         self.args = args
         # super().__init__(args, rank, config_env, dataset)
-        self.sim = sim
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
@@ -299,69 +298,6 @@ class FrontierExploreAgent:
         # TODO: add logic for STOP action
 
         return self.action_names[action]
-
-    def plan_act_and_preprocess(self, planner_inputs):
-        """Function responsible for planning, taking the action and
-        preprocessing observations
-
-        Args:
-            planner_inputs (dict):
-                dict with following keys:
-                    'map_pred'  (ndarray): (M, M) map prediction
-                    'goal'      (ndarray): (M, M) mat denoting goal locations
-                    'pose_pred' (ndarray): (7,) array denoting pose (x,y,o)
-                                 and planning window (gx1, gx2, gy1, gy2)
-                     'found_goal' (bool): whether the goal object is found
-
-        Returns:
-            obs (ndarray): preprocessed observations ((4+C) x H x W)
-            reward (float): amount of reward returned after previous action
-            done (bool): whether the episode has ended
-            info (dict): contains timestep, pose, goal category and
-                         evaluation metric info
-        """
-
-        # plan
-        if planner_inputs["wait"]:
-            self.last_action = None
-            self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-            return np.zeros(self.obs.shape), 0.0, False, self.info
-
-        # Reset reward if new long-term goal
-        if planner_inputs["new_goal"]:
-            self.info["g_reward"] = 0
-
-        action = self.plan(planner_inputs)
-
-        if self.args.visualize or self.args.print_images:
-            self._visualize(planner_inputs)
-        # NOTE: sem_exp uses habitat-lab api for simulation intereaction
-        # if action >= 0:
-
-        #     # act
-        #     action = {"action": action}
-        #     obs, rew, done, info = super().step(action)
-
-        #     # preprocess obs
-        #     obs = self._preprocess_obs(obs)
-        #     self.last_action = action["action"]
-        #     self.obs = obs
-        #     self.info = info
-
-        #     info["g_reward"] += rew
-
-        #     return obs, rew, done, info
-
-        # else:
-        #     self.last_action = None
-        #     self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-        #     return np.zeros(self.obs_shape), 0.0, False, self.info
-
-        # NOTE: this version uses habitat_sim for simulation interaction
-        # since reward is not needed
-        obs = self.sim.step(action)
-        self.obs = obs
-        return obs
 
     def plan(self, planner_inputs):
         """Function responsible for planning

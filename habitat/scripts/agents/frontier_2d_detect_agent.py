@@ -8,61 +8,60 @@ import cv2
 import envs.utils.pose as pu
 import numpy as np
 import genpy
-
-# ros packages
-import rospy
-import skimage.morphology
-from agents.utils.arguments import get_args
-from agents.utils.utils_frontier_explore import frontier_goals
-
-# from agents.utils.semantic_prediction import SemanticPredMaskRCNN
-from envs.constants import color_palette
-from envs.habitat.objectgoal_env import ObjectGoalEnv
-from envs.utils.fmm_planner import FMMPlanner
-from geometry_msgs.msg import PoseStamped
 from habitat_sim import Simulator
 from matplotlib import cm
 from matplotlib.pyplot import grid
-from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from PIL import Image
 from scipy.spatial.transform import Rotation as R
+import skimage.morphology
+
+# ros packages
+import rospy
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
-from torchvision import transforms
 from visualization_msgs.msg import Marker, MarkerArray
-from yaml import Mark
 
-"""
-FrontierExploreAgent arguments:
-------------------------------
-args.map_resolution
-args.visualize
-args.print_images
-args.map_size_cm
-args.collision_threshold
-args.turn_angle
-args.min_depth
-args.max_depth
-args.env_frame_width 
-args.frame_width
-args.dump_location
-args.exp_name
-"""
+# from agents.utils.semantic_prediction import SemanticPredMaskRCNN
+from utils.publishers import HabitatObservationPublisher
+from utils.tf_utils import publish_agent_init_tf, publish_static_cam_to_base
+from agents.utils.arguments import get_args
+from agents.utils.utils_frontier_explore import frontier_goals
+from agents.utils.ros_utils import safe_call_reset_service
+from envs.constants import color_palette
+from envs.habitat.objectgoal_env import ObjectGoal_Env
+from envs.utils.fmm_planner import FMMPlanner
 
+
+# TODO: remove all these global default arguments
+# parameters used for debuging with python debugger
+DEFAULT_RATE = 1.0
+# DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
+DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
+DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
+DEFAULT_GOAL_RADIUS = 0.25
+DEFAULT_MAX_ANGLE = 0.1
+VISUALIZE = False
+DEBUG = True
 DEBUG_VIS = False
 
 
-class Frontier2DDetectionAgent:
-    def __init__(self, args, sim: Simulator):
+class Frontier2DDetectionAgent(ObjectGoal_Env):
+    def __init__(self, args, config_env, dataset):
 
         self.args = args
-        # super().__init__(args, rank, config_env, dataset)
-        self.sim = sim
+        self.config_env = config_env
+
+        super().__init__(
+            args, 0, config_env, dataset
+        )  # single process by default
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
+        # TODO: fetch this from config file
         self.action_names = {
-            0: "stay",
+            0: "stop",
             1: "move_forward",
             2: "turn_left",
             3: "turn_right",
@@ -85,10 +84,68 @@ class Frontier2DDetectionAgent:
         self.info["success"] = None
 
         ############## ROS setup #############################
-        self.odom_topic = self.args.odom_topic
-        self.grid_map_topic = self.args.grid_map_topic
-        self.frontiers_topic = self.args.frontiers_topic
-        # self.goal_topic = self.args.goal_topic
+        self.init_ros()
+
+        if args.visualize or args.print_images:
+            self.legend = cv2.imread("docs/legend.png")
+            self.rgb_vis = None
+            self.vis_image = vu.init_occ_image(
+                self.goal_name
+            )  # , self.legend)
+
+    def init_ros(self):
+
+        """initialize ros related publishers and subscribers for agent"""
+        # task_config = rospy.get_param("~task_config")
+        self.rate_value = rospy.get_param("~rate", DEFAULT_RATE)
+        self.camera_info_file = rospy.get_param(
+            "~camera_calib", DEFAULT_CAMERA_CALIB
+        )
+        # assert (
+        #     agent_type in AGENT_CLASS_MAPPING.keys()
+        # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
+
+        # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
+        # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
+        self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
+        self.depth_topic = rospy.get_param(
+            "~depth_topic", "/camera/depth/image"
+        )
+        self.semantic_topic = rospy.get_param(
+            "~semantic_topic", ""
+        )  # "/camera/semantic/image") # not to pulish gt by default
+        self.camera_info_topic = rospy.get_param(
+            "~camera_info_topic", "/camera/rgb/camera_info"
+        )
+        self.true_pose_topic = rospy.get_param("~true_pose_topic", "")
+        self.cloud_topic = rospy.get_param(
+            "~cloud_topic", "/rtabmap/cloud_map"
+        )
+        # topics for planning
+        self.odom_topic = rospy.get_param("~odom_topic", "/odom")
+        self.grid_map_topic = rospy.get_param(
+            "~grid_map_topic", "/rtabmap/grid_map"
+        )
+        self.frontiers_topic = rospy.get_param(
+            "~frontiers_topic", "/frontiers"
+        )
+        # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
+
+        # ros pub and sub
+        self.rate = rospy.Rate(self.rate_value)
+        self.pub_obs = HabitatObservationPublisher(
+            rgb_topic=self.rgb_topic,
+            depth_topic=self.depth_topic,
+            semantic_topic=self.semantic_topic,
+            camera_info_topic=self.camera_info_topic,
+            true_pose_topic=self.true_pose_topic,
+            camera_info_file=self.camera_info_file,
+        )
+        # action_publisher = rospy.Publisher(
+        #     "habitat_action", Int32, latch=True, queue_size=100
+        # )
+        # publish messages to a topic using rospy.Publisher class
+        # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
 
         self.sub_odom = rospy.Subscriber(
             self.odom_topic, Odometry, self.callback_odom
@@ -110,23 +167,29 @@ class Frontier2DDetectionAgent:
         self.last_odom_msg_time = 0.0  # last odom_msg timestamp
         self.last_grid_map_msg_time = 0.0  # last grid_map_msg timestamp
         self.last_update_time = 0.0
-        # publish messages to a topic using rospy.Publisher class
-        # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
 
-        if args.visualize or args.print_images:
-            self.legend = cv2.imread("docs/legend.png")
-            self.rgb_vis = None
-            self.vis_image = vu.init_occ_image(
-                self.goal_name
-            )  # , self.legend)
+        # sub_cloud = PointCloudSubscriber(cloud_topic)
+        sensor_height = self.config_env.SIMULATOR.AGENT_0.HEIGHT
+        publish_static_cam_to_base(sensor_height)
 
-    def reset(self, map_shape):
+        self.cnt_pub = 0
+        self.cnt_action = 0
+
+    def reset(self, map_shape, publish_obs=True):
         args = self.args
 
-        # obs, info = super().reset()
-        # obs = self._preprocess_obs(obs)
+        # 1. call reset function of ObjectGoal_Env to reset scene in habitat-lab
+        obs, info = super().reset()
+        obs = self._preprocess_obs(obs)
 
-        # Episode initializations
+        # 2. reset map and odom in rtabmap_ros
+        safe_call_reset_service("/rtabmap/reset")  # reset map
+        safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
+        # Initialize TF tree with ground truth init pose (if any)
+        # sim_agent = sim.get_agent(0)
+        # transformation.publish_agent_init_tf(sim_agent)
+
+        # 3. initialize episode variables
         # map_shape = (
         #     args.map_size_cm // args.map_resolution,
         #     args.map_size_cm // args.map_resolution,
@@ -136,6 +199,8 @@ class Frontier2DDetectionAgent:
         self.visited_vis = np.zeros(map_shape)
         self.col_width = 1
         self.count_forward_actions = 0
+        self.cnt_pub = 0
+        self.cnt_action = 0
         # self.curr_loc = [
         #     args.map_size_cm / 100.0 / 2.0,
         #     args.map_size_cm / 100.0 / 2.0,
@@ -143,9 +208,16 @@ class Frontier2DDetectionAgent:
         # ]
         self.last_action = None
         if args.visualize or args.print_images:
-            self.vis_image = vu.init_occ_image(
-                self.goal_name
-            )  # , self.legend)
+            self.vis_image = vu.init_occ_image(self.goal_name)
+
+        # 4. publish observation if publish_obs set to True
+        if publish_obs:
+            self.pub_obs.publish(obs)
+            self.cnt_pub += 1
+            if DEBUG:
+                print(f"Published {self.cnt_pub} observations.")
+
+        return obs, info
 
     def parse_ros_messages(self):
         odom_msg: Odometry = self.odom_msg
@@ -201,7 +273,7 @@ class Frontier2DDetectionAgent:
         return grid_map, map_origin, odom_map_pose
 
     # wrapper function to execute one step
-    def act(self):
+    def plan_act(self):
         """This function generates one step for habitat simulator
 
         This function receives grid_map message, odometry message from ROS,
@@ -300,18 +372,11 @@ class Frontier2DDetectionAgent:
 
         return self.action_names[action]
 
-    def plan_act_and_preprocess(self, planner_inputs):
+    def plan_act_and_preprocess(self):
         """Function responsible for planning, taking the action and
         preprocessing observations
 
         Args:
-            planner_inputs (dict):
-                dict with following keys:
-                    'map_pred'  (ndarray): (M, M) map prediction
-                    'goal'      (ndarray): (M, M) mat denoting goal locations
-                    'pose_pred' (ndarray): (7,) array denoting pose (x,y,o)
-                                 and planning window (gx1, gx2, gy1, gy2)
-                     'found_goal' (bool): whether the goal object is found
 
         Returns:
             obs (ndarray): preprocessed observations ((4+C) x H x W)
@@ -321,47 +386,41 @@ class Frontier2DDetectionAgent:
                          evaluation metric info
         """
 
-        # plan
-        if planner_inputs["wait"]:
-            self.last_action = None
-            self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-            return np.zeros(self.obs.shape), 0.0, False, self.info
-
-        # Reset reward if new long-term goal
-        if planner_inputs["new_goal"]:
-            self.info["g_reward"] = 0
-
-        action = self.plan(planner_inputs)
-
-        if self.args.visualize or self.args.print_images:
-            self._visualize(planner_inputs)
-        # NOTE: sem_exp uses habitat-lab api for simulation intereaction
-        # if action >= 0:
-
-        #     # act
-        #     action = {"action": action}
-        #     obs, rew, done, info = super().step(action)
-
-        #     # preprocess obs
-        #     obs = self._preprocess_obs(obs)
-        #     self.last_action = action["action"]
-        #     self.obs = obs
-        #     self.info = info
-
-        #     info["g_reward"] += rew
-
-        #     return obs, rew, done, info
-
-        # else:
+        # # plan
+        # if planner_inputs["wait"]:
         #     self.last_action = None
         #     self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-        #     return np.zeros(self.obs_shape), 0.0, False, self.info
+        #     return np.zeros(self.obs.shape), 0.0, False, self.info
 
-        # NOTE: this version uses habitat_sim for simulation interaction
-        # since reward is not needed
-        obs = self.sim.step(action)
-        self.obs = obs
-        return obs
+        # # Reset reward if new long-term goal
+        # if planner_inputs["new_goal"]:
+        #     self.info["g_reward"] = 0
+
+        action = self.plan_act()
+
+        # if self.args.visualize or self.args.print_images:
+        #     self._visualize(planner_inputs)
+        if action >= 0:
+
+            # act
+            action = {"action": action}
+            obs, rew, done, info = super().step(action)
+
+            # preprocess obs
+            obs = self._preprocess_obs(obs)
+            self.last_action = action["action"]
+            self.obs = obs
+            self.info = info
+
+            info["g_reward"] += rew
+
+            return obs, rew, done, info
+
+        else:
+            self.last_action = None
+            self.info["sensor_pose"] = [0.0, 0.0, 0.0]
+            return {}, 0.0, False, self.info
+            # return np.zeros(self.obs_shape), 0.0, False, self.info
 
     def plan(self, planner_inputs):
         """Function responsible for planning
@@ -651,6 +710,33 @@ class Frontier2DDetectionAgent:
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             fn = f"{ep_dir}/Vis-{timestamp}.png"
             cv2.imwrite(fn, self.vis_image)
+
+    # TODO: add object detection / segmentation models here
+    def _preprocess_obs(self, obs, use_seg=True):
+
+        # args = self.args
+        # not using VecPyTorch to wrap environemnts
+        # obs = obs.transpose(1, 2, 0)
+        # rgb = obs[:, :, :3]
+        # depth = obs[:, :, 3:4]
+
+        # sem_seg_pred = self._get_sem_pred(
+        #     rgb.astype(np.uint8), use_seg=use_seg
+        # )
+        # depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
+
+        # ds = args.env_frame_width // args.frame_width  # Downscaling factor
+        # if ds != 1:
+        #     rgb = np.asarray(self.res(rgb.astype(np.uint8)))
+        #     depth = depth[ds // 2 :: ds, ds // 2 :: ds]
+        #     sem_seg_pred = sem_seg_pred[ds // 2 :: ds, ds // 2 :: ds]
+
+        # depth = np.expand_dims(depth, axis=2)
+        # state = np.concatenate((rgb, depth, sem_seg_pred), axis=2).transpose(
+        #     2, 0, 1
+        # )
+        # passthrough
+        return obs
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg
