@@ -310,10 +310,10 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     # TODO: Stop
     points = np.copy(centroids)
     # TODO: Rtabmap coordinate to habitat coordinate
-    points[:, 2] = 0.3  # TODO: height
-    points_hab = np.copy(points)
-    points_hab[:, 0] = points[:, 1]
-    points_hab[:, 1] = points[:, 0]
+    # points[:, 2] = 0.3  # TODO: height
+    # points_hab = np.copy(points)
+    # points_hab[:, 0] = points[:, 1]
+    # points_hab[:, 1] = points[:, 0]
     utility = 1 / dist2obj_goal(sim, points_hab, goal_cat)
     utility_array[:, 2] = utility
 
