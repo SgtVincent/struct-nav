@@ -110,19 +110,22 @@ def main():
                 )
             # process point cloud
             # there might be down sampling procedure
-            o3d_mp3d, result = model.predict(o3d_mp3d)
-            # model.evaluate(o3d_mp3d, result)
+            try:
+                o3d_mp3d, result = model.predict(o3d_mp3d)
 
-            # color the point cloud by inst segmentation
-            o3d_inst = create_inst_pcl(o3d_mp3d, result)
+                # color the point cloud by inst segmentation
+                o3d_inst = create_inst_pcl(o3d_mp3d, result)
 
-            # visualization
-            pub_inst_pcd.publish_cloud(o3d_inst)
-            # pub_gt_bbox.publish(gt_bbox_markerarray)
-            # pub_pred_bbox.publish()
+                # visualization
+                pub_inst_pcd.publish_cloud(o3d_inst)
+                # pub_gt_bbox.publish(gt_bbox_markerarray)
+                # pub_pred_bbox.publish()
 
-            cnt_sub += 1
-            print(f"publish {cnt_sub} messages")
+                cnt_sub += 1
+                print(f"publish {cnt_sub} messages")
+
+            except:
+                print("Unreliable prediction on partial observations!")
 
         rate.sleep()
 
