@@ -1,3 +1,8 @@
+import matplotlib.pyplot as plt
+from habitat.utils.visualizations import maps
+from habitat_sim import PathFinder, Simulator
+import magnum as mn
+import math
 import numpy as np
 import skimage
 from matplotlib import docstring
@@ -224,7 +229,7 @@ def compute_goals(centroids, current_position, num_goals=3):
         )
 
         # compute length / distance
-        utility = centroids[index][2] ** 2 / man_dist
+        utility = centroids[index][2] ** 2 / man_dist  # why squared?
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility
@@ -249,6 +254,173 @@ def compute_goals(centroids, current_position, num_goals=3):
     return np.array(goals)
 
 
+def compute_geo_utility(centroids, current_position):
+
+    # chosen utility function : length / distance for geometry utility
+
+    # pre allocate utility_array
+    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
+
+    # make a copy of centroids and use for loop to
+    # substitute length atribute with utility of point
+    utility_array = np.copy(centroids)
+
+    # compute current position on the map
+    # current_position, current_quaternion = get_current_pose('/map', '/odom')
+
+    for index, c in enumerate(centroids):
+
+        # compute manhattan distance
+        man_dist = abs(current_position[0] - centroids[index][0]) + abs(
+            current_position[1] - centroids[index][1]
+        )
+
+        # compute length / distance
+        utility = centroids[index][2] ** 2 / man_dist  # why squared?
+
+        # substitute length attribute with utility of point
+        utility_array[index][2] = utility
+
+    # sort utility_array based on utility
+    index = np.argsort(utility_array[:, 2])
+    utility_array[:] = utility_array[index]
+
+    # reverse utility_array to have greatest utility as index 0
+    utility_array = utility_array[::-1]
+
+    return utility_array
+
+
+def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
+
+    # NOTE: can use gt geodesic distance to object as oracle
+
+    # utility function for semantic utility
+
+    # pre allocate utility_array
+    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
+
+    # make a copy of centroids and use for loop to
+    # substitute length atribute with utility of point
+    utility_array = np.copy(centroids)
+
+    # TODO: utility propagation
+
+    # NOTE: Oracle
+    # TODO: Stop
+    points = np.copy(centroids)
+    # TODO: Rtabmap coordinate to habitat coordinate
+    points[:, 2] = 0.3  # TODO: height
+    points_hab = np.copy(points)
+    points_hab[:, 0] = points[:, 1]
+    points_hab[:, 1] = points[:, 0]
+    utility = 1 / dist2obj_goal(sim, points_hab, goal_cat)
+    utility_array[:, 2] = utility
+
+    return utility_array
+
+
+def dist2obj_goal(sim, points, goal_cat, verbose=True, display=False):
+    # find distance to object goal with oracle
+    import habitat_sim
+
+    # find centers of goal category from habitat simulator
+    ends = {}
+    semantic_scene = sim.semantic_scene
+    for region in semantic_scene.regions:
+        # load object layer from habitat simulator
+        for obj in region.objects:
+            # print(
+            #     f"Object id:{obj.id}, category:{obj.category.name()},"
+            #     f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
+            # )
+            object_id = int(obj.id.split("_")[-1])  # counting from 0
+            center = obj.obb.center
+            # rot_quat = obj.obb.rotation[1, 2, 3, 0]
+            cate = obj.category.name()
+            if cate == goal_cat:
+                end = center
+                end_exact = sim.pathfinder.is_navigable(end)
+                if not end_exact:
+                    end = sim.pathfinder.snap_point(end)
+                if verbose:
+                    snap_info = (
+                        "" if end_exact else f", not navigable, snapped to {end}"
+                    )
+                    print(f"end point {center}", snap_info)
+                ends[object_id] = end
+    print("found {} object in goal cate".format(len(ends.values())))
+
+    point2goal_dists = []
+    for p in points:
+        start = p
+        start_exact = sim.pathfinder.is_navigable(start)
+        if not start_exact:
+            start = sim.pathfinder.snap_point(start)
+        if verbose:
+            snap_info = (
+                ""
+                if start_exact
+                else f", not navigable, snapped to {start}"
+            )
+            print(f"start point {p}", snap_info)
+
+        # @markdown 2. Use ShortestPath module to compute path between samples.
+        geod_dists = []
+        for end in ends.values():
+            path = habitat_sim.ShortestPath()
+            path.requested_start = start
+            path.requested_end = end
+            found_path = sim.pathfinder.find_path(path)
+            geodesic_distance = path.geodesic_distance
+            path_points = path.points
+            geod_dists.append(geodesic_distance)
+
+            # DEBUG info
+            if verbose:
+                print("found_path : " + str(found_path))
+                print("geodesic_distance : " + str(geodesic_distance))
+                print("path_points : " + str(path_points))
+
+            if display and found_path:
+                display_path(sim, path_points, plt_block=True)
+
+        shortest_goal_dist = sorted(geod_dists)[0]
+        point2goal_dists.append(shortest_goal_dist)
+
+    return np.array(point2goal_dists)
+
+    # if display and found_path:
+    #     display_path(sim, path_points, plt_block=True)
+
+
+def combine_utilities(geo_utility_array, sem_utility_array):
+    # TODO:
+    # NOTE: Can be tuned manually or learned by RL
+    utility_array = np.copy(geo_utility_array)
+    print(utility_array[:, 2])
+    # utility_array[:, 2] += sem_utility_array[:, 2]
+    utility_array[:, 2] = sem_utility_array[:, 2]
+    print(utility_array[:, 2])
+
+    return utility_array
+
+
+def get_goals(utility_array, num_goals=3):
+
+    goals = []
+    num_goals = min(num_goals, utility_array.shape[0])
+    for i in range(num_goals):
+        coordanate = []
+
+        if i < len(utility_array):
+            coordanate = [utility_array[i][0], utility_array[i][1]]
+            goals.append(coordanate)
+
+    # return goal as np array
+    return np.array(goals)
+
+
 def frontier_goals(
     map_raw,
     map_origin,
@@ -256,6 +428,8 @@ def frontier_goals(
     current_position,
     cluster_trashhole=0.2,
     num_goals=3,
+    sim=None,
+    mode='geo+sem'
 ):
     """general function to calculate frontiers and goals
 
@@ -288,7 +462,20 @@ def frontier_goals(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
     centroids = compute_centroids(frontiers, map_resolution)
-    goals = compute_goals(centroids, current_position, num_goals)
+    # NOTE: using learning to propose additional centroids?
+
+    if mode == 'geo':
+        goals = compute_goals(centroids, current_position, num_goals)
+    elif mode == 'geo+sem':
+        # NOTE: Combine pure geometry-based method with semantic method
+        geo_utility_array = compute_geo_utility(centroids, current_position)
+        # print("geo utility", geo_utility_array)
+        sem_utility_array = compute_sem_utility(
+            centroids, scene_graph=None, goal_cat="shower", sim=sim)
+        # print("sem utility", sem_utility_array)
+        utility_array = combine_utilities(geo_utility_array, sem_utility_array)
+        # print("final utility", utility_array)
+        goals = get_goals(utility_array, num_goals)
 
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
@@ -342,3 +529,63 @@ def frontier_goals(
         plt.show()
 
     return centroids, goals
+
+
+# TODO: Reuse from sg_nav
+
+# display a topdown map with matplotlib
+
+def display_map(topdown_map, key_points=None, block=False):
+    plt.figure(figsize=(12, 8))
+    ax = plt.subplot(1, 1, 1)
+    ax.axis("off")
+    plt.imshow(topdown_map)
+    # plot points on map
+    if key_points is not None:
+        for point in key_points:
+            plt.plot(point[0], point[1], marker="o", markersize=10, alpha=0.8)
+    plt.show(block=block)
+
+# display the path on the 2D topdown map
+# @path_points: list of (3,) positions in habitat coords frame
+
+
+def display_path(
+    sim: Simulator, path_points: list, meters_per_pixel=0.025, plt_block=False
+):
+
+    scene_bb = sim.get_active_scene_graph().get_root_node().cumulative_bb
+    height = scene_bb.y().min
+    top_down_map = maps.get_topdown_map(
+        sim.pathfinder, height, meters_per_pixel=meters_per_pixel
+    )
+    recolor_map = np.array(
+        [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
+    )
+    top_down_map = recolor_map[top_down_map]
+    grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
+    # convert world trajectory points to maps module grid points
+    trajectory = [
+        maps.to_grid(
+            path_point[2],
+            path_point[0],
+            grid_dimensions,
+            pathfinder=sim.pathfinder,
+        )
+        for path_point in path_points
+    ]
+    grid_tangent = mn.Vector2(
+        trajectory[1][1] - trajectory[0][1],
+        trajectory[1][0] - trajectory[0][0],
+    )
+    path_initial_tangent = grid_tangent / grid_tangent.length()
+    initial_angle = math.atan2(
+        path_initial_tangent[0], path_initial_tangent[1]
+    )
+    # draw the agent and trajectory on the map
+    maps.draw_path(top_down_map, trajectory)
+    maps.draw_agent(
+        top_down_map, trajectory[0], initial_angle, agent_radius_px=8
+    )
+    print("\nDisplay the map with agent and path overlay:")
+    display_map(top_down_map, block=plt_block)

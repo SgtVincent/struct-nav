@@ -231,6 +231,7 @@ class FrontierExploreAgent:
             odom_map_pose[:2],
             cluster_trashhole=self.args.cluster_trashhole,
             num_goals=1,
+            sim=self.sim
         )
         # TODO: think about goal selection strategy
         goal_position = goals[0, :]
@@ -377,9 +378,9 @@ class FrontierExploreAgent:
         self.curr_loc = [start_x, start_y, start_o]
         r, c = start_y, start_x
         start = [
-            int(r / args.map_resolution - gx1),
+            int(r / args.map_resolution - gx1), # To comfirm: x and y 
             int(c / args.map_resolution - gy1),
-        ]
+    ]
         start = pu.threshold_poses(start, map_pred.shape)
 
         self.visited[gx1:gx2, gy1:gy2][
@@ -459,11 +460,11 @@ class FrontierExploreAgent:
             vis_map[exp_pred == 0] = 0  # unknown
             vis_map[(map_pred == 0) & (exp_pred == 1)] = 1  # free space
             vis_map[map_pred > 0] = 4  # obstacle
+
+            # visualize long/short-term goals
             goal_vis = skimage.morphology.binary_dilation(
                 goal, skimage.morphology.disk(3)
             )
-
-            # visualize long/short-term goals
             vis_map[goal_vis == 1] = 2  # disk for long-term goal
             rr, cc = rectangle(
                 np.array(stg) - 2, extent=7, shape=vis_map.shape
@@ -473,12 +474,17 @@ class FrontierExploreAgent:
             ] = 3  # rect for short-term goal
 
             # visualize agent
-            pos = [start[0], start[1], start_o]
-            agent_arrow = vu.get_contour_points(pos, origin=(0, 0), size=5)
+            vis_pos = [start[1], start[0], start_o/180*np.pi] # To comfirm: x and y
+            # pos = [start[0], start[1], start_o]
+            agent_arrow = vu.get_contour_points(vis_pos, origin=(0, 0), size=5)
             color = (255, 0, 0)
-            plt.fill(agent_arrow[:, 1], agent_arrow[:, 0], facecolor="red")
+            plt.fill(agent_arrow[:, 0], agent_arrow[:, 1], facecolor="red")
+            # plt.fill(agent_arrow[:, 1], agent_arrow[:, 0], facecolor="red")
+            # vis_map = vu.draw_polygen(vis_map, agent_arrow, value=5)
+            # plt.arrow(pos[1], pos[0], dx=np.cos(start_o/180*np.pi)*10, dy=np.sin(start_o/180*np.pi)*10)
 
             plt.imshow(vis_map, origin="lower")
+            plt.show()
 
         # Deterministic Local Policy
         if stop and planner_inputs["found_goal"] == 1:
