@@ -11,7 +11,7 @@ from publishers import PointCloudPublisher
 # local import
 from simulator import init_sim
 from subscribers import PointCloudSubscriber
-from utils.transformation import coo_rtab2mp3d
+from utils.transformation import o3d_rtab2mp3d
 
 # from models.detector_votenet import DetectorVoteNet
 from utils.vis_utils import create_inst_pcl, semantic_scene_to_markerarray
@@ -91,7 +91,7 @@ def main():
         if sub_cloud.has_cloud():
             o3d_rtab = sub_cloud.get_cloud()
             # transform point clouds to z-axis upright coords
-            o3d_mp3d = coo_rtab2mp3d(o3d_rtab)
+            o3d_mp3d = o3d_rtab2mp3d(o3d_rtab)
             if DEBUG_SAVE_PCL:
                 if not os.path.exists(DUMP_DIR):
                     os.makedirs(DUMP_DIR)

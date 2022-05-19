@@ -8,6 +8,8 @@ import skimage
 from matplotlib import docstring
 from skimage.measure import find_contours
 
+from utils.transformation import points_rtab2habitat
+
 # import matplotlib.pyplot as plt
 # import plotly
 # import plotly.express as px
@@ -314,6 +316,7 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     # points_hab = np.copy(points)
     # points_hab[:, 0] = points[:, 1]
     # points_hab[:, 1] = points[:, 0]
+    points_hab = points_rtab2habitat(points)
     utility = 1 / dist2obj_goal(sim, points_hab, goal_cat)
     utility_array[:, 2] = utility
 
@@ -345,7 +348,9 @@ def dist2obj_goal(sim, points, goal_cat, verbose=True, display=False):
                     end = sim.pathfinder.snap_point(end)
                 if verbose:
                     snap_info = (
-                        "" if end_exact else f", not navigable, snapped to {end}"
+                        ""
+                        if end_exact
+                        else f", not navigable, snapped to {end}"
                     )
                     print(f"end point {center}", snap_info)
                 ends[object_id] = end
@@ -359,9 +364,7 @@ def dist2obj_goal(sim, points, goal_cat, verbose=True, display=False):
             start = sim.pathfinder.snap_point(start)
         if verbose:
             snap_info = (
-                ""
-                if start_exact
-                else f", not navigable, snapped to {start}"
+                "" if start_exact else f", not navigable, snapped to {start}"
             )
             print(f"start point {p}", snap_info)
 
@@ -429,7 +432,7 @@ def frontier_goals(
     cluster_trashhole=0.2,
     num_goals=3,
     sim=None,
-    mode='geo+sem'
+    mode="geo+sem",
 ):
     """general function to calculate frontiers and goals
 
@@ -464,14 +467,15 @@ def frontier_goals(
     centroids = compute_centroids(frontiers, map_resolution)
     # NOTE: using learning to propose additional centroids?
 
-    if mode == 'geo':
+    if mode == "geo":
         goals = compute_goals(centroids, current_position, num_goals)
-    elif mode == 'geo+sem':
+    elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
         geo_utility_array = compute_geo_utility(centroids, current_position)
         # print("geo utility", geo_utility_array)
         sem_utility_array = compute_sem_utility(
-            centroids, scene_graph=None, goal_cat="shower", sim=sim)
+            centroids, scene_graph=None, goal_cat="shower", sim=sim
+        )
         # print("sem utility", sem_utility_array)
         utility_array = combine_utilities(geo_utility_array, sem_utility_array)
         # print("final utility", utility_array)
@@ -535,6 +539,7 @@ def frontier_goals(
 
 # display a topdown map with matplotlib
 
+
 def display_map(topdown_map, key_points=None, block=False):
     plt.figure(figsize=(12, 8))
     ax = plt.subplot(1, 1, 1)
@@ -545,6 +550,7 @@ def display_map(topdown_map, key_points=None, block=False):
         for point in key_points:
             plt.plot(point[0], point[1], marker="o", markersize=10, alpha=0.8)
     plt.show(block=block)
+
 
 # display the path on the 2D topdown map
 # @path_points: list of (3,) positions in habitat coords frame

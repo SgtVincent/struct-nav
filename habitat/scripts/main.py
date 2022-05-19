@@ -136,7 +136,7 @@ def main():
 
         # if VISUALIZE and cnt_sub == 11:
         #     coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
-        #     o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
+        #     o3d_cloud = transformation.o3d_rtab2mp3d(o3d_cloud)
         #     o3d.visualization.draw_geometries([coo, o3d_cloud])
 
         # message processing and synchronization should be down in agent.act()
