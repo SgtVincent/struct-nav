@@ -47,9 +47,9 @@
         "/opt/ros/noetic/lib/python3/dist-packages"
     ],
     "python.analysis.extraPaths": [
-        "/opt/ros/noetic/lib/python3/dist-packages",
-        "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts/models/HAIS/lib",
-        "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts"
+        "/opt/ros/noetic/lib/python3/dist-packages"
+        // "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts/models/HAIS/lib",
+        // "/home/junting/habitat_ws/src/struct-nav/habitat_recognition/scripts"
     ],
     "cSpell.words": ["hais"],
     "python.linting.enabled": true,

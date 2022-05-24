@@ -25,8 +25,11 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from utils.publishers import HabitatObservationPublisher
-from utils.tf_utils import publish_agent_init_tf, publish_static_cam_to_base
-from agents.utils.arguments import get_args
+from utils.transformation import (
+    publish_agent_init_tf,
+    publish_static_base_to_cam,
+)
+from arguments import get_args
 from agents.utils.utils_frontier_explore import frontier_goals
 from agents.utils.ros_utils import safe_call_reset_service
 from envs.constants import color_palette
@@ -48,11 +51,14 @@ DEBUG_VIS = False
 
 
 class Frontier2DDetectionAgent(ObjectGoal_Env):
-    def __init__(self, args, config_env, dataset):
+    def __init__(self, args, rank, config_env, dataset):
 
         self.args = args
         self.config_env = config_env
-
+        self.rank = rank
+        # agent depends on ROS and observations do not support vecpytroch
+        # only intended for single process
+        assert rank == 0 
         super().__init__(
             args, 0, config_env, dataset
         )  # single process by default
@@ -60,12 +66,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
         # TODO: fetch this from config file
-        self.action_names = {
-            0: "stop",
-            1: "move_forward",
-            2: "turn_left",
-            3: "turn_right",
-        }
+        # self.action_names = {
+        #     0: "stop",
+        #     1: "move_forward",
+        #     2: "turn_left",
+        #     3: "turn_right",
+        # }
         self.obs = None
         self.collision_map = None
         self.visited = None
@@ -170,12 +176,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         # sub_cloud = PointCloudSubscriber(cloud_topic)
         sensor_height = self.config_env.SIMULATOR.AGENT_0.HEIGHT
-        publish_static_cam_to_base(sensor_height)
+        publish_static_base_to_cam(sensor_height)
 
         self.cnt_pub = 0
         self.cnt_action = 0
 
-    def reset(self, map_shape, publish_obs=True):
+    def reset(self, publish_obs=True):
         args = self.args
 
         # 1. call reset function of ObjectGoal_Env to reset scene in habitat-lab
@@ -190,10 +196,10 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # transformation.publish_agent_init_tf(sim_agent)
 
         # 3. initialize episode variables
-        # map_shape = (
-        #     args.map_size_cm // args.map_resolution,
-        #     args.map_size_cm // args.map_resolution,
-        # )
+        map_shape = (
+            args.map_size // args.map_resolution,
+            args.map_size // args.map_resolution,
+        )
         self.collision_map = np.zeros(map_shape)
         self.visited = np.zeros(map_shape)
         self.visited_vis = np.zeros(map_shape)
@@ -202,8 +208,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.cnt_pub = 0
         self.cnt_action = 0
         # self.curr_loc = [
-        #     args.map_size_cm / 100.0 / 2.0,
-        #     args.map_size_cm / 100.0 / 2.0,
+        #     args.map_size / 2.0,
+        #     args.map_size / 2.0,
         #     0.0,
         # ]
         self.last_action = None
@@ -298,7 +304,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # FIXME: cannot receive grid_map message
         if self.odom_msg == None or self.grid_map_msg == None:
             # waiting for data
-            return "stay"
+            # return "stay"
+            print("waiting for first odom_msg and grid_map_msg")
+            time.sleep(0.5)
 
         if (
             self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
@@ -314,7 +322,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             print(
                 f"DEBUG: waiting for message update since {time_diff} seconds ago"
             )
-            return "stay"
+            time.sleep(0.5)
+            # return "stay"
 
         grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
         ##################  generate frontiers and goals ##############
@@ -368,9 +377,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         if self.args.visualize or self.args.print_images:
             self._visualize(p_input)
 
-        # TODO: add logic for STOP action
-
-        return self.action_names[action]
+        return action
+        # return self.action_names[action]
 
     def plan_act_and_preprocess(self):
         """Function responsible for planning, taking the action and

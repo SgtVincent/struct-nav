@@ -132,6 +132,11 @@ def get_args(args=None, namespace=None):
         help="""Maximum episode length""",
     )
     parser.add_argument(
+        "--config_dir",
+        type=str,
+        default="/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/",
+    )
+    parser.add_argument(
         "--task_config",
         type=str,
         default="tasks/objectnav_gibson.yaml",

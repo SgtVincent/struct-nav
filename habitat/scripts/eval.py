@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 from collections import deque, defaultdict
 import os
 import logging
@@ -20,7 +21,7 @@ import numpy as np
 import open3d as o3d
 import rospy
 from agents import Frontier2DDetectionAgent
-from agents.utils.arguments import get_args
+from arguments import get_args
 from utils.publishers import HabitatObservationPublisher
 from simulator import init_sim
 
@@ -68,19 +69,9 @@ def main():
 
     best_g_reward = -np.inf
 
-    if args.eval:
-        episode_success = []
-        episode_spl = []
-        episode_dist = []
-        for _ in range(args.num_processes):
-            episode_success.append(deque(maxlen=num_episodes))
-            episode_spl.append(deque(maxlen=num_episodes))
-            episode_dist.append(deque(maxlen=num_episodes))
-
-    else:
-        episode_success = deque(maxlen=1000)
-        episode_spl = deque(maxlen=1000)
-        episode_dist = deque(maxlen=1000)
+    episode_success = deque(maxlen=num_episodes)
+    episode_spl = deque(maxlen=num_episodes)
+    episode_dist = deque(maxlen=num_episodes)
 
     finished = 0
     wait_env = 0
@@ -100,6 +91,7 @@ def main():
     # TODO: Decouple ObjectGoal_Env class and Agent class
     # envs = make_vec_envs(args)
     env = construct_single_env(args)
+    # also wait for rtabmap_ros initialization in env.reset()
     obs, infos = env.reset()
 
     torch.set_grad_enabled(False)
@@ -113,8 +105,8 @@ def main():
     spl_per_category = defaultdict(list)
     success_per_category = defaultdict(list)
 
-    for step in range(args.num_training_frames // args.num_processes + 1):
-        if finished.sum() == args.num_processes:
+    for step in range(args.num_training_frames):
+        if finished:
             break
 
         g_step = (step // args.num_local_steps) % args.num_global_steps
@@ -136,9 +128,10 @@ def main():
                 episode_success.append(success)
                 episode_spl.append(spl)
                 episode_dist.append(dist)
-            wait_env[e] = 1.0
-            update_intrinsic_rew(e)
-            init_map_and_pose_for_env(e)
+
+            wait_env = 1
+            # update_intrinsic_rew(e)
+            # init_map_and_pose_for_env(e)
 
         # region: 5. Take action and get next observation
 
@@ -184,13 +177,12 @@ def main():
                 total_success = []
                 total_spl = []
                 total_dist = []
-                for e in range(args.num_processes):
-                    for acc in episode_success[e]:
-                        total_success.append(acc)
-                    for dist in episode_dist[e]:
-                        total_dist.append(dist)
-                    for spl in episode_spl[e]:
-                        total_spl.append(spl)
+                for acc in episode_success:
+                    total_success.append(acc)
+                for dist in episode_dist:
+                    total_dist.append(dist)
+                for spl in episode_spl:
+                    total_spl.append(spl)
 
                 if len(total_spl) > 0:
                     log += " ObjectNav succ/spl/dtg:"
@@ -235,13 +227,12 @@ def main():
         total_success = []
         total_spl = []
         total_dist = []
-        for e in range(args.num_processes):
-            for acc in episode_success[e]:
-                total_success.append(acc)
-            for dist in episode_dist[e]:
-                total_dist.append(dist)
-            for spl in episode_spl[e]:
-                total_spl.append(spl)
+        for acc in episode_success:
+            total_success.append(acc)
+        for dist in episode_dist:
+            total_dist.append(dist)
+        for spl in episode_spl:
+            total_spl.append(spl)
 
         if len(total_spl) > 0:
             log = "Final ObjectNav succ/spl/dtg:"

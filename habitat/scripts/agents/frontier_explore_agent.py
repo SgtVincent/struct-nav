@@ -17,7 +17,8 @@ from agents.utils.utils_frontier_explore import frontier_goals
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette
-from envs.habitat.objectgoal_env import ObjectGoalEnv
+
+# from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
 from geometry_msgs.msg import PoseStamped
 from habitat_sim import Simulator

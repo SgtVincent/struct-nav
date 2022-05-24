@@ -164,7 +164,7 @@ def get_args(silence_mode=False):
     parser.add_argument("--vision_range", type=int, default=100)
     parser.add_argument("--map_resolution", type=float, default=0.05)
     parser.add_argument("--du_scale", type=int, default=1)
-    parser.add_argument("--map_size_cm", type=int, default=2400)
+    parser.add_argument("--map_size", type=float, default=24)
     parser.add_argument("--cat_pred_threshold", type=float, default=5.0)
     parser.add_argument("--map_pred_threshold", type=float, default=1.0)
     parser.add_argument("--exp_pred_threshold", type=float, default=1.0)

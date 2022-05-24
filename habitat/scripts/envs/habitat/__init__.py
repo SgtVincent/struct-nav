@@ -165,9 +165,7 @@ def construct_envs(args):
 
 def construct_single_env(args):
 
-    basic_config = cfg_env(
-        config_paths=["envs/habitat/configs/" + args.task_config]
-    )
+    basic_config = cfg_env(config_paths=[args.config_dir + args.task_config])
     basic_config.defrost()
     basic_config.DATASET.SPLIT = args.split
     basic_config.DATASET.DATA_PATH = basic_config.DATASET.DATA_PATH.replace(
@@ -192,37 +190,26 @@ def construct_single_env(args):
             "aren't enough number of scenes"
         )
 
-        scene_split_sizes = [
-            int(np.floor(len(scenes) / args.num_processes))
-            for _ in range(args.num_processes)
-        ]
-        for i in range(len(scenes) % args.num_processes):
-            scene_split_sizes[i] += 1
+        # scene_split_sizes = [
+        #     int(np.floor(len(scenes) / args.num_processes))
+        #     for _ in range(args.num_processes)
+        # ]
+        # for i in range(len(scenes) % args.num_processes):
+        #     scene_split_sizes[i] += 1
 
     print("Scenes per thread:")
 
-    config_env = cfg_env(
-        config_paths=["envs/habitat/configs/" + args.task_config]
-    )
+    config_env = cfg_env(config_paths=[args.config_dir + args.task_config])
     config_env.defrost()
 
     if len(scenes) > 0:
-        config_env.DATASET.CONTENT_SCENES = scenes[
-            sum(scene_split_sizes[:i]) : sum(scene_split_sizes[: i + 1])
-        ]
-        print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
+        # config_env.DATASET.CONTENT_SCENES = scenes[
+        #     sum(scene_split_sizes[:i]) : sum(scene_split_sizes[: i + 1])
+        # ]
+        # print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
+        config_env.DATASET.CONTENT_SCENES
 
-    if i < args.num_processes_on_first_gpu:
-        gpu_id = 0
-    else:
-        gpu_id = (
-            int(
-                (i - args.num_processes_on_first_gpu)
-                // args.num_processes_per_gpu
-            )
-            + args.sim_gpu_id
-        )
-    gpu_id = min(torch.cuda.device_count() - 1, gpu_id)
+    gpu_id = min(torch.cuda.device_count() - 1, 0) # first gpu or cpu 
     config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
 
     agent_sensors = []
