@@ -8,7 +8,14 @@ import rospy
 import tf2_ros
 import quaternion as qt
 from tf.transformations import quaternion_matrix
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from std_msgs.msg import Header
+from geometry_msgs.msg import (
+    PoseStamped,
+    TransformStamped,
+    Vector3,
+    Quaternion,
+    Point,
+)
 from habitat_sim.agent import Agent
 from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
 
@@ -22,8 +29,8 @@ import tf2_geometry_msgs
 # NOTE: transformation between frames and transformation between points in frames are inverse matrix
 
 
-def o3d_rtab2mp3d(o3d_cloud):
-    """Convert rtab coordinates to mp3d coordinates."""
+def o3d_habitat2rtab(o3d_cloud):
+    """Convert habitat coordinates to rtabmapw coordinates."""
     quat = quat_from_two_vectors(np.array([0, 1, 0]), np.array([0, 0, -1]))
     o3d_quat = np.roll(quat_to_coeffs(quat), 1)
     r_mat = o3d_cloud.get_rotation_matrix_from_quaternion(o3d_quat)
@@ -46,6 +53,66 @@ def points_rtab2habitat(points):
     homo_points_habitat = (homo_r_mat @ homo_points_rtab.T).T  # (N,4)
     points_habitat = homo_points_habitat[:, :3] / homo_points_habitat[:, 3:]
     return points_habitat
+
+
+def pose_habitat2rtab(position, rotation: np.quaternion):
+    """Convert pose in habitat frame to pose in rtabmap coordinates."""
+    quat = quat_from_two_vectors(np.array([0, 1, 0]), np.array([0, 0, -1]))
+
+    # NOTE: transform between frames is the inverse of transform between poses in different frames
+    tf_rtab2habitat = TransformStamped()
+    tf_rtab2habitat.header.frame_id = "rtab"  # z-axis upright
+    tf_rtab2habitat.child_frame_id = "habitat"  # y-axis upright
+    tf_rtab2habitat.transform.translation = Vector3(0, 0, 0)  # translation
+    tf_rtab2habitat.transform.rotation = Quaternion(  # rotation
+        quat.x, quat.y, quat.z, quat.w
+    )
+
+    pose_habitat = PoseStamped()
+    pose_habitat.header.frame_id = "habitat"
+    pose_habitat.pose.position = Point(*position)
+    pose_habitat.pose.orientation = Quaternion(
+        rotation.x, rotation.y, rotation.z, rotation.w
+    )
+
+    pose_rtab = tf2_geometry_msgs.do_transform_pose(
+        pose_habitat, tf_rtab2habitat
+    )
+    pt = pose_rtab.pose.position
+    rot = pose_rtab.pose.orientation
+    position_rtab = np.array([pt.x, pt.y, pt.z])
+    rotation_rtab = qt.as_quat_array([rot.w, rot.x, rot.y, rot.z])
+    return position_rtab, rotation_rtab
+
+
+def pose_rtab2habitat(position, rotation: np.quaternion):
+    """Convert pose in habitat frame to pose in rtabmap coordinates."""
+    quat = quat_from_two_vectors(np.array([0, 0, 1]), np.array([0, -1, 0]))
+
+    # NOTE: transform between frames is the inverse of transform between poses in different frames
+    tf_habitat2rtab = TransformStamped()
+    tf_habitat2rtab.header.frame_id = "habitat"  # z-axis upright
+    tf_habitat2rtab.child_frame_id = "rtab"  # y-axis upright
+    tf_habitat2rtab.transform.translation = Vector3(0, 0, 0)  # translation
+    tf_habitat2rtab.transform.rotation = Quaternion(  # rotation
+        quat.x, quat.y, quat.z, quat.w
+    )
+
+    pose_rtab = PoseStamped()
+    pose_rtab.header.frame_id = "rtab"
+    pose_rtab.pose.position = Point(*position)
+    pose_rtab.pose.orientation = Quaternion(
+        rotation.x, rotation.y, rotation.z, rotation.w
+    )
+
+    pose_habitat = tf2_geometry_msgs.do_transform_pose(
+        pose_rtab, tf_habitat2rtab
+    )
+    pt = pose_habitat.pose.position
+    rot = pose_habitat.pose.orientation
+    position_habitat = np.array([pt.x, pt.y, pt.z])
+    rotation_habitat = qt.as_quat_array([rot.w, rot.x, rot.y, rot.z])
+    return position_habitat, rotation_habitat
 
 
 def publish_agent_init_tf(agent: Agent, sensor_id="rgb", instant_pub=True):

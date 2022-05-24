@@ -7,14 +7,12 @@ import agents.utils.visualization as vu
 import cv2
 import envs.utils.pose as pu
 import numpy as np
-
-# ros packages
-import rospy
+from scipy.spatial.transform import Rotation as R
 import skimage.morphology
-from agents.utils.arguments import get_args
-from agents.utils.utils_frontier_explore import frontier_goals
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
+from agents.utils.arguments import get_args
+from agents.utils.utils_frontier_explore import frontier_goals
 from envs.constants import color_palette
 from envs.habitat.objectgoal_env import ObjectGoalEnv
 from envs.utils.fmm_planner import FMMPlanner
@@ -24,12 +22,15 @@ from matplotlib import cm
 from matplotlib.pyplot import grid
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from PIL import Image
-from scipy.spatial.transform import Rotation as R
+from torchvision import transforms
+from yaml import Mark
+
+# ros packages
+import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
-from torchvision import transforms
 from visualization_msgs.msg import Marker, MarkerArray
-from yaml import Mark
+from geometry_msgs.msg import PoseStamped, Point, Quaternion
 
 """
 FrontierExploreAgent arguments:
@@ -48,7 +49,8 @@ args.dump_location
 args.exp_name
 """
 
-DEBUG_VIS = False
+DEBUG_VIS = False  # visualize frontiers, goals, odom on 2D grid map
+DEBUG_TF = True  # print transformation from rtabmap to habitat w.r.t. time
 
 
 class FrontierExploreAgent:
@@ -231,12 +233,15 @@ class FrontierExploreAgent:
             odom_map_pose[:2],
             cluster_trashhole=self.args.cluster_trashhole,
             num_goals=1,
-            sim=self.sim
+            sim=self.sim,
         )
         # TODO: think about goal selection strategy
         goal_position = goals[0, :]
 
         self.publish_frontiers(frontiers, goals)
+
+        if DEBUG_TF:
+            self.debug_tf_func()
 
         ################### generate action by planners ################
         # convert ros-format grid_map to object-goal-nav style maps
@@ -378,9 +383,9 @@ class FrontierExploreAgent:
         self.curr_loc = [start_x, start_y, start_o]
         r, c = start_y, start_x
         start = [
-            int(r / args.map_resolution - gx1), # To comfirm: x and y 
+            int(r / args.map_resolution - gx1),  # To comfirm: x and y
             int(c / args.map_resolution - gy1),
-    ]
+        ]
         start = pu.threshold_poses(start, map_pred.shape)
 
         self.visited[gx1:gx2, gy1:gy2][
@@ -474,7 +479,11 @@ class FrontierExploreAgent:
             ] = 3  # rect for short-term goal
 
             # visualize agent
-            vis_pos = [start[1], start[0], start_o/180*np.pi] # To comfirm: x and y
+            vis_pos = [
+                start[1],
+                start[0],
+                start_o / 180 * np.pi,
+            ]  # To comfirm: x and y
             # pos = [start[0], start[1], start_o]
             agent_arrow = vu.get_contour_points(vis_pos, origin=(0, 0), size=5)
             color = (255, 0, 0)
@@ -692,3 +701,46 @@ class FrontierExploreAgent:
             marker_arr.markers.append(marker)
 
         self.pub_frontiers.publish(marker_arr)
+
+    # record /debug/tf_rtab2habitat by rosbag to do offline analysis
+    def debug_tf_func(self):
+
+        debug_tf_pub = rospy.Publisher(
+            name="/debug/tf_rtab2habitat",
+            data_class=PoseStamped,
+            queue_size=10,
+        )
+
+        odom_rot = self.odom_msg.pose.pose.orientation
+        odom_pos = self.odom_msg.pose.pose.position
+        odom_rot_mat = R.from_quat(
+            [odom_rot.x, odom_rot.y, odom_rot.z, odom_rot.w]
+        ).as_matrix()
+        tf_rtab2agent = np.zeros((4, 4))
+        tf_rtab2agent[:3, :3] = odom_rot_mat
+        tf_rtab2agent[:3, 3] = np.array([odom_pos.x, odom_pos.y, odom_pos.z])
+        tf_rtab2agent[3, :] = np.array([0.0, 0.0, 0.0, 1.0])
+        # print("odom_mat norm:\n", np.linalg.det(odom_mat))
+        habitat_rot = self.sim.get_agent(0).state.rotation
+        habitat_pos = self.sim.get_agent(0).state.position
+        habitat_rot_mat = R.from_quat(
+            [habitat_rot.x, habitat_rot.y, habitat_rot.z, habitat_rot.w]
+        ).as_matrix()
+        tf_habitat2agent = np.zeros((4, 4))
+        tf_habitat2agent[:3, :3] = habitat_rot_mat
+        tf_habitat2agent[:3, 3] = habitat_pos
+        tf_habitat2agent[3, :] = np.array([0.0, 0.0, 0.0, 1.0])
+        # print("habitat_mat norm:\n", np.linalg.det(habitat_mat))
+
+        tf_rtab2habitat = tf_rtab2agent @ np.linalg.inv(tf_habitat2agent)
+        # tf_rtab2habitat[abs(tf_rtab2habitat) < 1e-3] = 0.0
+        # print(tf_rtab2habitat)  # , np.linalg.det(tf_rtab2habitat))
+        # print(R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat())
+
+        pose_h_in_r = PoseStamped()
+        pose_h_in_r.header.frame_id = "map"
+        pose_h_in_r.pose.position = Point(*tf_rtab2habitat[:3, 3])
+        tf_rtab2habitat_quat = R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat()
+        pose_h_in_r.pose.orientation = Quaternion(*tf_rtab2habitat_quat)
+
+        debug_tf_pub.publish(pose_h_in_r)
