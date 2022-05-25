@@ -323,7 +323,7 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     return utility_array
 
 
-def dist2obj_goal(sim, points, goal_cat, verbose=True, display=False):
+def dist2obj_goal(sim, points, goal_cat, verbose=False, display=True):
     # find distance to object goal with oracle
     import habitat_sim
 
@@ -393,18 +393,15 @@ def dist2obj_goal(sim, points, goal_cat, verbose=True, display=False):
 
     return np.array(point2goal_dists)
 
-    # if display and found_path:
-    #     display_path(sim, path_points, plt_block=True)
-
 
 def combine_utilities(geo_utility_array, sem_utility_array):
     # TODO:
     # NOTE: Can be tuned manually or learned by RL
     utility_array = np.copy(geo_utility_array)
-    print(utility_array[:, 2])
+    print("geo utility", utility_array[:, 2])
     # utility_array[:, 2] += sem_utility_array[:, 2]
     utility_array[:, 2] = sem_utility_array[:, 2]
-    print(utility_array[:, 2])
+    print("sem utility", utility_array[:, 2])
 
     return utility_array
 
