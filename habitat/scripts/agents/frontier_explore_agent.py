@@ -9,6 +9,8 @@ import envs.utils.pose as pu
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import skimage.morphology
+from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
+from habitat_sim import geo
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.arguments import get_args
@@ -30,7 +32,8 @@ import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import PoseStamped, Point, Quaternion
+from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Quaternion
+import tf2_geometry_msgs
 
 """
 FrontierExploreAgent arguments:
@@ -710,7 +713,7 @@ class FrontierExploreAgent:
             data_class=PoseStamped,
             queue_size=10,
         )
-
+        ############## calculate relative transformation from rtabmap to habitat #############
         odom_rot = self.odom_msg.pose.pose.orientation
         odom_pos = self.odom_msg.pose.pose.position
         odom_rot_mat = R.from_quat(
@@ -737,10 +740,44 @@ class FrontierExploreAgent:
         # print(tf_rtab2habitat)  # , np.linalg.det(tf_rtab2habitat))
         # print(R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat())
 
-        pose_h_in_r = PoseStamped()
-        pose_h_in_r.header.frame_id = "map"
-        pose_h_in_r.pose.position = Point(*tf_rtab2habitat[:3, 3])
+        pose_h_in_r_relative = PoseStamped()
+        pose_h_in_r_relative.header.frame_id = "map"
+        pose_h_in_r_relative.pose.position = Point(*tf_rtab2habitat[:3, 3])
         tf_rtab2habitat_quat = R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat()
-        pose_h_in_r.pose.orientation = Quaternion(*tf_rtab2habitat_quat)
+        pose_h_in_r_relative.pose.orientation = Quaternion(
+            *tf_rtab2habitat_quat
+        )
 
-        debug_tf_pub.publish(pose_h_in_r)
+        # debug_tf_pub.publish(pose_h_in_r_relative)
+
+        ############### calculate agent's pose in rtabmap directly ###########
+
+        pose_a_in_h = PoseStamped()
+        pose_a_in_h.header.frame_id = "habitat"
+        pose_a_in_h.pose.position = Point(*habitat_pos)
+        pose_a_in_h.pose.orientation = Quaternion(
+            habitat_rot.x, habitat_rot.y, habitat_rot.z, habitat_rot.w
+        )
+
+        tf_rtabmap2habitat = TransformStamped()
+        tf_rtabmap2habitat.header.frame_id = "map"  # z-axis upright
+        tf_rtabmap2habitat.child_frame_id = "habitat"  # y-axis upright
+
+        tf_rtabmap2habitat.transform.translation.x = 0.0
+        tf_rtabmap2habitat.transform.translation.y = 0.0
+        tf_rtabmap2habitat.transform.translation.z = 0.0
+
+        quat = quat_from_two_vectors(geo.GRAVITY, np.array([0, 0, -1]))
+        tf_rtabmap2habitat.transform.rotation.x = quat.x
+        tf_rtabmap2habitat.transform.rotation.y = quat.y
+        tf_rtabmap2habitat.transform.rotation.z = quat.z
+        tf_rtabmap2habitat.transform.rotation.w = quat.w
+
+        pose_a_in_r = tf2_geometry_msgs.do_transform_pose(
+            pose_a_in_h, tf_rtabmap2habitat
+        )
+        # NOTE: for the correct pose of agent in matterport3D,
+        # you still need to flip y-z axes
+        # according to this issue https://github.com/facebookresearch/habitat-sim/issues/1620
+
+        debug_tf_pub.publish(pose_a_in_r)

@@ -33,6 +33,7 @@ import rospy
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
+import struct
 
 # The data structure of each point in ros PointCloud2:
 #    16 bits = x + y + z + rgb
@@ -47,8 +48,8 @@ FIELDS_XYZRGB = FIELDS_XYZ + [
 ]
 
 # Bit operations
-BIT_MOVE_16 = 2 ** 16
-BIT_MOVE_8 = 2 ** 8
+BIT_MOVE_16 = 2**16
+BIT_MOVE_8 = 2**8
 convert_rgbUint32_to_tuple = lambda rgb_uint32: (
     (rgb_uint32 & 0x00FF0000) >> 16,
     (rgb_uint32 & 0x0000FF00) >> 8,
@@ -58,19 +59,44 @@ convert_rgbFloat_to_tuple = lambda rgb_float: convert_rgbUint32_to_tuple(
     int(cast(pointer(c_float(rgb_float)), POINTER(c_uint32)).contents.value)
 )
 
+# NOTE: unknown error: required argument is not an integer
+# def cloud_o3d2ros(open3d_cloud, frame_id="base", stamp=None):
+#     """Open3D point cloud to ROS PointCloud2 (XYZRGB only)."""
+#     # Set "header"
+#     header = Header()
+#     if stamp is None:
+#         header.stamp = rospy.Time.now()
+#     else:
+#         header.stamp = stamp
+#     header.frame_id = frame_id
 
-def cloud_o3d2ros(open3d_cloud, frame_id="base", stamp=None):
-    """Open3D point cloud to ROS PointCloud2 (XYZRGB only)."""
-    # Set "header"
-    header = Header()
-    if stamp is None:
-        header.stamp = rospy.Time.now()
-    else:
-        header.stamp = stamp
-    header.frame_id = frame_id
+#     # Set "fields" and "cloud_data"
+#     points = np.asarray(open3d_cloud.points)
+#     if not open3d_cloud.colors:  # XYZ only
+#         fields = FIELDS_XYZ
+#         cloud_data = points
+#     else:  # XYZ + RGB
+#         fields = FIELDS_XYZRGB
+#         # -- Change rgb color from "three float" to "one 24-byte int"
+#         # 0x00FFFFFF is white, 0x00000000 is black.
+#         colors = np.floor(np.asarray(open3d_cloud.colors) * 255)  # nx3 matrix
+#         colors = (
+#             colors[:, 0] * BIT_MOVE_16
+#             + colors[:, 1] * BIT_MOVE_8
+#             + colors[:, 2]
+#         )
+#         cloud_data = np.c_[points, colors]
+
+#     # create ros_cloud
+#     return pc2.create_cloud(header, fields, cloud_data)
+
+
+def cloud_o3d2ros(open3d_cloud, frame_id="map"):
+
+    header = Header(frame_id=frame_id)
 
     # Set "fields" and "cloud_data"
-    points = np.asarray(open3d_cloud.points)
+    points = np.asarray(open3d_cloud.points, dtype=np.float32)
     if not open3d_cloud.colors:  # XYZ only
         fields = FIELDS_XYZ
         cloud_data = points
@@ -78,13 +104,19 @@ def cloud_o3d2ros(open3d_cloud, frame_id="base", stamp=None):
         fields = FIELDS_XYZRGB
         # -- Change rgb color from "three float" to "one 24-byte int"
         # 0x00FFFFFF is white, 0x00000000 is black.
-        colors = np.floor(np.asarray(open3d_cloud.colors) * 255)  # nx3 matrix
-        colors = (
-            colors[:, 0] * BIT_MOVE_16
-            + colors[:, 1] * BIT_MOVE_8
-            + colors[:, 2]
-        )
-        cloud_data = np.c_[points, colors]
+        colors = np.floor(np.asarray(open3d_cloud.colors) * 255).astype(
+            np.uint32
+        )  # nx3 matrix
+        cloud_data = []
+        for i in range(points.shape[0]):
+            xyz = points[i]
+            c = colors[i]
+            rgba = struct.unpack(
+                "I", struct.pack("BBBB", c[2], c[1], c[0], 255)
+            )[0]
+
+            pt = [xyz[0], xyz[1], xyz[2], rgba]
+            cloud_data.append(pt)
 
     # create ros_cloud
     return pc2.create_cloud(header, fields, cloud_data)
