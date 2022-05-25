@@ -16,7 +16,7 @@ def get_args(args=None, namespace=None):
         "-n",
         "--num_processes",
         type=int,
-        default=5,
+        default=1,
         help="""how many training processes to use (default:5)
                                 Overridden when auto_gpu_config=1
                                 and training on gpus""",
