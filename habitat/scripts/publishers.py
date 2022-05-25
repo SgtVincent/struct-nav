@@ -4,6 +4,8 @@ import numpy as np
 import rospy
 import transformations as tf
 import yaml
+import habitat_sim
+import magnum
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
@@ -24,6 +26,41 @@ def get_camera_info(filepath):
     return CameraInfo(width=width, height=height, D=d, K=k, R=r, P=p)
 
 
+def get_camera_info_config(config: habitat_sim.Configuration):
+    """get camera info from habitat simulator config
+
+    Args:
+        sim (haibtat_sim.Simulator): simulator config class
+    """
+    assert NotImplementedError  # still errors remained, do not use
+    sensor_spec: habitat_sim.sensor.CameraSensorSpec = config.agents[
+        0
+    ].sensor_specifications[1]
+    height = sensor_spec.resolution[0].item()  # numpy.int32 to native int
+    width = sensor_spec.resolution[1].item()
+    hfov = float(sensor_spec.hfov) / 180.0 * np.pi  # degree to radius
+    K_mat = np.array(
+        [
+            [width / 2.0 / np.tan(hfov / 2.0), 0.0, 0.0],
+            [0.0, height / 2.0 / np.tan(hfov / 2.0), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    P_mat = np.concatenate([K_mat, np.zeros((3, 1))], axis=1)
+    rectification_matrix = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    distortion_coeff = [0.0, 0.0, 0.0, 0.0, 0.0]
+    K = K_mat.reshape(-1).tolist()  # numpy.array to flat listtolist()
+    P = P_mat.reshape(-1).tolist()  # numpy.array to flat listtolist()
+    return CameraInfo(
+        height=height,
+        width=width,
+        D=distortion_coeff,
+        K=K,
+        R=rectification_matrix,
+        P=P,
+    )
+
+
 class HabitatObservationPublisher:
     """Publisher for observation of habitat."""
 
@@ -34,6 +71,7 @@ class HabitatObservationPublisher:
         camera_info_topic="",
         true_pose_topic="",
         camera_info_file="",
+        sim_config=None,
     ):
         """Initialize publisher with topic handles."""
         self.cvbridge = CvBridge()
@@ -44,7 +82,10 @@ class HabitatObservationPublisher:
             self.camera_info_publisher = rospy.Publisher(
                 camera_info_topic, CameraInfo, latch=True, queue_size=100
             )
-            self.camera_info = get_camera_info(camera_info_file)
+            if sim_config is not None:
+                self.camera_info = get_camera_info_config(sim_config)
+            else:
+                self.camera_info = get_camera_info(camera_info_file)
         else:
             self.publish_camera_info = False
 
