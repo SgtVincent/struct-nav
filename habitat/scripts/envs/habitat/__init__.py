@@ -11,7 +11,7 @@ from habitat.config.default import get_config as cfg_env
 from habitat.datasets.pointnav.pointnav_dataset import PointNavDatasetV1
 
 # from agents.sem_exp import Sem_Exp_Env_Agent
-from agents import Frontier2DDetectionAgent
+from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from .utils.vector_env import VectorEnv
 
@@ -58,8 +58,8 @@ def construct_envs(args):
     basic_config.DATASET.DATA_PATH = basic_config.DATASET.DATA_PATH.replace(
         "v1", args.version
     )
-    basic_config.DATASET.EPISODES_DIR = (
-        basic_config.DATASET.EPISODES_DIR.replace("v1", args.version)
+    basic_config.DATASET.EPISODES_DIR = basic_config.DATASET.EPISODES_DIR.replace(
+        "v1", args.version
     )
     basic_config.freeze()
 
@@ -133,19 +133,22 @@ def construct_envs(args):
         config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
         config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
 
-        # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
-        # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
-        # config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
-        # config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = \
-        #     [0, args.camera_height, 0]
+        config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
+        config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
+        config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
+        config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [
+            0,
+            args.camera_height,
+            0,
+        ]
 
         config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
         config_env.DATASET.SPLIT = args.split
         config_env.DATASET.DATA_PATH = config_env.DATASET.DATA_PATH.replace(
             "v1", args.version
         )
-        config_env.DATASET.EPISODES_DIR = (
-            config_env.DATASET.EPISODES_DIR.replace("v1", args.version)
+        config_env.DATASET.EPISODES_DIR = config_env.DATASET.EPISODES_DIR.replace(
+            "v1", args.version
         )
 
         config_env.freeze()
@@ -171,8 +174,8 @@ def construct_single_env(args):
     basic_config.DATASET.DATA_PATH = basic_config.DATASET.DATA_PATH.replace(
         "v1", args.version
     )
-    basic_config.DATASET.EPISODES_DIR = (
-        basic_config.DATASET.EPISODES_DIR.replace("v1", args.version)
+    basic_config.DATASET.EPISODES_DIR = basic_config.DATASET.EPISODES_DIR.replace(
+        "v1", args.version
     )
     basic_config.freeze()
 
@@ -207,9 +210,9 @@ def construct_single_env(args):
         #     sum(scene_split_sizes[:i]) : sum(scene_split_sizes[: i + 1])
         # ]
         # print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
-        config_env.DATASET.CONTENT_SCENES
+        config_env.DATASET.CONTENT_SCENES = scenes
 
-    gpu_id = min(torch.cuda.device_count() - 1, 0) # first gpu or cpu 
+    gpu_id = min(torch.cuda.device_count() - 1, 0)  # first gpu or cpu
     config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
 
     agent_sensors = []
@@ -235,11 +238,10 @@ def construct_single_env(args):
     config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
     config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
 
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = \
-    #     [0, args.camera_height, 0]
+    config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
+    config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
+    config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
+    config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [0, args.camera_height, 0]
 
     config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
     config_env.DATASET.SPLIT = args.split

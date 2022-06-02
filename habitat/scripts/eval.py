@@ -20,9 +20,8 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import open3d as o3d
 import rospy
-from agents import Frontier2DDetectionAgent
+from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
 from arguments import get_args
-from utils.publishers import HabitatObservationPublisher
 from simulator import init_sim
 
 # from std_msgs.msg import Int32
@@ -40,6 +39,8 @@ def main():
     # overwrite default arguments
     DEFAULT_AGENT_TYPE = "frontier_2d_detection"
     args.agent = rospy.get_param("~agent_type", DEFAULT_AGENT_TYPE)
+    args.config_dir = rospy.get_param("~config_dir", args.config_dir)
+    args.task_config = rospy.get_param("~task_config", args.task_config)
 
     # set random seed
     np.random.seed(args.seed)
@@ -95,22 +96,24 @@ def main():
     obs, infos = env.reset()
 
     torch.set_grad_enabled(False)
-
+    
     # obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
     # endregion
 
     # region: Run steps
     start = time.time()
     g_reward = 0
+    done = False
     spl_per_category = defaultdict(list)
     success_per_category = defaultdict(list)
 
-    for step in range(args.num_training_frames):
+    for step in range(args.total_steps):
+    # while(True)
         if finished:
             break
 
-        g_step = (step // args.num_local_steps) % args.num_global_steps
-        l_step = step % args.num_local_steps
+        # g_step = (step // args.num_local_steps) % args.num_global_steps
+        # l_step = step % args.num_local_steps
 
         if done:
             spl = info["spl"]

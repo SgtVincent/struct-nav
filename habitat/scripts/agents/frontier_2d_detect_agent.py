@@ -40,9 +40,8 @@ from envs.utils.fmm_planner import FMMPlanner
 # TODO: remove all these global default arguments
 # parameters used for debuging with python debugger
 DEFAULT_RATE = 1.0
-# DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
-DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
-DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
+# DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
+DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info_gibson.yaml"
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
 VISUALIZE = False
@@ -58,11 +57,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.rank = rank
         # agent depends on ROS and observations do not support vecpytroch
         # only intended for single process
-        assert rank == 0 
-        super().__init__(
-            args, 0, config_env, dataset
-        )  # single process by default
-
+        assert rank == 0
+        super().__init__(args, rank, config_env, dataset)
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
         # TODO: fetch this from config file
@@ -142,10 +138,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.pub_obs = HabitatObservationPublisher(
             rgb_topic=self.rgb_topic,
             depth_topic=self.depth_topic,
-            semantic_topic=self.semantic_topic,
+            # semantic_topic=self.semantic_topic,
             camera_info_topic=self.camera_info_topic,
             true_pose_topic=self.true_pose_topic,
             camera_info_file=self.camera_info_file,
+            # sim_config=self.habitat_env.sim.sim_config
         )
         # action_publisher = rospy.Publisher(
         #     "habitat_action", Int32, latch=True, queue_size=100
@@ -196,10 +193,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # transformation.publish_agent_init_tf(sim_agent)
 
         # 3. initialize episode variables
-        map_shape = (
-            args.map_size // args.map_resolution,
-            args.map_size // args.map_resolution,
-        )
+        # TODO: add map size to ros params ! 
+        # map_shape = (
+        #     args.map_size // args.map_resolution,
+        #     args.map_size // args.map_resolution,
+        # )
+        map_shape = int(20 / 0.05)
         self.collision_map = np.zeros(map_shape)
         self.visited = np.zeros(map_shape)
         self.visited_vis = np.zeros(map_shape)
@@ -221,7 +220,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.pub_obs.publish(obs)
             self.cnt_pub += 1
             if DEBUG:
-                print(f"Published {self.cnt_pub} observations.")
+                print(f"[DEBUG] Published {self.cnt_pub} observations.")
 
         return obs, info
 
@@ -302,13 +301,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         ############ parse ros messages ################
 
         # FIXME: cannot receive grid_map message
-        if self.odom_msg == None or self.grid_map_msg == None:
+        while self.odom_msg == None or self.grid_map_msg == None:
             # waiting for data
             # return "stay"
             print("waiting for first odom_msg and grid_map_msg")
             time.sleep(0.5)
 
-        if (
+        while (
             self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
             or self.last_grid_map_msg_time
             == self.grid_map_msg.header.stamp.to_sec()
@@ -416,11 +415,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
             # preprocess obs
             obs = self._preprocess_obs(obs)
+            self.pub_obs.publish(obs)
+            
             self.last_action = action["action"]
             self.obs = obs
             self.info = info
 
-            info["g_reward"] += rew
+            # info["g_reward"] += rew
 
             return obs, rew, done, info
 

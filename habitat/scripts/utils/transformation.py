@@ -23,9 +23,9 @@ from habitat_sim import geo
 
 # NOTE: tf2_geometry_msgs depends on cython library PyKDL, which is compiled when
 # installing ros-xxx-full package. Need to add path to this package to sys.path
-sys.path.append(
-    "/usr/lib/python3/dist-packages"
-)  # needed by tf2_geometry_msgs
+# sys.path.append(
+#     "/usr/lib/python3/dist-packages"
+# )  # needed by tf2_geometry_msgs
 import tf2_geometry_msgs
 
 # NOTE: transformation between frames and transformation between points in frames are inverse matrix

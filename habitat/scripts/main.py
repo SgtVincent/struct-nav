@@ -4,7 +4,8 @@
 import numpy as np
 import open3d as o3d
 import rospy
-from agents import FrontierExploreAgent, RandomWalkAgent, SpinningAgent
+from agents.dummy_agents import RandomWalkAgent, SpinningAgent
+from agents.frontier_explore_agent import FrontierExploreAgent
 from agents.utils.arguments import get_args
 from utils.publishers import HabitatObservationPublisher
 from simulator import init_sim

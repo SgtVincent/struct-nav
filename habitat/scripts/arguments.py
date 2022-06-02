@@ -1,5 +1,6 @@
 import argparse
 import torch
+import sys
 
 
 def get_args(args=None, namespace=None):
@@ -24,21 +25,30 @@ def get_args(args=None, namespace=None):
     parser.add_argument(
         "--eval",
         type=int,
-        default=0,
+        default=1,
         help="0: Train, 1: Evaluate (default: 0)",
     )
+    parser.add_argument(
+        "--num_train_episodes",
+        type=int,
+        default=sys.maxsize,  # 10000
+        help="""number of train episodes per scene
+                before loading the next scene by objectgoal_env.reset()""",
+    )
+    parser.add_argument('--total_steps', type=int, default=10000000)
     parser.add_argument(
         "--num_eval_episodes",
         type=int,
         default=200,
         help="number of test episodes per scene",
     )
-    parser.add_argument(
-        "--no_cuda",
-        action="store_true",
-        default=True,
-        help="disables CUDA training",
-    )
+
+    # parser.add_argument(
+    #     "--no_cuda",
+    #     action="store_true",
+    #     default=True,
+    #     help="disables CUDA training",
+    # )
 
     # Logging, loading models, visualization
     parser.add_argument(
@@ -145,7 +155,7 @@ def get_args(args=None, namespace=None):
     parser.add_argument(
         "--split",
         type=str,
-        default="train",
+        default="val",  # always unknown error on train split
         help="dataset split (train | val | val_mini) ",
     )
     parser.add_argument(
@@ -203,6 +213,49 @@ def get_args(args=None, namespace=None):
         "--version", type=str, default="v1.1", help="dataset version"
     )
 
+    # Model Hyperparameters
+    parser.add_argument('--agent', type=str, default="sem_exp")
+    parser.add_argument('--lr', type=float, default=2.5e-5,
+                        help='learning rate (default: 2.5e-5)')
+    parser.add_argument('--global_hidden_size', type=int, default=256,
+                        help='global_hidden_size')
+    parser.add_argument('--eps', type=float, default=1e-5,
+                        help='RL Optimizer epsilon (default: 1e-5)')
+    parser.add_argument('--alpha', type=float, default=0.99,
+                        help='RL Optimizer alpha (default: 0.99)')
+    parser.add_argument('--gamma', type=float, default=0.99,
+                        help='discount factor for rewards (default: 0.99)')
+    parser.add_argument('--use_gae', action='store_true', default=False,
+                        help='use generalized advantage estimation')
+    parser.add_argument('--tau', type=float, default=0.95,
+                        help='gae parameter (default: 0.95)')
+    parser.add_argument('--entropy_coef', type=float, default=0.001,
+                        help='entropy term coefficient (default: 0.01)')
+    parser.add_argument('--value_loss_coef', type=float, default=0.5,
+                        help='value loss coefficient (default: 0.5)')
+    parser.add_argument('--max_grad_norm', type=float, default=0.5,
+                        help='max norm of gradients (default: 0.5)')
+    parser.add_argument('--num_global_steps', type=int, default=20,
+                        help='number of forward steps in A2C (default: 5)')
+    parser.add_argument('--ppo_epoch', type=int, default=4,
+                        help='number of ppo epochs (default: 4)')
+    parser.add_argument('--num_mini_batch', type=str, default="auto",
+                        help='number of batches for ppo (default: 32)')
+    parser.add_argument('--clip_param', type=float, default=0.2,
+                        help='ppo clip parameter (default: 0.2)')
+    parser.add_argument('--use_recurrent_global', type=int, default=0,
+                        help='use a recurrent global policy')
+    parser.add_argument('--num_local_steps', type=int, default=25,
+                        help="""Number of steps the local policy
+                                between each global step""")
+    parser.add_argument('--reward_coeff', type=float, default=0.1,
+                        help="Object goal reward coefficient")
+    parser.add_argument('--intrinsic_rew_coeff', type=float, default=0.02,
+                        help="intrinsic exploration reward coefficient")
+    parser.add_argument('--num_sem_categories', type=float, default=16)
+    parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
+                        help="Semantic prediction confidence threshold")
+
     # Mapping
     parser.add_argument("--global_downscaling", type=int, default=2)
     parser.add_argument("--vision_range", type=int, default=100)
@@ -213,11 +266,14 @@ def get_args(args=None, namespace=None):
     parser.add_argument("--map_pred_threshold", type=float, default=1.0)
     parser.add_argument("--exp_pred_threshold", type=float, default=1.0)
     parser.add_argument("--collision_threshold", type=float, default=0.20)
+    
+    # Frontier Exploration
+    parser.add_argument("--cluster_trashhole", type=float, default=0.2)
 
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)
 
-    args.cuda = False
-    args.sem_gpu_id = -2
+    args.cuda = True
+    args.sem_gpu_id = 0
 
     return args
