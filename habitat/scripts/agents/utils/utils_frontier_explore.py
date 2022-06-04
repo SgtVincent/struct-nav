@@ -312,18 +312,23 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     # TODO: Stop
     points = np.copy(centroids)
     # TODO: Rtabmap coordinate to habitat coordinate
-    # points[:, 2] = 0.3  # TODO: height
-    # points_hab = np.copy(points)
-    # points_hab[:, 0] = points[:, 1]
-    # points_hab[:, 1] = points[:, 0]
+    points[:, 2] = 0.88
     points_hab = points_rtab2habitat(points)
-    utility = 1 / dist2obj_goal(sim, points_hab, goal_cat)
+    distances = dist2obj_goal(sim, points_hab, goal_cat)
+    utility = 1 / distances
     utility_array[:, 2] = utility
+
+    # sort utility_array based on utility
+    index = np.argsort(utility_array[:, 2])
+    utility_array = utility_array[index]
+
+    # reverse utility_array to have greatest utility as index 0
+    utility_array = utility_array[::-1]
 
     return utility_array
 
 
-def dist2obj_goal(sim, points, goal_cat, verbose=False, display=True):
+def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
     # find distance to object goal with oracle
     import habitat_sim
 
@@ -333,10 +338,6 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=True):
     for region in semantic_scene.regions:
         # load object layer from habitat simulator
         for obj in region.objects:
-            # print(
-            #     f"Object id:{obj.id}, category:{obj.category.name()},"
-            #     f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
-            # )
             object_id = int(obj.id.split("_")[-1])  # counting from 0
             center = obj.obb.center
             # rot_quat = obj.obb.rotation[1, 2, 3, 0]
@@ -354,7 +355,8 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=True):
                     )
                     print(f"end point {center}", snap_info)
                 ends[object_id] = end
-    print("found {} object in goal cate".format(len(ends.values())))
+    if verbose:
+        print("found {} object in goal cate".format(len(ends.values())))
 
     point2goal_dists = []
     for p in points:
@@ -397,13 +399,13 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=True):
 def combine_utilities(geo_utility_array, sem_utility_array):
     # TODO:
     # NOTE: Can be tuned manually or learned by RL
-    utility_array = np.copy(geo_utility_array)
-    print("geo utility", utility_array[:, 2])
-    # utility_array[:, 2] += sem_utility_array[:, 2]
-    utility_array[:, 2] = sem_utility_array[:, 2]
-    print("sem utility", utility_array[:, 2])
+    # utility_array = np.copy(sem_utility_array)
+    # print("geo utility", utility_array[:, 2])
+    # # utility_array[:, 2] += sem_utility_array[:, 2]
+    # utility_array[:, 2] = sem_utility_array[:, 2]
+    # print("sem utility", utility_array[:, 2])
 
-    return utility_array
+    return sem_utility_array
 
 
 def get_goals(utility_array, num_goals=3):
@@ -469,13 +471,10 @@ def frontier_goals(
     elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
         geo_utility_array = compute_geo_utility(centroids, current_position)
-        # print("geo utility", geo_utility_array)
         sem_utility_array = compute_sem_utility(
             centroids, scene_graph=None, goal_cat="shower", sim=sim
         )
-        # print("sem utility", sem_utility_array)
         utility_array = combine_utilities(geo_utility_array, sem_utility_array)
-        # print("final utility", utility_array)
         goals = get_goals(utility_array, num_goals)
 
     # set flag to true in debug console dynamically for visualization
@@ -498,13 +497,25 @@ def frontier_goals(
         for i, f in enumerate(frontiers_vis):
             plt.scatter(f[:, 0], f[:, 1], color=colormap(float(i) / num_f))
         # visualize centroids
-        centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
-        sizes = centroids[:, 2] * 2
-        N = centroids_vis.shape[0]
+        # centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
+        # sizes = centroids[:, 2] * 2
+        # N = centroids_vis.shape[0]
+        # colors = colormap(np.arange(0, N) / float(N))
+        # plt.scatter(
+        #     x=centroids_vis[:, 0],
+        #     y=centroids_vis[:, 1],
+        #     s=sizes,
+        #     c=colors,
+        #     alpha=0.6,
+        # )
+        # visualize utility
+        utility_vis = (utility_array[:, :2] - map_origin) / map_resolution
+        sizes = utility_array[:, 2] / utility_array[:, 2].min() * 1000
+        N = utility_vis.shape[0]
         colors = colormap(np.arange(0, N) / float(N))
         plt.scatter(
-            x=centroids_vis[:, 0],
-            y=centroids_vis[:, 1],
+            x=utility_vis[:, 0],
+            y=utility_vis[:, 1],
             s=sizes,
             c=colors,
             alpha=0.6,
