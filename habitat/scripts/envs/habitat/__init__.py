@@ -51,7 +51,7 @@ def construct_envs(args):
     args_list = []
 
     basic_config = cfg_env(
-        config_paths=["envs/habitat/configs/" + args.task_config]
+        config_paths=os.path.join(args.config_dir, args.task_config)
     )
     basic_config.defrost()
     basic_config.DATASET.SPLIT = args.split
@@ -110,39 +110,43 @@ def construct_envs(args):
         gpu_id = min(torch.cuda.device_count() - 1, gpu_id)
         config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
 
-        agent_sensors = []
-        agent_sensors.append("RGB_SENSOR")
-        agent_sensors.append("DEPTH_SENSOR")
-        agent_sensors.append("SEMANTIC_SENSOR")
+        # NOTE: Disable setting simulator sensor params in argparse. Use yaml config instead! 
+        
+        # agent_sensors = []
+        # agent_sensors.append("RGB_SENSOR")
+        # agent_sensors.append("DEPTH_SENSOR")
+        # agent_sensors.append("SEMANTIC_SENSOR")
 
-        config_env.SIMULATOR.AGENT_0.SENSORS = agent_sensors
+        # config_env.SIMULATOR.AGENT_0.SENSORS = agent_sensors
 
         # Reseting episodes manually, setting high max episode length in sim
+
+        # config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
+        # config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
+        # config_env.SIMULATOR.RGB_SENSOR.HFOV = args.hfov
+        # config_env.SIMULATOR.RGB_SENSOR.POSITION = [0, args.camera_height, 0]
+
+        # config_env.SIMULATOR.DEPTH_SENSOR.WIDTH = args.env_frame_width
+        # config_env.SIMULATOR.DEPTH_SENSOR.HEIGHT = args.env_frame_height
+        # config_env.SIMULATOR.DEPTH_SENSOR.HFOV = args.hfov
+        # config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
+        # config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
+        # config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
+
+        # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
+        # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
+        # config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
+        # config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [
+        #     0,
+        #     args.camera_height,
+        #     0,
+        # ]
+        # config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
+        
+        
         config_env.ENVIRONMENT.MAX_EPISODE_STEPS = 10000000
         config_env.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
-
-        config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
-        config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
-        config_env.SIMULATOR.RGB_SENSOR.HFOV = args.hfov
-        config_env.SIMULATOR.RGB_SENSOR.POSITION = [0, args.camera_height, 0]
-
-        config_env.SIMULATOR.DEPTH_SENSOR.WIDTH = args.env_frame_width
-        config_env.SIMULATOR.DEPTH_SENSOR.HEIGHT = args.env_frame_height
-        config_env.SIMULATOR.DEPTH_SENSOR.HFOV = args.hfov
-        config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
-        config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
-        config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
-
-        config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
-        config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
-        config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
-        config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [
-            0,
-            args.camera_height,
-            0,
-        ]
-
-        config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
+        
         config_env.DATASET.SPLIT = args.split
         config_env.DATASET.DATA_PATH = config_env.DATASET.DATA_PATH.replace(
             "v1", args.version
@@ -168,7 +172,7 @@ def construct_envs(args):
 
 def construct_single_env(args):
 
-    basic_config = cfg_env(config_paths=[args.config_dir + args.task_config])
+    basic_config = cfg_env(config_paths=os.path.join(args.config_dir, args.task_config))
     basic_config.defrost()
     basic_config.DATASET.SPLIT = args.split
     basic_config.DATASET.DATA_PATH = basic_config.DATASET.DATA_PATH.replace(
@@ -215,35 +219,44 @@ def construct_single_env(args):
     gpu_id = min(torch.cuda.device_count() - 1, 0)  # first gpu or cpu
     config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
 
-    agent_sensors = []
-    agent_sensors.append("RGB_SENSOR")
-    agent_sensors.append("DEPTH_SENSOR")
-    agent_sensors.append("SEMANTIC_SENSOR")
+    # NOTE: Disable setting simulator sensor params in argparse. Use yaml config instead! 
+    
+    # agent_sensors = []
+    # agent_sensors.append("RGB_SENSOR")
+    # agent_sensors.append("DEPTH_SENSOR")
+    # agent_sensors.append("SEMANTIC_SENSOR")
 
-    config_env.SIMULATOR.AGENT_0.SENSORS = agent_sensors
+    # config_env.SIMULATOR.AGENT_0.SENSORS = agent_sensors
 
     # Reseting episodes manually, setting high max episode length in sim
+
+    # config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
+    # config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
+    # config_env.SIMULATOR.RGB_SENSOR.HFOV = args.hfov
+    # config_env.SIMULATOR.RGB_SENSOR.POSITION = [0, args.camera_height, 0]
+
+    # config_env.SIMULATOR.DEPTH_SENSOR.WIDTH = args.env_frame_width
+    # config_env.SIMULATOR.DEPTH_SENSOR.HEIGHT = args.env_frame_height
+    # config_env.SIMULATOR.DEPTH_SENSOR.HFOV = args.hfov
+    # config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
+    # config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
+    # config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
+
+    # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
+    # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
+    # config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
+    # config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [
+    #     0,
+    #     args.camera_height,
+    #     0,
+    # ]
+    # config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
+    
+    # TODO: move all parameters to yaml config IF POSSIBLE
+    
     config_env.ENVIRONMENT.MAX_EPISODE_STEPS = 10000000
     config_env.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
-
-    config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
-    config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
-    config_env.SIMULATOR.RGB_SENSOR.HFOV = args.hfov
-    config_env.SIMULATOR.RGB_SENSOR.POSITION = [0, args.camera_height, 0]
-
-    config_env.SIMULATOR.DEPTH_SENSOR.WIDTH = args.env_frame_width
-    config_env.SIMULATOR.DEPTH_SENSOR.HEIGHT = args.env_frame_height
-    config_env.SIMULATOR.DEPTH_SENSOR.HFOV = args.hfov
-    config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
-    config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
-    config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
-
-    config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
-    config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
-    config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
-    config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [0, args.camera_height, 0]
-
-    config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
+        
     config_env.DATASET.SPLIT = args.split
     config_env.DATASET.DATA_PATH = config_env.DATASET.DATA_PATH.replace(
         "v1", args.version

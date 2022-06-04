@@ -40,8 +40,8 @@ from envs.utils.fmm_planner import FMMPlanner
 # TODO: remove all these global default arguments
 # parameters used for debuging with python debugger
 DEFAULT_RATE = 1.0
-# DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
-DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info_gibson.yaml"
+DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info.yaml"
+# DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info_gibson.yaml"
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
 VISUALIZE = False
@@ -144,6 +144,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             camera_info_file=self.camera_info_file,
             # sim_config=self.habitat_env.sim.sim_config
         )
+        sensor_height = self.config_env.SIMULATOR.AGENT_0.HEIGHT
+        publish_static_base_to_cam(sensor_height)
+
         # action_publisher = rospy.Publisher(
         #     "habitat_action", Int32, latch=True, queue_size=100
         # )
@@ -172,8 +175,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_update_time = 0.0
 
         # sub_cloud = PointCloudSubscriber(cloud_topic)
-        sensor_height = self.config_env.SIMULATOR.AGENT_0.HEIGHT
-        publish_static_base_to_cam(sensor_height)
 
         self.cnt_pub = 0
         self.cnt_action = 0
@@ -309,8 +310,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         while (
             self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
-            or self.last_grid_map_msg_time
-            == self.grid_map_msg.header.stamp.to_sec()
+            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
         ):
             # waiting for data
             cur_time = rospy.Time().now().to_sec()

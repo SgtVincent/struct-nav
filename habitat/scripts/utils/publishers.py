@@ -5,7 +5,7 @@ import rospy
 import tf.transformations as tf
 import yaml
 import habitat_sim
-import magnum
+import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
@@ -39,10 +39,12 @@ def get_camera_info_config(config: habitat_sim.Configuration):
     height = sensor_spec.resolution[0].item()  # numpy.int32 to native int
     width = sensor_spec.resolution[1].item()
     hfov = float(sensor_spec.hfov) / 180.0 * np.pi  # degree to radius
+    fx = cx = width / 2.0 / np.tan(hfov / 2.0)
+    fy = cy = height / 2.0 / np.tan(hfov / 2.0)
     K_mat = np.array(
         [
-            [width / 2.0 / np.tan(hfov / 2.0), 0.0, 0.0],
-            [0.0, height / 2.0 / np.tan(hfov / 2.0), 0.0],
+            [fx, 0.0, cx],
+            [0.0, fy, cy],
             [0.0, 0.0, 1.0],
         ]
     )
@@ -68,6 +70,7 @@ class HabitatObservationPublisher:
         self,
         rgb_topic="",
         depth_topic="",
+        semantic_topic="",
         camera_info_topic="",
         true_pose_topic="",
         camera_info_file="",
@@ -106,7 +109,16 @@ class HabitatObservationPublisher:
             )
         else:
             self.publish_depth = False
-
+        
+        # Initialize semantic image publisher
+        if len(semantic_topic) > 0:
+            self.publish_semantic = True
+            self.semantic_publisher = rospy.Publisher(
+                semantic_topic, Image, latch=True, queue_size=100
+            )
+        else:
+            self.publish_semantic = False
+        
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
         if False:
@@ -143,6 +155,37 @@ class HabitatObservationPublisher:
         if self.publish_camera_info:
             self.camera_info.header.stamp = cur_time
             self.camera_info_publisher.publish(self.camera_info)
+        
+        if self.publish_semantic:
+            semantic = observations["semantic"]
+            assert np.max(semantic) < 256  # use uint8 to encode image
+
+            # convert semantic image to rgb color image to publish
+            semantic_color = cv2.applyColorMap(
+                semantic.astype(np.uint8), cv2.COLORMAP_JET
+            )
+            semantic_msg = self.cvbridge.cv2_to_imgmsg(semantic_color)
+            semantic_msg.encoding = "bgr8"  # "rgb8"
+            semantic_msg.header.stamp = cur_time
+            semantic_msg.header.frame_id = "camera_link"
+            self.semantic_publisher.publish(semantic_msg)
+
+            # NOTE: following code could be use as reverse mapping from rgb color iamges
+            # back to semantic images
+            # create an inverse from the colormap to semantic values
+            # semantic_values = np.arange(256, dtype=np.uint8)
+            # color_values = map(
+            #     tuple,
+            #     cv2.applyColorMap(semantic_values, cv2.COLORMAP_JET).reshape(
+            #         256, 3
+            #     ),
+            # )
+            # color_to_semantic_map = dict(zip(color_values, semantic_values))
+            # semantic_decoded = np.apply_along_axis(
+            #     lambda bgr: color_to_semantic_map[tuple(bgr)],
+            #     2,
+            #     semantic_color,
+            # )
 
         # Publish true pose
         if self.publish_true_pose:

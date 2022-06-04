@@ -2,7 +2,7 @@ import rospy
 from std_srvs.srv import Empty
 
 
-def safe_call_reset_service(service_name, timeout=10.0):
+def safe_call_reset_service(service_name, timeout=60):
 
     rospy.wait_for_service(service_name, timeout=timeout)
     try:

@@ -147,7 +147,7 @@ def main():
 
         # message processing and synchronization should be down in agent.act()
         action = agent.act()
-        # rate.sleep()
+        rate.sleep()
 
 
 if __name__ == "__main__":

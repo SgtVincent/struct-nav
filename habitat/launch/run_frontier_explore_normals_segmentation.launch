@@ -14,7 +14,7 @@
         <arg name="rtabmap_args" value="--delete_db_on_start" />
         <!-- <arg name="ground_truth_frame_id" value="world"/> -->
         <arg name="frame_id" value="base_link" />
-        <arg name="wait_for_transform" value="0.5" />
+        <arg name="wait_for_transform" value="5.0" />
         <arg name="rviz" value="false" />
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />

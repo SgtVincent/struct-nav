@@ -38,11 +38,12 @@ class ObjectGoal_Env(habitat.RLEnv):
             self.dataset_info = cPickle.load(f)
 
         # Specifying action and observation space
-        self.action_space = gym.spaces.Discrete(3)
+        # not used, also raise error 
+        # self.action_space = gym.spaces.Discrete(3)
 
-        self.observation_space = gym.spaces.Box(
-            0, 255, (3, args.frame_height, args.frame_width), dtype="uint8"
-        )
+        # self.observation_space = gym.spaces.Box(
+        #     0, 255, (3, args.frame_height, args.frame_width), dtype="uint8"
+        # )
 
         # Initializations
         self.episode_no = 0
@@ -463,9 +464,10 @@ class ObjectGoal_Env(habitat.RLEnv):
         info = {}
         return info
 
-    def get_spaces(self):
-        """Returns observation and action spaces for the ObjectGoal task."""
-        return self.observation_space, self.action_space
+    # not used, raise error 
+    # def get_spaces(self):
+    #     """Returns observation and action spaces for the ObjectGoal task."""
+    #     return self.observation_space, self.action_space
 
     def get_sim_location(self):
         """Returns x, y, o pose of the agent in the Habitat simulator."""

@@ -106,34 +106,67 @@ def get_args(args=None, namespace=None):
     )
 
     # Environment, dataset and episode specifications
-    parser.add_argument(
-        "-efw",
-        "--env_frame_width",
-        type=int,
-        default=640,
-        help="Frame width (default:640)",
-    )
-    parser.add_argument(
-        "-efh",
-        "--env_frame_height",
-        type=int,
-        default=480,
-        help="Frame height (default:480)",
-    )
-    parser.add_argument(
-        "-fw",
-        "--frame_width",
-        type=int,
-        default=160,
-        help="Frame width (default:160)",
-    )
-    parser.add_argument(
-        "-fh",
-        "--frame_height",
-        type=int,
-        default=120,
-        help="Frame height (default:120)",
-    )
+    # NOTE: Disable setting env params in argparse 
+    # Use yaml config instead! 
+    # parser.add_argument(
+    #     "-efw",
+    #     "--env_frame_width",
+    #     type=int,
+    #     default=640,
+    #     help="Frame width (default:640)",
+    # )
+    # parser.add_argument(
+    #     "-efh",
+    #     "--env_frame_height",
+    #     type=int,
+    #     default=480,
+    #     help="Frame height (default:480)",
+    # )
+    # parser.add_argument(
+    #     "-fw",
+    #     "--frame_width",
+    #     type=int,
+    #     default=160,
+    #     help="Frame width (default:160)",
+    # )
+    # parser.add_argument(
+    #     "-fh",
+    #     "--frame_height",
+    #     type=int,
+    #     default=120,
+    #     help="Frame height (default:120)",
+    # )
+    # parser.add_argument(
+    #     "--camera_height",
+    #     type=float,
+    #     default=0.88,
+    #     help="agent camera height in metres",
+    # )
+    # parser.add_argument(
+    #     "--hfov",
+    #     type=float,
+    #     default=79.0,
+    #     help="horizontal field of view in degrees",
+    # )
+    # parser.add_argument(
+    #     "--turn_angle",
+    #     type=float,
+    #     default=30,
+    #     help="Agent turn angle in degrees",
+    # )
+    # parser.add_argument(
+    #     "--min_depth",
+    #     type=float,
+    #     default=0.5,
+    #     help="Minimum depth for depth sensor in meters",
+    # )
+    # parser.add_argument(
+    #     "--max_depth",
+    #     type=float,
+    #     default=5.0,
+    #     help="Maximum depth for depth sensor in meters",
+    # )
+    # TODO: parse task parameters also from task yaml config 
     parser.add_argument(
         "-el",
         "--max_episode_length",
@@ -149,44 +182,15 @@ def get_args(args=None, namespace=None):
     parser.add_argument(
         "--task_config",
         type=str,
-        default="tasks/objectnav_gibson.yaml",
+        # default="tasks/objectnav_gibson.yaml",
+        default="tasks/objectnav_gibson_high_res.yaml",
         help="path to config yaml containing task information",
     )
     parser.add_argument(
         "--split",
         type=str,
-        default="val",  # always unknown error on train split
+        default="val", 
         help="dataset split (train | val | val_mini) ",
-    )
-    parser.add_argument(
-        "--camera_height",
-        type=float,
-        default=0.88,
-        help="agent camera height in metres",
-    )
-    parser.add_argument(
-        "--hfov",
-        type=float,
-        default=79.0,
-        help="horizontal field of view in degrees",
-    )
-    parser.add_argument(
-        "--turn_angle",
-        type=float,
-        default=30,
-        help="Agent turn angle in degrees",
-    )
-    parser.add_argument(
-        "--min_depth",
-        type=float,
-        default=0.5,
-        help="Minimum depth for depth sensor in meters",
-    )
-    parser.add_argument(
-        "--max_depth",
-        type=float,
-        default=5.0,
-        help="Maximum depth for depth sensor in meters",
     )
     parser.add_argument(
         "--success_dist",

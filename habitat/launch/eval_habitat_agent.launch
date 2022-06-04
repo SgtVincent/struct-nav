@@ -4,7 +4,7 @@
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="habitat_update_rate" default="2.0" />
     <arg name="grid_global_min_size" default="5.0" />
-    <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
+    <arg name="task_config" default="tasks/objectnav_gibson_high_res.yaml" />
 
     <node pkg="habitat_ros" type="eval.py" name="eval_habitat_env" output="screen">
 

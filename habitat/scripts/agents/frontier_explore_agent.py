@@ -230,8 +230,7 @@ class FrontierExploreAgent:
 
         if (
             self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
-            or self.last_grid_map_msg_time
-            == self.grid_map_msg.header.stamp.to_sec()
+            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
         ):
             # waiting for data
             cur_time = rospy.Time().now().to_sec()
