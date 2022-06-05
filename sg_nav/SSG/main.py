@@ -9,7 +9,7 @@ import argparse
 import torch
 from SSG.src.config import Config
 from SSG.src.SceneGraphFusionNetwork import SGFN
-from utils import util
+from sg_nav_utils import util
 
 
 def main():

@@ -6,8 +6,8 @@ import open3d as o3d
 import rospy
 from agents import FrontierExploreAgent, RandomWalkAgent, SpinningAgent
 from agents.utils.arguments import get_args
-from publishers import HabitatObservationPublisher
-from simulator import init_sim
+from utils.publishers import HabitatObservationPublisher
+from utils.simulator import init_sim
 
 # from std_msgs.msg import Int32
 from subscribers import PointCloudSubscriber

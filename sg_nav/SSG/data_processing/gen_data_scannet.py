@@ -9,7 +9,7 @@ import numpy as np
 import open3d as o3d
 import trimesh
 from tqdm import tqdm
-from utils import dataLoaderScanNet, define, util, util_label
+from sg_nav_utils import dataLoaderScanNet, define, util, util_label
 from utils.util_search import SAMPLE_METHODS, find_neighbors
 
 debug = True

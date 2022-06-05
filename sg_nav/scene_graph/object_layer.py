@@ -107,9 +107,11 @@ class ObjectLayer:
         obj_node = ObjectNode(
             id, center, rotation, size, class_name=class_name, label=label
         )
-        # FIXME: None judgement
-        # if pcls is not None:
-        obj_node.add_point_clouds(pcls[:, :3], pcls[:, 3:6], normals=normals)
+
+        if pcls is not None:
+            obj_node.add_point_clouds(
+                pcls[:, :3], pcls[:, 3:6], normals=normals
+            )
 
         self.obj_dict[id] = obj_node
 

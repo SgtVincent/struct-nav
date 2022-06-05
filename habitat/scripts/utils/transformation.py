@@ -33,7 +33,6 @@ import tf2_geometry_msgs
 
 def o3d_habitat2rtab(o3d_cloud):
     """Convert habitat coordinates to rtabmapw coordinates."""
-    # quat = quat_from_two_vectors(np.array([0, -1, 0]), np.array([0, 0, -1]))
     quat = quat_from_two_vectors(geo.GRAVITY, np.array([0, 0, -1]))
     o3d_quat = np.roll(quat_to_coeffs(quat), 1)
     r_mat = o3d_cloud.get_rotation_matrix_from_quaternion(o3d_quat)
@@ -45,8 +44,22 @@ def o3d_habitat2rtab(o3d_cloud):
 # TODO: fetch ground truth transformation from /habitat/matterport3d to /rtabmap/grid_map
 def points_rtab2habitat(points):
     """Convert rtab coordinates to habitat coordinates."""
-    # quat = quat_from_two_vectors(np.array([0, 0, 1]), np.array([0, -1, 0]))
     quat = quat_from_two_vectors(np.array([0, 0, -1]), geo.GRAVITY)
+    r_mat = qt.as_rotation_matrix(quat)
+    homo_r_mat = np.zeros((4, 4))
+    homo_r_mat[:3, :3] = r_mat
+    homo_r_mat[3, 3] = 1.0
+    homo_points_rtab = np.concatenate(
+        [points, np.ones((points.shape[0], 1))], axis=1
+    )
+    homo_points_habitat = (homo_r_mat @ homo_points_rtab.T).T  # (N,4)
+    points_habitat = homo_points_habitat[:, :3] / homo_points_habitat[:, 3:]
+    return points_habitat
+
+
+def points_habitat2rtab(points):
+    """Convert habitat coordinates to rtabmap coordinates."""
+    quat = quat_from_two_vectors(geo.GRAVITY, np.array([0, 0, -1]))
     r_mat = qt.as_rotation_matrix(quat)
     homo_r_mat = np.zeros((4, 4))
     homo_r_mat[:3, :3] = r_mat

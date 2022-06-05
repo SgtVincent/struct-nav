@@ -44,9 +44,13 @@
     },
     "restructuredtext.confPath": "${workspaceFolder}/doc/source",
     "python.autoComplete.extraPaths": [
-        "/opt/ros/noetic/lib/python3/dist-packages"
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/junting/habitat_ws/src/struct-nav/sg_nav"
     ],
-    "python.analysis.extraPaths": ["/opt/ros/noetic/lib/python3/dist-packages"],
+    "python.analysis.extraPaths": [
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/junting/habitat_ws/src/struct-nav/sg_nav"
+    ],
     "cSpell.words": ["hais"],
     "python.linting.enabled": true,
     "cmake.configureOnOpen": false,

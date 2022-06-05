@@ -25,15 +25,20 @@ from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils.loop import add_self_loops, remove_self_loops
 from tqdm import tqdm, trange
-from utils import cal_model_parms, load_checkpoint, save_checkpoint, set_seed
-from utils.config import config
-from utils.logger import (
+from sg_nav_utils import (
+    cal_model_parms,
+    load_checkpoint,
+    save_checkpoint,
+    set_seed,
+)
+from sg_nav_utils.config import config
+from sg_nav_utils.logger import (
     generate_exp_directory,
     resume_exp_directory,
     setup_logger,
 )
-from utils.training import build_optimizer, build_scheduler
-from utils.wandb import Wandb
+from sg_nav_utils.training import build_optimizer, build_scheduler
+from sg_nav_utils.wandb import Wandb
 from vis_ros.vis_obj_segmentation import SCANNET20_Label_Names
 
 
