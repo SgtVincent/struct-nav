@@ -83,6 +83,12 @@ catkin build python_orocos_kdl
 source devel/setup.sh
 ```
 
+## Prepare datasets
+If you want to use ground truth semantic sensor in habitat, you should follow the following instructions, otherwise semantic sensor will fail only with `.glb` file.
+
+### Gibson 
+https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md#gibson-and-3dscenegraph-datasets
+
 ## Trouble Shooting
 
 ### Conflicts of Qt and sip

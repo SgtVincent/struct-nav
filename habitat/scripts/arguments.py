@@ -258,7 +258,9 @@ def get_args(args=None, namespace=None):
                         help="intrinsic exploration reward coefficient")
     parser.add_argument('--num_sem_categories', type=float, default=16)
 
-    # semantic model (detectron2) 
+    # semantic model (ground truth / detectron2) 
+    parser.add_argument('--sem_model', type=str, default="none", 
+        choices=["none", "ground_truth", "detectron"])
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
     parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")

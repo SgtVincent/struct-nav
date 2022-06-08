@@ -58,10 +58,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # assert rank == 0
         super().__init__(args, rank, config_env, dataset)
         
+        # arguments
+        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
+        self.map_resolution = args.map_resolution_cm / 100.0
+        self.sem_model = args.sem_model
+
         # TODO: should place 2D recognition models in a separate ROS pacakge
         # fix this before release! 
         # Initialize 2D recognition models 
-        self.sem_pred = SemanticPredMaskRCNN(args)
+        if self.sem_model == "detectron":
+            self.sem_pred = SemanticPredMaskRCNN(args)
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
@@ -83,9 +89,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.count_forward_actions = None
         self.goal_name = None
 
-        # parameters 
-        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
-        self.map_resolution = self.args.map_resolution_cm / 100.0
 
         # from ObjectGoalEnv
         self.info = {}
@@ -742,10 +745,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # obs = obs.transpose(1, 2, 0)
         # rgb = obs[:, :, :3]
         # depth = obs[:, :, 3:4]
+        if self.sem_model == "ground_truth":
+            # assert "sem"
+            pass
+            
+        # if self.sem_model == "detectron":
+        #     rgb = obs
+        #     sem_seg_pred = self._get_sem_pred(
+        #         rgb.astype(np.uint8), use_seg=use_seg
+        #     )
 
-        # sem_seg_pred = self._get_sem_pred(
-        #     rgb.astype(np.uint8), use_seg=use_seg
-        # )
         # depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 
         # ds = args.env_frame_width // args.frame_width  # Downscaling factor
