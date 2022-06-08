@@ -20,7 +20,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import open3d as o3d
 import rospy
-from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
+# from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
 from arguments import get_args
 from simulator import init_sim
 
@@ -36,11 +36,12 @@ def main():
 
     # TODO: set all required arguments from rosparam server
     args = get_args("")  # use default arguments for now
-    # overwrite default arguments
-    DEFAULT_AGENT_TYPE = "frontier_2d_detection"
-    args.agent = rospy.get_param("~agent_type", DEFAULT_AGENT_TYPE)
+    
+    # overwrite default arguments with rosparam 
+    args.agent = rospy.get_param("~agent_type")
     args.config_dir = rospy.get_param("~config_dir", args.config_dir)
     args.task_config = rospy.get_param("~task_config", args.task_config)
+    args.sem_config_dir = rospy.get_param("~sem_config_dir", args.sem_config_dir)
 
     # set random seed
     np.random.seed(args.seed)

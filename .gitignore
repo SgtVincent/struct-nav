@@ -134,6 +134,9 @@ dmypy.json
 
 # data
 model/SSG/data
+*.bag
+*.npz
+*.npy
 
 # model checkpoint
 model/SSG/CVPR21/*.pth

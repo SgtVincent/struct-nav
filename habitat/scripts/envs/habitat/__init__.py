@@ -191,11 +191,11 @@ def construct_single_env(args):
         )
         scenes = _get_scenes_from_folder(content_dir)
 
-    if len(scenes) > 0:
-        assert len(scenes) >= args.num_processes, (
-            "reduce the number of processes as there "
-            "aren't enough number of scenes"
-        )
+    # if len(scenes) > 0:
+        # assert len(scenes) >= args.num_processes, (
+        #     "reduce the number of processes as there "
+        #     "aren't enough number of scenes"
+        # )
 
         # scene_split_sizes = [
         #     int(np.floor(len(scenes) / args.num_processes))
@@ -204,7 +204,7 @@ def construct_single_env(args):
         # for i in range(len(scenes) % args.num_processes):
         #     scene_split_sizes[i] += 1
 
-    print("Scenes per thread:")
+    # print("Scenes per thread:")
 
     config_env = cfg_env(config_paths=[args.config_dir + args.task_config])
     config_env.defrost()
@@ -215,6 +215,7 @@ def construct_single_env(args):
         # ]
         # print("Thread {}: {}".format(i, config_env.DATASET.CONTENT_SCENES))
         config_env.DATASET.CONTENT_SCENES = scenes
+        print("Load content scenes: {}".format(config_env.DATASET.CONTENT_SCENES))
 
     gpu_id = min(torch.cuda.device_count() - 1, 0)  # first gpu or cpu
     config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id

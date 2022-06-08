@@ -34,7 +34,9 @@ mamba install libgcc libstdcxx-ng compilers cmake pkg-config make ninja colcon-c
 mamba install ros-noetic-tf ros-noetic-tf2 ros-noetic-tf2-geometry-msgs ros-noetic-ros-numpy
 
 # install rtabmap packages
-mamba install ros-noetic-rtabmap-ros
+mamba install ros-noetic-rtabmap=0.20.14 ros-noetic-rtabmap-ros=0.20.14
+# Note that the latest version 0.20.18 not compiled with python=3.8x in robostack
+# while habitat not released with python=3.9
 ```
 
 For more available ROS packages in Robostack channel, you can refer to [this page](https://robostack.github.io/noetic.html).
@@ -59,7 +61,15 @@ pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f ht
 pip install -r requirements.txt
 ```
 
-6. Build ROS packages
+6. Install detectron2 
+
+Please see https://detectron2.readthedocs.io/en/latest/tutorials/install.html for install instructions. If you follow the same package versions in steps above to install environment, you could also execute following commands to install detectron2.
+
+```bash
+python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.9/index.html
+```
+
+7. Build ROS packages
    TODO: add this denpendency to rosdep
    PyKDL: Since PyKDL installed by ros-noetic-tf2-geometry-msgs is outdated and depends on old releases of PyQt5-sip, sip packages, you should rebuild this module from source code:
 

@@ -119,7 +119,7 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         # Setup ground truth planner
         object_boundary = args.success_dist
-        map_resolution = args.map_resolution
+        map_resolution = args.map_resolution_cm
         selem = skimage.morphology.disk(2)
         traversible = (
             skimage.morphology.binary_dilation(sem_map[0], selem) != True
@@ -175,7 +175,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
 
         scene_info = self.dataset_info[scene_name]
-        map_resolution = args.map_resolution
+        map_resolution = args.map_resolution_cm
 
         floor_idx = np.random.randint(len(scene_info.keys()))
         floor_height = scene_info[floor_idx]["floor_height"]

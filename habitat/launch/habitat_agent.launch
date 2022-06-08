@@ -1,9 +1,12 @@
 <launch>
     <arg name="agent_type" default="frontier_explore" />
+
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
     <!-- <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
-    <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/gibson/Collierville.glb" />
     <!-- <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
+    <!-- <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/gibson/Collierville.glb" /> -->
+    <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/gibson/Collierville.glb" />
+
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="habitat_update_rate" default="2.0" />
 

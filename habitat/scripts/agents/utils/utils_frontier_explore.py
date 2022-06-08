@@ -11,7 +11,7 @@ DEBUG_VIS = False
 if DEBUG_VIS:
     from matplotlib import cm
     from matplotlib import pyplot as plt
-
+        
 
 class UnionFind:
     """Union-find data structure. Items must be hashable."""
@@ -340,5 +340,8 @@ def frontier_goals(
         ax.invert_yaxis()
 
         plt.show()
+        plt.pause(0.001)
+        input("press enter to continue")
+        # plt.waitforbuttonpress(20)
 
     return centroids, goals

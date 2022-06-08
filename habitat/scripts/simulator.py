@@ -111,6 +111,7 @@ def init_sim(test_scene):
     agent = sim.initialize_agent(sim_settings["default_agent"])
     agent_state = habitat_sim.AgentState()
     agent_state.position = np.array([0.0, 0.0, 0.0])  # world space
+    # agent_state.position = np.array([1.0, 0.0, -1.0])  # world space
     agent.set_state(agent_state)
 
     # Get agent state

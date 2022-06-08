@@ -1,4 +1,3 @@
-import enum
 import math
 import os
 import time
@@ -7,11 +6,10 @@ import agents.utils.visualization as vu
 import cv2
 import envs.utils.pose as pu
 import numpy as np
-import genpy
-from habitat_sim import Simulator
-from matplotlib import cm
-from matplotlib.pyplot import grid
-from PIL import Image
+# from habitat_sim import Simulator
+# from matplotlib import cm
+# from matplotlib.pyplot import grid
+# from PIL import Image
 from scipy.spatial.transform import Rotation as R
 import skimage.morphology
 
@@ -23,7 +21,6 @@ from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
 
-# from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from utils.publishers import HabitatObservationPublisher
 from utils.transformation import (
     publish_agent_init_tf,
@@ -32,6 +29,7 @@ from utils.transformation import (
 from arguments import get_args
 from agents.utils.utils_frontier_explore import frontier_goals
 from agents.utils.ros_utils import safe_call_reset_service
+from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
@@ -45,7 +43,7 @@ DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
 VISUALIZE = False
-DEBUG = True
+DEBUG = False
 DEBUG_VIS = False
 
 
@@ -57,8 +55,14 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.rank = rank
         # agent depends on ROS and observations do not support vecpytroch
         # only intended for single process
-        assert rank == 0
+        # assert rank == 0
         super().__init__(args, rank, config_env, dataset)
+        
+        # TODO: should place 2D recognition models in a separate ROS pacakge
+        # fix this before release! 
+        # Initialize 2D recognition models 
+        self.sem_pred = SemanticPredMaskRCNN(args)
+
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
         # TODO: fetch this from config file
@@ -78,6 +82,10 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_action = None
         self.count_forward_actions = None
         self.goal_name = None
+
+        # parameters 
+        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
+        self.map_resolution = self.args.map_resolution_cm / 100.0
 
         # from ObjectGoalEnv
         self.info = {}
@@ -167,6 +175,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.frontiers_topic, MarkerArray, queue_size=1
         )
 
+        self.rate = rospy.Rate(self.rate_value)
+
         # cached messages
         self.odom_msg = None
         self.grid_map_msg = None
@@ -196,8 +206,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # 3. initialize episode variables
         # TODO: add map size to ros params ! 
         # map_shape = (
-        #     args.map_size // args.map_resolution,
-        #     args.map_size // args.map_resolution,
+        #     args.map_size_cm // args.map_resolution_cm,
+        #     args.map_size_cm // args.map_resolution_cm,
         # )
         map_shape = int(20 / 0.05)
         self.collision_map = np.zeros(map_shape)
@@ -326,7 +336,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
         ##################  generate frontiers and goals ##############
-        map_resolution = self.args.map_resolution
+        map_resolution = self.map_resolution
 
         frontiers, goals = frontier_goals(
             grid_map,
@@ -411,6 +421,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
             # act
             action = {"action": action}
+            self.rate.sleep()
             obs, rew, done, info = super().step(action)
 
             # preprocess obs
@@ -469,8 +480,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.curr_loc = [start_x, start_y, start_o]
         r, c = start_y, start_x
         start = [
-            int(r / args.map_resolution - gx1),
-            int(c / args.map_resolution - gy1),
+            int(r / self.map_resolution - gx1),
+            int(c / self.map_resolution - gy1),
         ]
         start = pu.threshold_poses(start, map_pred.shape)
 
@@ -484,8 +495,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 last_start_x, last_start_y = self.last_loc[0], self.last_loc[1]
                 r, c = last_start_y, last_start_x
                 last_start = [
-                    int(r / args.map_resolution - gx1),
-                    int(c / args.map_resolution - gy1),
+                    int(r / self.map_resolution - gx1),
+                    int(c / self.map_resolution - gy1),
                 ]
                 last_start = pu.threshold_poses(last_start, map_pred.shape)
                 self.visited_vis[gx1:gx2, gy1:gy2] = vu.draw_line(
@@ -524,8 +535,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         #                 )
         #                 r, c = wy, wx
         #                 r, c = (
-        #                     int(r / args.map_resolution),
-        #                     int(c / args.map_resolution),
+        #                     int(r / self.map_resolution),
+        #                     int(c / self.map_resolution),
         #                 )
         #                 [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
         #                 self.collision_map[r, c] = 1
@@ -588,9 +599,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             if relative_angle > 180:
                 relative_angle -= 360
 
-            if relative_angle > self.args.turn_angle / 2.0:
+            if relative_angle > self.turn_angle / 2.0:
                 action = 3  # Right
-            elif relative_angle < -self.args.turn_angle / 2.0:
+            elif relative_angle < -self.turn_angle / 2.0:
                 action = 2  # Left
             else:
                 action = 1  # Forward
@@ -638,10 +649,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         goal = 1 - goal * 1.0
         planner.set_multi_goal(goal)
 
-        state = [start[0] - x1 + 1, start[1] - y1 + 1]
+        state = [start[0] - x1, start[1] - y1]
         stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
-
-        stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
+        stg_x, stg_y = stg_x + x1, stg_y + y1
+        # original code here: 
+        # state = [start[0] - x1 + 1, start[1] - y1 + 1]
+        # stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+        # stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
 
         return (stg_x, stg_y), stop
 

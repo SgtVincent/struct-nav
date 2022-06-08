@@ -177,7 +177,7 @@ def get_args(args=None, namespace=None):
     parser.add_argument(
         "--config_dir",
         type=str,
-        default="/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/",
+        default="habitat/scripts/envs/habitat/configs",
     )
     parser.add_argument(
         "--task_config",
@@ -257,13 +257,17 @@ def get_args(args=None, namespace=None):
     parser.add_argument('--intrinsic_rew_coeff', type=float, default=0.02,
                         help="intrinsic exploration reward coefficient")
     parser.add_argument('--num_sem_categories', type=float, default=16)
+
+    # semantic model (detectron2) 
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
+    parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
+    parser.add_argument('--sem_device', type=str, default="cpu")
 
     # Mapping
     parser.add_argument("--global_downscaling", type=int, default=2)
     parser.add_argument("--vision_range", type=int, default=100)
-    parser.add_argument("--map_resolution", type=int, default=5)
+    parser.add_argument("--map_resolution_cm", type=int, default=5)
     parser.add_argument("--du_scale", type=int, default=1)
     parser.add_argument("--map_size_cm", type=int, default=2400)
     parser.add_argument("--cat_pred_threshold", type=float, default=5.0)
