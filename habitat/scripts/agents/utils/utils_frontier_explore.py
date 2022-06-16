@@ -217,7 +217,9 @@ def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist",
                 int(centroids[index][0])]
 
         # compute length / distance
-        utility = centroids[index][2] ** 2 / dist
+        # utility = centroids[index][2] ** 2 / dist
+        # utility = centroids[index][2] / dist
+        utility = np.sqrt(centroids[index][2]) / dist
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility
@@ -294,7 +296,7 @@ def frontier_goals(
         map_resolution=map_resolution
     )
     goals = goals_grid * map_resolution + map_origin
-    
+
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
         # from matplotlib import pyplot as plt
@@ -354,9 +356,67 @@ def frontier_goals(
     return centroids, goals
 
 def dist_odom_to_goal(odom_mat, goal, dist_2d=True):
-    odom_pos = np.copy(odom_mat[:,:3])
+    
     if dist_2d: # ignore z-axis distance
-        odom_pos[2] = 0
-        goal = np.copy(goal)
-        goal[2] = 0
+        odom_pos = np.copy(odom_mat[:2,3])
+    else: 
+        odom_pos = np.copy(odom_mat[:3,3])
+
     return np.linalg.norm(odom_pos - goal)
+
+
+def update_odom_by_action(odom_mat, action, forward_dist=0.25, turn_angle=30.):
+    
+    new_odom_mat = np.copy(odom_mat)
+    
+    if action == 0: # Stop
+        pass
+    
+    elif action == 1: # Forward
+        # NOTE: in rtabmap coords frame, front is +y direction 
+        new_pos = odom_mat @ np.array([0., forward_dist, 0., 1.])
+        new_odom_mat = np.copy(odom_mat)
+        new_odom_mat[:3, 3] = new_pos[:3]
+
+    elif action == 2: # Left, xy-plane counter-clockwise 
+        rad = np.deg2rad(turn_angle)
+        turn_mat = np.array([
+            [np.cos(rad), -np.sin(rad), 0.],
+            [np.sin(rad), np.cos(rad), 0.],
+            [0.,        0.,     1.]
+        ])
+        new_rot = odom_mat[:3, :3] @ turn_mat
+        new_odom_mat[:3, :3] = new_rot
+
+    elif action == 3: # Right, xy-plane clockwise
+        rad = np.deg2rad(turn_angle)
+        turn_mat = np.array([
+            [np.cos(rad), np.sin(rad), 0.],
+            [-np.sin(rad), np.cos(rad), 0.],
+            [0.,        0.,     1.]
+        ])
+        new_rot = odom_mat[:3, :3] @ turn_mat
+        new_odom_mat[:3, :3] = new_rot
+
+    return new_odom_mat
+
+
+if __name__ == "__main__":
+
+    # test update_odom_by_action function 
+    import open3d as o3d 
+    import copy 
+    
+    world_mat = np.eye(4)
+    world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+        size=1.0, origin=np.array([0., 0., 0.]))
+    # rotate to left by 30 degrees
+    left_rot_mat = update_odom_by_action(world_mat, 2)
+    left_rot_frame = copy.deepcopy(world_frame).rotate(
+        left_rot_mat[:3,:3], center=(0, 0, 0))
+    # move forward by 2
+    forward_mat = update_odom_by_action(left_rot_mat, 1, forward_dist=2.)
+    forward_frame = copy.deepcopy(left_rot_frame).translate(
+        forward_mat[:3, 3], relative=False)
+
+    o3d.visualization.draw_geometries([world_frame, left_rot_frame, forward_frame])

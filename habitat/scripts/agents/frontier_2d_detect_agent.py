@@ -28,11 +28,13 @@ from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
 from agents.utils.utils_frontier_explore import (
     frontier_goals, 
-    dist_odom_to_goal
+    dist_odom_to_goal,
+    update_odom_by_action
 )
 from agents.utils.ros_utils import (
     safe_call_reset_service, 
-    publish_frontiers
+    publish_frontiers,
+    publish_object_goal
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.constants import color_palette, coco_categories
@@ -67,12 +69,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.map_resolution = args.map_resolution_cm / 100.0
         self.sem_model = args.sem_model
         self.success_dist = args.success_dist
+
         # args from config 
-        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
         self.obs_height = config_env.SIMULATOR.RGB_SENSOR.HEIGHT
         self.sensor_height = config_env.SIMULATOR.AGENT_0.HEIGHT
-
+        self.forward_dist = config_env.SIMULATOR.FORWARD_STEP_SIZE # 0.25 by default
+        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE # 30 degrees by default 
 
 
         # TODO: should place 2D recognition models in a separate ROS pacakge
@@ -199,6 +202,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_odom_msg_time = 0.0  # last odom_msg timestamp
         self.last_grid_map_msg_time = 0.0  # last grid_map_msg timestamp
         self.last_update_time = 0.0
+        self.last_odom_mat = np.eye(4)
 
         # sub_cloud = PointCloudSubscriber(cloud_topic)
 
@@ -242,6 +246,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_action = None
         if args.visualize or args.print_images:
             self.vis_image = vu.init_occ_image(self.goal_name)
+        # reset tracked odometry 
+        self.last_odom_mat = np.eye(4)
+
 
         # 4. publish observation if publish_obs set to True
         if publish_obs:
@@ -250,6 +257,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             # if DEBUG:
             #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
         
+        if args.visualize or args.print_images:
+            self.legend = cv2.imread("docs/legend.png")
+            self.rgb_vis = None
+            self.vis_image = vu.init_occ_image(
+                self.goal_name
+            )  # , self.legend)
+
         self.obs = obs 
         return obs, info
 
@@ -283,22 +297,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         map_origin_position = grid_map_msg.info.origin.position
         map_origin = np.array([map_origin_position.x, map_origin_position.y])
 
-        # parse odometry message
-        odom_pose = odom_msg.pose
-        # odom_map_pose: (x, y, x-y rotation angle)
-        odom_map_pose = np.array(
-            [odom_pose.pose.position.x, odom_pose.pose.position.y, 0.0]
-        )
-
-        odom_pos = np.array([
-            odom_pose.pose.position.x,
-            odom_pose.pose.position.y,
-            odom_pose.pose.position.z,
-        ])
-
-        # FIXME: there are zero quaternions when visual odometry is lost 
-        # TODO:
-        try:
+        # NOTE: there are zero quaternions when visual odometry is lost 
+        odom_pose_mat = np.zeros((4,4))
+        try: # try to parse visual odometry if valid 
+            # parse odometry message
+            odom_pose = odom_msg.pose
+            odom_pos = np.array([
+                odom_pose.pose.position.x,
+                odom_pose.pose.position.y,
+                odom_pose.pose.position.z,
+            ])
             odom_rot = R.from_quat(
                 [
                     odom_pose.pose.orientation.x,
@@ -307,15 +315,36 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     odom_pose.pose.orientation.w,
                 ]
             ).as_matrix()
+            
+            # odom_map_pose: (x, y, x-y rotation angle)
+            odom_map_pose = np.array(
+                [odom_pose.pose.position.x, odom_pose.pose.position.y, 0.0]
+            )
+            odom_angle = R.from_matrix(odom_rot).as_euler("zxy", degrees=True)[0]
+            odom_map_pose[2] = odom_angle
+            
+            odom_pose_mat[:3, :3] = odom_rot
+            odom_pose_mat[:3, 3] = odom_pos
+            odom_pose_mat[3, 3] = 1.0
+        
         except:
-            odom_rot = np.eye(3)
+            # if visual odometry invalid (lost), use internal odometry 
+            odom_pose_mat = update_odom_by_action(
+                self.last_odom_mat,
+                self.last_action,
+                forward_dist=self.forward_dist, 
+                turn_angle=self.turn_angle
+            )
+            odom_pos = odom_pose_mat[:3, 3]
+            odom_rot = odom_pose_mat[:3, :3]
 
-        odom_angle = R.from_matrix(odom_rot).as_euler("zxy", degrees=True)[0]
-        odom_map_pose[2] = odom_angle
-        odom_pose_mat = np.zeros((4,4))
-        odom_pose_mat[:3, :3] = odom_rot
-        odom_pose_mat[:3, 3] = odom_pos
-        odom_pose_mat[3, 3] = 1.0
+            # odom_map_pose: (x, y, x-y rotation angle)
+            odom_map_pose = np.copy(odom_pos)
+            odom_angle = R.from_matrix(odom_rot).as_euler("zxy", degrees=True)[0]
+            odom_map_pose[2] = odom_angle
+
+        # save odom_pose_mat in case visual odom lost 
+        self.last_odom_mat = odom_pose_mat
 
         return grid_map, map_origin, odom_map_pose, odom_pose_mat
 
@@ -393,25 +422,29 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             # project pixels back to 3D 
             depth_img = self.obs['depth']
             rs, cs = np.where((self.goal_idx + 1) == self.obs['semantic'])
-            
-            # unproject segmentation mask to point clouds 
-            target_pts = get_point_from_pixel(
-                depth_im=depth_img,
-                rs=rs,
-                cs=cs,
-                img_height=self.obs_height,
-                img_width=self.obs_width,
-                cam_int_mat=self.cam_int_mat,
-                cam_ext_mat=odom_pose_mat,
-            )
-            goal_position = np.mean(target_pts, axis=0)
-            
+            # TODO: Improve this by sliding window average ! 
+            if len(rs) > 0:
+                # unproject segmentation mask to point clouds 
+                target_pts = get_point_from_pixel(
+                    depth_im=depth_img,
+                    rs=rs,
+                    cs=cs,
+                    img_height=self.obs_height,
+                    img_width=self.obs_width,
+                    cam_int_mat=self.cam_int_mat,
+                    cam_ext_mat=odom_pose_mat,
+                )
+                goal_position = np.mean(target_pts, axis=0)[:2]
+                self.last_goal_position = goal_position
+            else: # object disappears from observation 
+                goal_position = self.last_goal_position
+
             # calculate if goal is found within 
             dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
-            if dist2goal < self.success_dist * 0.8: # leave margin for noisy odometry
+            if dist2goal < self.success_dist * 0.5: # leave margin for noisy odometry
                 found_goal = 1
             # only publish the only goal and empty frontiers 
-            publish_frontiers([], [goal_position], self.pub_frontiers)
+            publish_object_goal([goal_position], self.pub_frontiers)
             # publish point cloud if needed here
 
         ################### generate action by planners ################
