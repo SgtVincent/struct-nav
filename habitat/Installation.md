@@ -84,10 +84,31 @@ source devel/setup.sh
 ```
 
 ## Prepare datasets
+
 If you want to use ground truth semantic sensor in habitat, you should follow the following instructions, otherwise semantic sensor will fail only with `.glb` file.
 
 ### Gibson 
-https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md#gibson-and-3dscenegraph-datasets
+We recommand you download generated Gibson semantic annotations from [here]().
+
+If you want to generate annotations on your local machine, please follow steps below: 
+
+#### **Generate Gibson Semantic Annotation from Scratch**
+
+1. You need to download Gibson_tiny split from [Gibson](https://github.com/StanfordVL/GibsonEnv) which contains `mesh.obj` file required for annotation extraction. 
+
+2. To generate semantic annotations from [Gibson](https://github.com/StanfordVL/GibsonEnv) and [3DSceneGraph](https://3dscenegraph.stanford.edu/), you need datatool built from habitat-sim source code.
+
+Since our pipeline is tested on conda-built habitat-sim package, we recommand you build habitat-sim with datatool in a temporary conda environment.
+
+```bash
+# conda activate temp_env
+git clone https://github.com/facebookresearch/habitat-sim.git
+cd habitat-sim 
+git checkout v0.2.1
+python setup.py install --build-datatool
+```
+
+3. Follow the annotation preparation instructions in [habitat-sim document](https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md#gibson-and-3dscenegraph-datasets).
 
 ## Trouble Shooting
 

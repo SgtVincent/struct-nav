@@ -100,5 +100,7 @@ roslaunch rtabmap_ros rtabmap.launch \
 
 ### TODO LIST
 
+- [x] Load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)
+- [ ] Implement internal odometry to avoid visual odometry lost
+- [ ] Implement collision map tracking with considering map growing (controlled by rtabmap) to avoid being stuck by navmesh deficiency or map prediction error.
 - [ ] consider if we need to move agent & planning functions from habitat_ros to a new package
-- [ ] load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)

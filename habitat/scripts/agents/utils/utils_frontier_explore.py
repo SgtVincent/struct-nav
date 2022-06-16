@@ -1,7 +1,10 @@
+from math import dist
 import numpy as np
 import skimage
 from matplotlib import docstring
 from skimage.measure import find_contours
+from numpy import ma 
+import skfmm
 
 # import matplotlib.pyplot as plt
 # import plotly
@@ -108,39 +111,12 @@ def get_frontiers(
     candidates = np.argwhere(contours_negative_map == 1)
     # NOTE: Do not forget to convert (row, col) to (x, y) !!!!
     candidates = candidates[:, [1, 0]]
-    # translate contours to map frame
-    candidates = candidates * map_resolution + map_origin
+    # NOTE: change candidates to grid arrays instead of real world coords 
+    # # translate contours to map frame
+    # candidates = candidates * map_resolution + map_origin
     # convert set of frotiers into a list (hasable type data structre)
     candidates = candidates.tolist()
     candidates = [tuple(x) for x in candidates]
-
-    # convert contour np arrays into sets
-    # set_negative = set([tuple(x) for x in contours_negative])
-    # set_positive = set([tuple(x) for x in contours_positive])
-
-    # perform set difference operation to find candidates
-    # candidates = set_negative.difference(set_positive)
-
-    # translate contours to map frame
-    # for index in range(len(contours_negative)):
-    #     contours_negative[index][0] = round(
-    #         contours_negative[index][0] * map_resolution + map_origin[0], 2
-    #     )
-    #     contours_negative[index][1] = round(
-    #         contours_negative[index][1] * map_resolution + map_origin[1], 2
-    #     )
-
-    # translate contours to map frame
-    # for index in range(len(contours_positive)):
-    #     contours_positive[index][0] = round(
-    #         contours_positive[index][0] * map_resolution + map_origin[0], 2
-    #     )
-    #     contours_positive[index][1] = round(
-    #         contours_positive[index][1] * map_resolution + map_origin[1], 2
-    #     )
-
-    # convert set of frotiers into a list (hasable type data structre)
-    # candidates = [x for x in candidates]
 
     if DEBUG_VIS:
         # from matplotlib import pyplot as plt
@@ -152,9 +128,11 @@ def get_frontiers(
         map_vis = np.copy(saved_map) + 1
         map_vis[saved_map >= 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
-        contours_candidates_vis = (
-            np.array(candidates) - map_origin
-        ) / map_resolution
+        # contours_candidates_vis = (
+        #     np.array(candidates) - map_origin
+        # ) / map_resolution
+        contours_candidates_vis = np.array(candidates)
+
         plt.scatter(
             contours_candidates_vis[:, 0],
             contours_candidates_vis[:, 1],
@@ -168,7 +146,7 @@ def get_frontiers(
         plt.show()
 
     # group candidates points into clusters based on distance
-    candidates = group_frontier_grid(candidates, cluster_trashhole)
+    candidates = group_frontier_grid(candidates, cluster_trashhole / map_resolution)
 
     # make list of np arrays of clustered frontier points
     frontiers = []
@@ -202,10 +180,10 @@ def compute_centroids(list_of_arrays, map_resolution):
     return centroids
 
 
-def compute_goals(centroids, current_position, num_goals=3):
+def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
+    map_raw=None, map_origin=None, map_resolution=None):
 
     # chosen utility function : length / distance
-
     # pre allocate utility_array
     utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
 
@@ -213,18 +191,33 @@ def compute_goals(centroids, current_position, num_goals=3):
     # substitute length atribute with utility of point
     utility_array = np.copy(centroids)
 
-    # compute current position on the map
-    # current_position, current_quaternion = get_current_pose('/map', '/odom')
+    if dist_type == "geo_dist":
+        # compute traversible map  
+        traversible = map_raw < 1.0
+        traversible_ma = ma.masked_values(traversible * 1, 0)
+        goal_map = np.zeros_like(traversible)
+        goal_map[int(current_position[1]), int(current_position[0])] = 1
+        selem = skimage.morphology.disk(3)
+        goal_map = skimage.morphology.binary_dilation(goal_map, selem)
+        traversible_ma[(goal_map == 1)&(traversible_ma.mask == False)] = 0
+        fmm_dist = skfmm.distance(traversible_ma, dx=1)
+        fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
+
 
     for index, c in enumerate(centroids):
 
-        # compute manhattan distance
-        man_dist = abs(current_position[0] - centroids[index][0]) + abs(
-            current_position[1] - centroids[index][1]
-        )
+        if dist_type == "man_dist": # compute manhattan distance
+            
+            dist = abs(current_position[0] - centroids[index][0]) + abs(
+                current_position[1] - centroids[index][1]
+            )
+        elif dist_type == "geo_dist": # compute geodesic distance 
+            
+            dist = fmm_dist[int(centroids[index][1]), 
+                int(centroids[index][0])]
 
         # compute length / distance
-        utility = centroids[index][2] ** 2 / man_dist
+        utility = centroids[index][2] ** 2 / dist
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility
@@ -288,8 +281,20 @@ def frontier_goals(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
     centroids = compute_centroids(frontiers, map_resolution)
-    goals = compute_goals(centroids, current_position, num_goals)
-
+    current_position_grid = np.round(
+        (current_position - map_origin) / map_resolution
+    ).astype(int)
+    goals_grid = compute_goals(
+        centroids, 
+        current_position_grid, 
+        num_goals,
+        dist_type="geo_dist",
+        map_raw=map_raw, 
+        map_origin=map_origin, 
+        map_resolution=map_resolution
+    )
+    goals = goals_grid * map_resolution + map_origin
+    
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
         # from matplotlib import pyplot as plt
@@ -302,15 +307,17 @@ def frontier_goals(
         map_vis[map_vis > 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
 
-        frontiers_vis = [
-            (np.array(f) - map_origin) / map_resolution for f in frontiers
-        ]
+        # frontiers_vis = [
+        #     (np.array(f) - map_origin) / map_resolution for f in frontiers
+        # ]
+        frontiers_vis = frontiers
         colormap = cm.get_cmap("plasma")
         num_f = len(frontiers_vis)
         for i, f in enumerate(frontiers_vis):
             plt.scatter(f[:, 0], f[:, 1], color=colormap(float(i) / num_f))
         # visualize centroids
-        centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
+        # centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
+        centroids_vis = centroids[:, :2]
         sizes = centroids[:, 2] * 2
         N = centroids_vis.shape[0]
         colors = colormap(np.arange(0, N) / float(N))
@@ -345,3 +352,11 @@ def frontier_goals(
         # plt.waitforbuttonpress(20)
 
     return centroids, goals
+
+def dist_odom_to_goal(odom_mat, goal, dist_2d=True):
+    odom_pos = np.copy(odom_mat[:,:3])
+    if dist_2d: # ignore z-axis distance
+        odom_pos[2] = 0
+        goal = np.copy(goal)
+        goal[2] = 0
+    return np.linalg.norm(odom_pos - goal)

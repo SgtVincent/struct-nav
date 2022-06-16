@@ -2,7 +2,7 @@
     <arg name="agent_type" default="frontier_2d_detection" />
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
-    <arg name="habitat_update_rate" default="2.0" />
+    <arg name="habitat_update_rate" default="4.0" />
     <arg name="grid_global_min_size" default="5.0" />
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson_high_res.yaml" />

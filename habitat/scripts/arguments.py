@@ -91,7 +91,7 @@ def get_args(args=None, namespace=None):
         "-v",
         "--visualize",
         type=int,
-        default=0,
+        default=2,
         help="""1: Render the observation and
                                    the predicted semantic map,
                                 2: Render the observation with semantic
@@ -259,7 +259,7 @@ def get_args(args=None, namespace=None):
     parser.add_argument('--num_sem_categories', type=float, default=16)
 
     # semantic model (ground truth / detectron2) 
-    parser.add_argument('--sem_model', type=str, default="none", 
+    parser.add_argument('--sem_model', type=str, default="detectron", 
         choices=["none", "ground_truth", "detectron"])
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")

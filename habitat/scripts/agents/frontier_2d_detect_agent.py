@@ -17,8 +17,6 @@ import skimage.morphology
 import rospy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
-from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
 
 from utils.publishers import HabitatObservationPublisher
@@ -26,11 +24,18 @@ from utils.transformation import (
     publish_agent_init_tf,
     publish_static_base_to_cam,
 )
+from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
-from agents.utils.utils_frontier_explore import frontier_goals
-from agents.utils.ros_utils import safe_call_reset_service
+from agents.utils.utils_frontier_explore import (
+    frontier_goals, 
+    dist_odom_to_goal
+)
+from agents.utils.ros_utils import (
+    safe_call_reset_service, 
+    publish_frontiers
+)
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
-from envs.constants import color_palette
+from envs.constants import color_palette, coco_categories
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
 
@@ -59,9 +64,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         super().__init__(args, rank, config_env, dataset)
         
         # arguments
-        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
         self.map_resolution = args.map_resolution_cm / 100.0
         self.sem_model = args.sem_model
+        self.success_dist = args.success_dist
+        # args from config 
+        self.turn_angle = config_env.SIMULATOR.TURN_ANGLE
+        self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
+        self.obs_height = config_env.SIMULATOR.RGB_SENSOR.HEIGHT
+        self.sensor_height = config_env.SIMULATOR.AGENT_0.HEIGHT
+
+
 
         # TODO: should place 2D recognition models in a separate ROS pacakge
         # fix this before release! 
@@ -88,7 +100,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_action = None
         self.count_forward_actions = None
         self.goal_name = None
-
+        self.spot_goal = False
 
         # from ObjectGoalEnv
         self.info = {}
@@ -155,8 +167,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             camera_info_file=self.camera_info_file,
             # sim_config=self.habitat_env.sim.sim_config
         )
-        sensor_height = self.config_env.SIMULATOR.AGENT_0.HEIGHT
-        publish_static_base_to_cam(sensor_height)
+        self.cam_int_mat = np.array(self.pub_obs.camera_info.K).reshape((3,3))
+        
+        publish_static_base_to_cam(self.sensor_height)
 
         # action_publisher = rospy.Publisher(
         #     "habitat_action", Int32, latch=True, queue_size=100
@@ -220,6 +233,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.count_forward_actions = 0
         self.cnt_pub = 0
         self.cnt_action = 0
+        self.spot_goal = False
         # self.curr_loc = [
         #     args.map_size / 2.0,
         #     args.map_size / 2.0,
@@ -233,9 +247,10 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         if publish_obs:
             self.pub_obs.publish(obs)
             self.cnt_pub += 1
-            if DEBUG:
-                print(f"[DEBUG] Published {self.cnt_pub} observations.")
-
+            # if DEBUG:
+            #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
+        
+        self.obs = obs 
         return obs, info
 
     def parse_ros_messages(self):
@@ -274,7 +289,15 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         odom_map_pose = np.array(
             [odom_pose.pose.position.x, odom_pose.pose.position.y, 0.0]
         )
-        # FIXME: there are zero quaternions for unknown reason
+
+        odom_pos = np.array([
+            odom_pose.pose.position.x,
+            odom_pose.pose.position.y,
+            odom_pose.pose.position.z,
+        ])
+
+        # FIXME: there are zero quaternions when visual odometry is lost 
+        # TODO:
         try:
             odom_rot = R.from_quat(
                 [
@@ -283,13 +306,18 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     odom_pose.pose.orientation.z,
                     odom_pose.pose.orientation.w,
                 ]
-            )
-            odom_angle = odom_rot.as_euler("zxy", degrees=True)[0]
+            ).as_matrix()
         except:
-            odom_angle = 0.0
+            odom_rot = np.eye(3)
 
+        odom_angle = R.from_matrix(odom_rot).as_euler("zxy", degrees=True)[0]
         odom_map_pose[2] = odom_angle
-        return grid_map, map_origin, odom_map_pose
+        odom_pose_mat = np.zeros((4,4))
+        odom_pose_mat[:3, :3] = odom_rot
+        odom_pose_mat[:3, 3] = odom_pos
+        odom_pose_mat[3, 3] = 1.0
+
+        return grid_map, map_origin, odom_map_pose, odom_pose_mat
 
     # wrapper function to execute one step
     def plan_act(self):
@@ -331,28 +359,60 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             # time_diff = cur_time - max(
             #     self.last_odom_msg_time, self.last_grid_map_msg_time
             # )
-            print(
-                f"DEBUG: waiting for message update since {time_diff} seconds ago"
-            )
+            if DEBUG:
+                print(
+                    f"[DEBUG] waiting for message update since {time_diff} seconds ago"
+                )
             time.sleep(0.5)
             # return "stay"
 
-        grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
-        ##################  generate frontiers and goals ##############
+        grid_map, map_origin, odom_map_pose, odom_pose_mat = self.parse_ros_messages()
         map_resolution = self.map_resolution
 
-        frontiers, goals = frontier_goals(
-            grid_map,
-            map_origin,
-            map_resolution,
-            odom_map_pose[:2],
-            cluster_trashhole=self.args.cluster_trashhole,
-            num_goals=1,
-        )
-        # TODO: think about goal selection strategy
-        goal_position = goals[0, :]
+        ################## check if target object already known ############
+        if (self.goal_idx + 1) in self.obs['semantic']: # zero for background
+            self.spot_goal = True
 
-        self.publish_frontiers(frontiers, goals)
+        found_goal = 0
+        if self.spot_goal == False:
+            ##################  generate frontiers and goals ##############
+            frontiers, goals = frontier_goals(
+                grid_map,
+                map_origin,
+                map_resolution,
+                odom_map_pose[:2],
+                cluster_trashhole=self.args.cluster_trashhole,
+                num_goals=1,
+            )
+            # TODO: think about goal selection strategy
+            goal_position = goals[0, :]
+            publish_frontiers(frontiers, goals, self.pub_frontiers)
+
+        else: 
+            ######### if target object already observed, go directly ########## 
+            # project pixels back to 3D 
+            depth_img = self.obs['depth']
+            rs, cs = np.where((self.goal_idx + 1) == self.obs['semantic'])
+            
+            # unproject segmentation mask to point clouds 
+            target_pts = get_point_from_pixel(
+                depth_im=depth_img,
+                rs=rs,
+                cs=cs,
+                img_height=self.obs_height,
+                img_width=self.obs_width,
+                cam_int_mat=self.cam_int_mat,
+                cam_ext_mat=odom_pose_mat,
+            )
+            goal_position = np.mean(target_pts, axis=0)
+            
+            # calculate if goal is found within 
+            dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
+            if dist2goal < self.success_dist * 0.8: # leave margin for noisy odometry
+                found_goal = 1
+            # only publish the only goal and empty frontiers 
+            publish_frontiers([], [goal_position], self.pub_frontiers)
+            # publish point cloud if needed here
 
         ################### generate action by planners ################
         # convert ros-format grid_map to object-goal-nav style maps
@@ -380,7 +440,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             [0, grid_map.shape[0], 0, grid_map.shape[1]]
         )
         p_input["goal"] = goal_map
-        p_input["found_goal"] = False
+        p_input["found_goal"] = found_goal
         p_input["wait"] = False
 
         action = self.plan(p_input)
@@ -427,10 +487,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.rate.sleep()
             obs, rew, done, info = super().step(action)
 
-            # preprocess obs
+            # preprocess obs and publish it 
             obs = self._preprocess_obs(obs)
             self.pub_obs.publish(obs)
-            
             self.last_action = action["action"]
             self.obs = obs
             self.info = info
@@ -579,7 +638,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             ] = 3  # rect for short-term goal
 
             # visualize agent
-            pos = [start[0], start[1], start_o]
+            pos = [start[0], start[1], np.deg2rad(start_o)]
             agent_arrow = vu.get_contour_points(pos, origin=(0, 0), size=5)
             color = (255, 0, 0)
             plt.fill(agent_arrow[:, 1], agent_arrow[:, 0], facecolor="red")
@@ -602,13 +661,20 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             if relative_angle > 180:
                 relative_angle -= 360
 
-            if relative_angle > self.turn_angle / 2.0:
+            # if relative_angle > self.turn_angle / 2.0:
+            #     action = 3  # Right
+            # elif relative_angle < -self.turn_angle / 2.0:
+            #     action = 2  # Left
+            # else:
+            #     action = 1  # Forward
+            # NOTE: give local controller more tolerance in face of odometry noise
+            # TODO: tune the factor for relative angle to turn 
+            if relative_angle > 0.7 * self.turn_angle:
                 action = 3  # Right
-            elif relative_angle < -self.turn_angle / 2.0:
+            elif relative_angle < -0.7 * self.turn_angle:
                 action = 2  # Left
             else:
                 action = 1  # Forward
-
         return action
 
     def _get_stg(self, grid, start, goal, planning_window):
@@ -712,8 +778,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.vis_image[50:530, 670:1150, :] = map_pred_vis
 
         pos = (
-            (start_x / args.map_resolution - gy1) * 480 / map_pred.shape[0],
-            (map_pred.shape[1] - start_y / args.map_resolution + gx1)
+            (start_x / self.map_resolution - gy1) * 480 / map_pred.shape[0],
+            (map_pred.shape[1] - start_y / self.map_resolution + gx1)
             * 480
             / map_pred.shape[1],
             np.deg2rad(-start_o),
@@ -746,14 +812,18 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # rgb = obs[:, :, :3]
         # depth = obs[:, :, 3:4]
         if self.sem_model == "ground_truth":
-            # assert "sem"
-            pass
+            # by default, semantic sensor is added to agent
+            assert 'semantic' in obs
             
-        # if self.sem_model == "detectron":
-        #     rgb = obs
-        #     sem_seg_pred = self._get_sem_pred(
-        #         rgb.astype(np.uint8), use_seg=use_seg
-        #     )
+        if self.sem_model == "detectron":
+            # overwrite semantic image with detectron prediction 
+            rgb = obs['rgb']
+            sem_seg_pred, _ = self.sem_pred.get_prediction(rgb.astype(np.uint8))
+            semantic_image = np.zeros(rgb.shape[:2])
+            for name, label in coco_categories.items():
+                # NOTE: zero for background 
+                semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
+            obs['semantic'] = semantic_image
 
         # depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 
@@ -775,56 +845,3 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
     def callback_grid_map(self, grid_map_msg: OccupancyGrid):
         self.grid_map_msg = grid_map_msg
-
-    def publish_frontiers(self, frontiers, goals):
-
-        marker_arr = MarkerArray()
-        # color_map = cm.get_cmap("plasma")
-        # publish goals
-        for i, g in enumerate(goals):
-
-            marker = Marker()
-            marker.header = Header()
-            marker.header.frame_id = "map"
-            marker.id = i  # avoid overwrite
-            marker.type = marker.SPHERE
-            marker.scale.x = 0.5
-            marker.scale.y = 0.5
-            marker.scale.z = 0.5
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 0.0
-            marker.color.a = 0.5
-            marker.pose.orientation.w = 1.0
-            marker.pose.position.x = g[0]
-            marker.pose.position.y = g[1]
-            marker.pose.position.z = 0.5
-
-            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
-            marker_arr.markers.append(marker)
-
-        # publish frontiers
-        num_goals = goals.shape[0]
-        for i, f in enumerate(frontiers):
-
-            marker = Marker()
-            marker.header = Header()
-            marker.header.frame_id = "map"
-            marker.id = i + num_goals
-            marker.type = marker.SPHERE
-            marker.scale.x = f[2] / 1000.0
-            marker.scale.y = f[2] / 1000.0
-            marker.scale.z = f[2] / 1000.0
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-            marker.color.a = 0.5
-            marker.pose.orientation.w = 1.0
-            marker.pose.position.x = f[0]
-            marker.pose.position.y = f[1]
-            marker.pose.position.z = 0.5
-
-            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
-            marker_arr.markers.append(marker)
-
-        self.pub_frontiers.publish(marker_arr)
