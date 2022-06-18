@@ -1,7 +1,7 @@
 import math
 import os
 import time
-
+from collections import deque
 import agents.utils.visualization as vu
 import cv2
 import envs.utils.pose as pu
@@ -24,19 +24,22 @@ from utils.transformation import (
     publish_agent_init_tf,
     publish_static_base_to_cam,
 )
-from utils.cam_utils import get_point_from_pixel
+# from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
 from agents.utils.utils_frontier_explore import (
     frontier_goals, 
     dist_odom_to_goal,
-    update_odom_by_action
+    update_odom_by_action,
+    target_goals,
 )
+
 from agents.utils.ros_utils import (
     safe_call_reset_service, 
     publish_frontiers,
     publish_object_goal
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
+from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 from envs.constants import color_palette, coco_categories
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
@@ -73,6 +76,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
         self.obs_height = config_env.SIMULATOR.RGB_SENSOR.HEIGHT
+        self.obs_fov = config_env.SIMULATOR.RGB_SENSOR.HFOV
         self.sensor_height = config_env.SIMULATOR.AGENT_0.HEIGHT
         self.forward_dist = config_env.SIMULATOR.FORWARD_STEP_SIZE # 0.25 by default
         self.turn_angle = config_env.SIMULATOR.TURN_ANGLE # 30 degrees by default 
@@ -104,7 +108,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.count_forward_actions = None
         self.goal_name = None
         self.spot_goal = False
-
+        self.actions_queue = deque([], maxlen=4)
+        
         # from ObjectGoalEnv
         self.info = {}
         self.info["distance_to_goal"] = None
@@ -238,12 +243,14 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.cnt_pub = 0
         self.cnt_action = 0
         self.spot_goal = False
+        self.last_action = None
+        self.actions_queue = deque([], maxlen=4)
         # self.curr_loc = [
         #     args.map_size / 2.0,
         #     args.map_size / 2.0,
         #     0.0,
         # ]
-        self.last_action = None
+        
         if args.visualize or args.print_images:
             self.vis_image = vu.init_occ_image(self.goal_name)
         # reset tracked odometry 
@@ -419,29 +426,34 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         else: 
             ######### if target object already observed, go directly ########## 
-            # project pixels back to 3D 
-            depth_img = self.obs['depth']
-            rs, cs = np.where((self.goal_idx + 1) == self.obs['semantic'])
             # TODO: Improve this by sliding window average ! 
-            if len(rs) > 0:
-                # unproject segmentation mask to point clouds 
-                target_pts = get_point_from_pixel(
-                    depth_im=depth_img,
-                    rs=rs,
-                    cs=cs,
-                    img_height=self.obs_height,
-                    img_width=self.obs_width,
-                    cam_int_mat=self.cam_int_mat,
-                    cam_ext_mat=odom_pose_mat,
+            if (self.goal_idx + 1) in self.obs['semantic']: 
+                camera_param=get_camera_matrix(
+                    self.obs_width,
+                    self.obs_height,
+                    self.obs_fov
                 )
-                goal_position = np.mean(target_pts, axis=0)[:2]
+                # targets in 3d, goals in 2d 
+                targets, target_sizes, goals = target_goals(
+                    sem_img=self.obs['semantic'],
+                    depth_img=self.obs['depth'],
+                    goal_idx=self.goal_idx + 1,  # zero for background
+                    cam_param=camera_param,
+                    odom_pose_mat=odom_pose_mat,
+                    num_goals=1,
+                )
+                # set z-value to target size for visualization
+                targets[:, 2] = target_sizes 
+                goal_position = goals[0, :]
+                publish_frontiers(targets, goals, self.pub_frontiers)
                 self.last_goal_position = goal_position
+
             else: # object disappears from observation 
                 goal_position = self.last_goal_position
 
             # calculate if goal is found within 
             dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
-            if dist2goal < self.success_dist * 0.5: # leave margin for noisy odometry
+            if dist2goal < self.success_dist * 0.6: # leave margin for noisy odometry
                 found_goal = 1
             # only publish the only goal and empty frontiers 
             publish_object_goal([goal_position], self.pub_frontiers)
@@ -478,6 +490,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         action = self.plan(p_input)
         self.last_action = action  # needed for collision check
+        self.actions_queue.append(action) # needed for stucking check 
 
         if self.args.visualize or self.args.print_images:
             self._visualize(p_input)
@@ -708,6 +721,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 action = 2  # Left
             else:
                 action = 1  # Forward
+
+            # overwrite local planner if agent is stuck locally
+            if self.actions_queue.count(3) + self.actions_queue.count(2) >=4:
+                action = 1 # Execute forward to get away from left-right swing cycle
+
         return action
 
     def _get_stg(self, grid, start, goal, planning_window):

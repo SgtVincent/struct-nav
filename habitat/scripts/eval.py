@@ -140,6 +140,9 @@ def main():
         # region: 5. Take action and get next observation
 
         obs, rew, done, info = env.plan_act_and_preprocess()
+        if done:
+            # reset environment, load new episode 
+            obs, info = env.reset() # success, spl, dist will remain 
         # endregion
         # ------------------------------------------------------------------
 

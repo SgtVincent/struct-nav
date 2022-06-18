@@ -5,10 +5,11 @@ from matplotlib import docstring
 from skimage.measure import find_contours
 from numpy import ma 
 import skfmm
-
+from sklearn.cluster import DBSCAN
 # import matplotlib.pyplot as plt
 # import plotly
 # import plotly.express as px
+from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 
 DEBUG_VIS = False
 if DEBUG_VIS:
@@ -400,6 +401,61 @@ def update_odom_by_action(odom_mat, action, forward_dist=0.25, turn_angle=30.):
 
     return new_odom_mat
 
+def target_goals(
+    sem_img,
+    depth_img,
+    goal_idx,
+    cam_param,
+    odom_pose_mat,
+    sensor_height=0.88,
+    num_goals=1,
+):
+    mask = sem_img == goal_idx
+    labels, num_targets = skimage.measure.label(mask, return_num=True, connectivity=2)
+    # unproject segmentation mask to point clouds 
+    pts_cam = get_point_cloud_from_Y(
+        depth_img,
+        camera_matrix=cam_param,
+    ).squeeze()
+
+    target_list = []
+    target_sizes = []
+    dists_to_odom = []
+    for label in range(1, num_targets+1):
+        rs, cs = np.where(labels == label)
+        target_pts_cam = pts_cam[rs, cs]
+        # sensor height does not affect xy-position
+        target_pts_odom = target_pts_cam - np.array([0,0,sensor_height])
+        target_pts_world = odom_pose_mat @ np.concatenate(
+            (target_pts_odom, np.ones((target_pts_odom.shape[0],1))), axis=1
+        ).T
+        target_pts_world = (target_pts_world.T)[:, :3] 
+        target = np.mean(target_pts_world, axis=0)
+        target_list.append(target)
+        target_sizes.append(target_pts_world.shape[0])
+        dists_to_odom.append(dist_odom_to_goal(odom_pose_mat, target[:2]))
+
+    targets = np.stack(target_list, axis=0)
+    target_sizes = np.array(target_sizes)
+    sort_idx = np.argsort(dists_to_odom)
+    goals = targets[sort_idx[:num_goals], :2]
+    return targets, target_sizes, goals
+
+# def cluster_from_points(pts, method="dbscan", **kwargs):
+#     if method == "dbscan":
+#         # use DBSCAN to cluster detected target points 
+#         dbscan_eps=kwargs.get('dbscan_eps', 0.1)
+#         db = DBSCAN(eps=dbscan_eps, min_samples=10).fit(pts)
+#         core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+#         core_samples_mask[db.core_sample_indices_] = True
+#         labels = db.labels_
+#         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+#         n_noise = list(labels).count(-1)
+
+#     else: 
+#         raise NotImplementedError
+    
+#     return 
 
 if __name__ == "__main__":
 

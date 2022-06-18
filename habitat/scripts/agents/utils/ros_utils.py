@@ -1,20 +1,20 @@
 import rospy
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty, EmptyRequest
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
 import numpy as np 
 
 
-def safe_call_reset_service(service_name, timeout=5):
+def safe_call_reset_service(service_name, timeout=5.):
 
     
     try:
         rospy.wait_for_service(service_name, timeout=timeout)
-        rospy.ServiceProxy(service_name, Empty)
-        return True
+        rospy.ServiceProxy(service_name, Empty)()
+        return True 
     except rospy.ServiceException as e:
-        rospy.logerr(f"Service call failed: {e}")
+        rospy.logwarn(f"Service call failed: {e}")
         return False
 
 
@@ -60,9 +60,9 @@ def publish_frontiers(frontiers, goals, publisher):
         marker.header.frame_id = "map"
         marker.id = i + num_goals
         marker.type = marker.SPHERE
-        marker.scale.x = 5 * f[2] / frontiers_mean_scale
-        marker.scale.y = 5 * f[2] / frontiers_mean_scale
-        marker.scale.z = 5 * f[2] / frontiers_mean_scale
+        marker.scale.x = 0.5 * f[2] / frontiers_mean_scale
+        marker.scale.y = 0.5 * f[2] / frontiers_mean_scale
+        marker.scale.z = 0.5 * f[2] / frontiers_mean_scale
         marker.color.r = 0.0
         marker.color.g = 1.0
         marker.color.b = 0.0
@@ -74,7 +74,7 @@ def publish_frontiers(frontiers, goals, publisher):
 
         # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
         marker_arr.markers.append(marker)
-
+        
     publisher.publish(marker_arr)
     return 
 

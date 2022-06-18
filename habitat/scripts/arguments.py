@@ -91,7 +91,7 @@ def get_args(args=None, namespace=None):
         "-v",
         "--visualize",
         type=int,
-        default=2,
+        default=0,
         help="""1: Render the observation and
                                    the predicted semantic map,
                                 2: Render the observation with semantic
@@ -265,6 +265,8 @@ def get_args(args=None, namespace=None):
                         help="Semantic prediction confidence threshold")
     parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
     parser.add_argument('--sem_device', type=str, default="cpu")
+    parser.add_argument('--sem_dbscan_eps', type=float, default=0.1, 
+        help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
 
     # Mapping
     parser.add_argument("--global_downscaling", type=int, default=2)

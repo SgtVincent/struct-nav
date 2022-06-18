@@ -3,6 +3,7 @@ gym
 keyboard
 scikit-image
 scikit-fmm
+scikit-learn
 open3d
 # PyQt5
 # PyQt5-sip==4.19.18
