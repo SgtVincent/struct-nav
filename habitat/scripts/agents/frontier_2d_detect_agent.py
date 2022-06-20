@@ -36,7 +36,8 @@ from agents.utils.utils_frontier_explore import (
 from agents.utils.ros_utils import (
     safe_call_reset_service, 
     publish_frontiers,
-    publish_object_goal
+    publish_object_goal,
+    publish_pose
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
@@ -55,7 +56,7 @@ DEFAULT_MAX_ANGLE = 0.1
 VISUALIZE = False
 DEBUG = False
 DEBUG_VIS = False
-
+DEBUG_WHEEL_ODOM = True
 
 class Frontier2DDetectionAgent(ObjectGoal_Env):
     def __init__(self, args, rank, config_env, dataset):
@@ -134,6 +135,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.camera_info_file = rospy.get_param(
             "~camera_calib", DEFAULT_CAMERA_CALIB
         )
+        self.wheel_odom = rospy.get_param("~wheel_odom", False)
         # assert (
         #     agent_type in AGENT_CLASS_MAPPING.keys()
         # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
@@ -175,6 +177,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             camera_info_file=self.camera_info_file,
             # sim_config=self.habitat_env.sim.sim_config
         )
+
         self.cam_int_mat = np.array(self.pub_obs.camera_info.K).reshape((3,3))
         
         publish_static_base_to_cam(self.sensor_height)
@@ -199,6 +202,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.frontiers_topic, MarkerArray, queue_size=1
         )
 
+        if DEBUG_WHEEL_ODOM:
+            self.pub_wheel_odom_pose = rospy.Publisher(
+                "~wheel_odom", PoseStamped, queue_size=1
+            )
+
         self.rate = rospy.Rate(self.rate_value)
 
         # cached messages
@@ -219,7 +227,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         # 1. call reset function of ObjectGoal_Env to reset scene in habitat-lab
         obs, info = super().reset()
-        obs = self._preprocess_obs(obs)
 
         # 2. reset map and odom in rtabmap_ros
         safe_call_reset_service("/rtabmap/reset")  # reset map
@@ -244,6 +251,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.cnt_action = 0
         self.spot_goal = False
         self.last_action = None
+        self.last_odom_mat = np.eye(4)
         self.actions_queue = deque([], maxlen=4)
         # self.curr_loc = [
         #     args.map_size / 2.0,
@@ -253,11 +261,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         
         if args.visualize or args.print_images:
             self.vis_image = vu.init_occ_image(self.goal_name)
-        # reset tracked odometry 
-        self.last_odom_mat = np.eye(4)
-
 
         # 4. publish observation if publish_obs set to True
+        obs = self._preprocess_obs(obs)
         if publish_obs:
             self.pub_obs.publish(obs)
             self.cnt_pub += 1
@@ -453,7 +459,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
             # calculate if goal is found within 
             dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
-            if dist2goal < self.success_dist * 0.6: # leave margin for noisy odometry
+            if dist2goal < self.success_dist * 0.8: # leave margin for noisy odometry
                 found_goal = 1
             # only publish the only goal and empty frontiers 
             publish_object_goal([goal_position], self.pub_frontiers)
@@ -532,11 +538,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             action = {"action": action}
             self.rate.sleep()
             obs, rew, done, info = super().step(action)
+            self.last_action = action["action"]
 
             # preprocess obs and publish it 
             obs = self._preprocess_obs(obs)
             self.pub_obs.publish(obs)
-            self.last_action = action["action"]
             self.obs = obs
             self.info = info
 
@@ -547,6 +553,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         else:
             self.last_action = None
             self.info["sensor_pose"] = [0.0, 0.0, 0.0]
+            print("WARNING: None action executed!")
             return {}, 0.0, False, self.info
             # return np.zeros(self.obs_shape), 0.0, False, self.info
 
@@ -875,6 +882,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 # NOTE: zero for background 
                 semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
             obs['semantic'] = semantic_image
+
+        if self.wheel_odom or DEBUG_WHEEL_ODOM:
+            if self.last_action:
+                updated_odom_mat = update_odom_by_action(self.last_odom_mat, self.last_action)
+                obs['odom_pose_mat'] = updated_odom_mat
+            else:
+                obs['odom_pose_mat'] = self.last_odom_mat
+        
+        if DEBUG_WHEEL_ODOM:
+            publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
 
         # depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
 

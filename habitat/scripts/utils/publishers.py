@@ -1,5 +1,5 @@
 """Publisher helpers."""
-
+import quaternion as qt 
 import numpy as np
 import rospy
 import tf.transformations as tf
@@ -7,9 +7,9 @@ import yaml
 import habitat_sim
 import cv2
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point, Quaternion
 from sensor_msgs.msg import CameraInfo, Image
-
+from nav_msgs.msg import Odometry
 DEPTH_SCALE = 1
 
 
@@ -72,12 +72,26 @@ class HabitatObservationPublisher:
         depth_topic="",
         semantic_topic="",
         camera_info_topic="",
+        wheel_odom_topic="",
         true_pose_topic="",
         camera_info_file="",
         sim_config=None,
     ):
         """Initialize publisher with topic handles."""
         self.cvbridge = CvBridge()
+        self.camera_info_topic = camera_info_topic
+        self.publish_camera_info = False
+        self.rgb_topic = rgb_topic
+        self.publish_rgb = False
+        self.depth_topic = depth_topic
+        self.publish_depth = False
+        self.semantic_topic = semantic_topic
+        self.publish_semantic = False
+        self.wheel_odom_topic = wheel_odom_topic
+        self.publish_wheel_odom = False
+        self.true_pose_topic = true_pose_topic
+        self.publish_true_pose = False
+
 
         # Initialize camera info publisher.
         if len(camera_info_topic) > 0:
@@ -89,17 +103,13 @@ class HabitatObservationPublisher:
                 self.camera_info = get_camera_info_config(sim_config)
             else:
                 self.camera_info = get_camera_info(camera_info_file)
-        else:
-            self.publish_camera_info = False
-
+            
         # Initialize RGB image publisher.
         if len(rgb_topic) > 0:
             self.publish_rgb = True
             self.image_publisher = rospy.Publisher(
                 rgb_topic, Image, latch=True, queue_size=100
             )
-        else:
-            self.publish_rgb = False
 
         # Initialize depth image publisher.
         if len(depth_topic) > 0:
@@ -107,8 +117,6 @@ class HabitatObservationPublisher:
             self.depth_publisher = rospy.Publisher(
                 depth_topic, Image, latch=True, queue_size=100
             )
-        else:
-            self.publish_depth = False
         
         # Initialize semantic image publisher
         if len(semantic_topic) > 0:
@@ -116,9 +124,14 @@ class HabitatObservationPublisher:
             self.semantic_publisher = rospy.Publisher(
                 semantic_topic, Image, latch=True, queue_size=100
             )
-        else:
-            self.publish_semantic = False
-        
+
+        # Initialize wheel odometry publisher 
+        if len(wheel_odom_topic) > 0:
+            self.publish_wheel_odom = True
+            self.wheel_odom_publisher = rospy.Publisher(
+                wheel_odom_topic, Odometry, queue_size=10
+            )
+
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
         if False:
@@ -126,12 +139,16 @@ class HabitatObservationPublisher:
             self.pose_publisher = rospy.Publisher(
                 true_pose_topic, PoseStamped, latch=True, queue_size=100
             )
-        else:
-            self.publish_true_pose = False
 
     def publish(self, observations):
         """Publish messages."""
         cur_time = rospy.Time.now()
+
+
+        # Publish camera info.
+        if self.publish_camera_info:
+            self.camera_info.header.stamp = cur_time
+            self.camera_info_publisher.publish(self.camera_info)
 
         # Publish RGB image.
         if self.publish_rgb:
@@ -151,11 +168,6 @@ class HabitatObservationPublisher:
             depth.header.frame_id = "base_scan"
             self.depth_publisher.publish(depth)
 
-        # Publish camera info.
-        if self.publish_camera_info:
-            self.camera_info.header.stamp = cur_time
-            self.camera_info_publisher.publish(self.camera_info)
-        
         if self.publish_semantic:
             semantic = observations["semantic"]
             assert np.max(semantic) < 256  # use uint8 to encode image
@@ -186,6 +198,39 @@ class HabitatObservationPublisher:
             #     2,
             #     semantic_color,
             # )
+
+        if self.publish_wheel_odom:
+            
+            pose_mat = observations["odom_pose_mat"]
+            odom_msg = Odometry()
+
+            odom_msg.header.stamp = cur_time
+            odom_msg.header.frame_id = 'odom'
+            odom_msg.child_frame_id = 'base_link'
+            
+            # construct position and rotation
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+            odom_msg.pose.pose.position = Point(x, y, z)
+            odom_msg.pose.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # create pseudo diagnal covariance matrix
+            # robot on x-y plane
+            p_cov = np.array([
+                5e-2, 0., 0., 0., 0., 0.,
+                0., 5e-2, 0., 0., 0., 0.,
+                0., 0., 1e3, 0., 0., 0.,
+                0., 0., 0., 1e3, 0., 0.,
+                0., 0., 0., 0., 1e3, 0.,
+                0., 0., 0., 0., 0., 1e-2,
+            ])
+            odom_msg.pose.covariance = p_cov.tolist()
+
+            # NOTE: if to implement continous control, add psedu twist message
+            
+            # Publish odometry message
+            self.wheel_odom_publisher.publish(odom_msg)
+
 
         # Publish true pose
         if self.publish_true_pose:

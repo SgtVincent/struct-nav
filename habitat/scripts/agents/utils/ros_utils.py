@@ -1,9 +1,14 @@
 import rospy
+import quaternion as qt 
+import numpy as np 
 from std_srvs.srv import Empty, EmptyRequest
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
-import numpy as np 
+from geometry_msgs.msg import Point, Quaternion, PoseStamped
+from nav_msgs.msg import Odometry
+
+
 
 
 def safe_call_reset_service(service_name, timeout=5.):
@@ -74,7 +79,7 @@ def publish_frontiers(frontiers, goals, publisher):
 
         # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
         marker_arr.markers.append(marker)
-        
+
     publisher.publish(marker_arr)
     return 
 
@@ -107,3 +112,64 @@ def publish_object_goal(goals, publisher):
 
     publisher.publish(marker_arr)
     return 
+
+def publish_odom(pose_mat, publisher, stamp=None, frame_id="odom", 
+    child_frame_id="base_link"):
+    """publish odometry message from pose matrix 
+
+    Now assume each odometry message has unified covariance
+    Could try covariance propagation later 
+
+    Args:
+        pose_mat (np.ndarray): (4x4) pose matrix 
+        publisher (rospy.Publisher): odometry message publisher
+    """
+    # TODO: Finish this odometry publisher 
+    msg = Odometry()
+    if stamp is None:
+        msg.header.stamp = rospy.Time.now()
+    else: 
+        msg.header.stamp = stamp
+    msg.header.frame_id = frame_id # i.e. '/odom'
+    msg.child_frame_id = child_frame_id # i.e. '/base_footprint'
+    
+    # construct position and rotation
+    x, y, z = pose_mat[:3,3]
+    quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+    msg.pose.pose.position = Point(x, y, z)
+    msg.pose.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+    # create pseudo diagnal covariance matrix
+    # robot on x-y plane, more noise in x, y, z-axis rot
+    p_cov = np.array([
+        1e-3, 0., 0., 0., 0., 0.,
+        0., 1e-3, 0., 0., 0., 0.,
+        0., 0., 1e-6, 0., 0., 0.,
+        0., 0., 0., 1e-6, 0., 0.,
+        0., 0., 0., 0., 1e-6, 0.,
+        0., 0., 0., 0., 0., 1e-3,
+    ])
+    msg.pose.covariance = p_cov.tolist()
+
+    # NOTE: if to implement continous control, add psedu twist message
+    
+    # Publish odometry message
+    publisher.publish(msg)
+
+def publish_pose(pose_mat, publisher, stamp=None, frame_id="odom"):
+
+    msg = PoseStamped()
+    if stamp is None:
+        msg.header.stamp = rospy.Time.now()
+    else: 
+        msg.header.stamp = stamp
+    msg.header.frame_id = frame_id # i.e. '/odom'
+    
+    # construct position and rotation
+    x, y, z = pose_mat[:3,3]
+    quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+    msg.pose.position = Point(x, y, z)
+    msg.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+    # Publish odometry message
+    publisher.publish(msg)

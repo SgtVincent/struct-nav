@@ -161,7 +161,7 @@
     <arg name="use_action_for_goal" default="false" />
     <arg name="map_topic" default="grid_map" />
     <arg name="move_base_topic" default="move_base" />
-    <arg name="grid_global_min_size" default="5.0" /> <!-- min map size (meter) -->
+    <arg name="grid_global_min_size" default="10.0" /> <!-- min map size (meter) -->
     <!--<arg name="proj_max_ground_height" default="0.3"/>  points  -->
     <!-- <arg name="proj_max_height" default="1.5"/> points higher than this height will be ignored on 2d map -->
     <!-- map parameters -->
@@ -175,12 +175,13 @@
     <arg name="grid_cell_size" default="0.05" />
     <arg name="grid_depth_decimation" default="1" />
     <arg name="grid_normals_segmentation" default="true" /> <!-- by default predict ground from point normals-->
-    <arg name="grid_max_ground_height" default="0.20" /> <!-- used function when grid_normals_segmentation is false -->
-    <arg name="grid_min_ground_height" default="-0.05" /> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_max_ground_height" default="0.30" /> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_min_ground_height" default="-0.30" /> <!-- used function when grid_normals_segmentation is false -->
     <arg name="grid_cluster_radius" default="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
     <arg name="grid_noise_filtering_min_neighbors" default="5" /> <!-- [Noise filtering minimum neighbors.] -->
     <arg name="grid_noise_filtering_radius" default="0.0" /> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->
     <arg name="proj_max_height" default="1.0" /> <!-- mapping maximum height of points used for projection -->
+    <arg name="wheel_odom" default="false"/> <!-- fuse wheel odometry if set to true -->
     <!-- custom arguments END -->
 
 
@@ -437,6 +438,7 @@
             <!-- custom remap START -->
             <remap from="move_base" to="$(arg move_base_topic)" />
             <remap from="grid_map" to="$(arg map_topic)" />
+            <!-- <remap from="odom" to="/base_controller/odom" if="$(arg wheel_odom)"/> -->
             <!-- custom remap END -->
 
             <!-- localization mode -->

@@ -2,11 +2,13 @@
     <arg name="agent_type" default="frontier_2d_detection" />
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
+    <arg name="wheel_odom" default="true"/>
     <arg name="habitat_update_rate" default="4.0" />
     <arg name="grid_global_min_size" default="5.0" />
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson_high_res.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/"/>
+
 
     <node pkg="habitat_ros" type="eval.py" name="eval_habitat_env" output="screen">
 
@@ -17,12 +19,15 @@
         <param name="camera_calib" value="$(arg camera_calib)" />
         <param name="rate" type="double" value="$(arg habitat_update_rate)" />
         <param name="grid_global_min_size" value="$(arg grid_global_min_size)" />
+        <param name="wheel_odom" value="$(arg wheel_odom)"/>
 
         <!-- topics  -->
         <param name="rgb_topic" value="/camera/rgb/image" />
         <param name="depth_topic" value="/camera/depth/image" />
         <param name="semantic_topic" value="/camera/semantic/image" />
-        <param name="camera_info_topic" value="/camera/rgb/camera_info" />
+        <param name="camera_info_topic" value="/camera/rgb/camera_info"/>
+        <!-- default external odom subscribed by rtabmap -->
+        <param name="wheel_odom_topic" value="/base_controller/odom" if="$(arg wheel_odom)"/> 
         <!-- <param name="true_pose_topic" value="/camera/true_pose"/> -->
         <param name="cloud_topic" value="/rtabmap/cloud_map" />
         <!-- topics for local policy generation -->

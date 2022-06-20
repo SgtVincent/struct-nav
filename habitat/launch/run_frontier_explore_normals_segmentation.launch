@@ -1,5 +1,7 @@
 <launch>
 
+    <arg name="wheel_odom" default="true"/>
+
     <!-- habitat agent & habitat simulator -->
     <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
         <arg name="agent_type" value="frontier_explore" />
@@ -7,7 +9,7 @@
     <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
     <!-- <arg name="habitat_update_rate" value="2.0" />
     </include> -->
-
+    
     <!-- rtabmap -->
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
 
@@ -18,7 +20,6 @@
         <arg name="rviz" value="false" />
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />
-        <arg name="approx_rgbd_sync" value="false" />
 
         <!-- topics  -->
         <!-- input -->
@@ -29,10 +30,9 @@
         <arg name="scan_topic" value="/scan" />
         <arg name="odom_topic" value="/odom" />
         <!-- output -->
-
-
         <!-- custom arguments -->
-
+        <arg name="wheel_odom" value="$(arg wheel_odom)"/>
+        
         <!-- map parameters-->
         <arg name="grid_3d" value="true" />
         <arg name="grid_ray_tracing" value="true" />

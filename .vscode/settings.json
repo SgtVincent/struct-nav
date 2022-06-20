@@ -16,7 +16,7 @@
     "[python]": {
         "editor.rulers": [80],
         // Python use black as formatter
-        "editor.defaultFormatter": null
+        "editor.defaultFormatter": null,
     },
     "python.formatting.provider": "black",
     "python.linting.pylintEnabled": true,
@@ -56,5 +56,8 @@
     "cmake.configureOnOpen": false,
     "[xml]": {
         "editor.defaultFormatter": "redhat.vscode-xml"
-    }
+    },
+    "python.formatting.blackArgs": [
+        "--line-length 100"
+    ]
 }
