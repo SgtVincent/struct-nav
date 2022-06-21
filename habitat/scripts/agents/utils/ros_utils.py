@@ -1,4 +1,5 @@
 import rospy
+import time
 import quaternion as qt 
 import numpy as np 
 from std_srvs.srv import Empty, EmptyRequest
@@ -7,7 +8,7 @@ from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point, Quaternion, PoseStamped
 from nav_msgs.msg import Odometry
-
+from nav_msgs.srv import GetMap
 
 
 
@@ -21,6 +22,19 @@ def safe_call_reset_service(service_name, timeout=5.):
     except rospy.ServiceException as e:
         rospy.logwarn(f"Service call failed: {e}")
         return False
+
+def safe_get_map_service(service_name="/rtabmap/get_map", timeout=5.):
+    
+    success = False
+    while(not success):
+        try:
+            rospy.wait_for_service(service_name, timeout=timeout)
+            response = rospy.ServiceProxy(service_name, GetMap)()
+            success = True
+        except rospy.ServiceException as e:
+            rospy.logwarn(f"Service {service_name} call failed: {e}")
+            time.sleep(0.5)
+    return response.map 
 
 
 def publish_frontiers(frontiers, goals, publisher):

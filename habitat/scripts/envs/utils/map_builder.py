@@ -38,7 +38,7 @@ class MapBuilder(object):
     def update_map(self, depth, current_pose):
         with np.errstate(invalid="ignore"):
             depth[depth > self.vision_range * self.resolution] = np.NaN
-        point_cloud = du.get_point_cloud_from_Y(
+        point_cloud = du.get_point_cloud_from_z(
             depth, self.camera_matrix, scale=self.du_scale
         )
 

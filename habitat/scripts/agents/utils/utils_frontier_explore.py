@@ -457,6 +457,50 @@ def target_goals(
     
 #     return 
 
+def map_shift(rs, cs, old_map, new_map):
+    ro, co = old_map.shape[:2]
+    
+    if rs >= 0 and cs >= 0:
+        new_map[rs:rs+ro, cs:cs+co] = old_map[:, :]
+    elif rs >= 0 and cs < 0:
+        new_map[rs:rs+ro, 0:cs+co] = old_map[:,-cs:co]
+    elif rs < 0 and cs < 0:
+        new_map[0:rs+ro, 0:cs+co] = old_map[-rs:ro, -cs:co]
+    else: # rs < 0 and cs >= 0
+        new_map[0:rs+ro, cs:cs+co] = old_map[-rs:ro, :]
+
+def copy_map_overlap(old_origin, old_map, new_origin, new_map, resolution):
+    
+    # Assume there is no rotation between the two maps 
+    old_x_max = old_origin[0] + old_map.shape[1] * resolution
+    old_y_max = old_origin[1] + old_map.shape[0] * resolution
+    new_x_max = new_origin[0] + new_map.shape[1] * resolution
+    new_y_max = new_origin[1] + new_map.shape[0] * resolution
+
+    ovl_x_min = max(old_origin[0], new_origin[0])
+    ovl_y_min = max(old_origin[1], new_origin[1])
+    ovl_x_max = min(old_x_max, new_x_max)
+    ovl_y_max = min(old_y_max, new_y_max)
+    ovl_x_size = np.floor((ovl_x_max - ovl_x_min) / resolution).astype(int)
+    ovl_y_size = np.floor((ovl_y_max - ovl_y_min) / resolution).astype(int)
+
+    # copy the overlapping area
+    new_map[
+        int((ovl_y_min - new_origin[1])/resolution):
+        int((ovl_y_min - new_origin[1])/resolution) + ovl_y_size,
+        int((ovl_x_min - new_origin[0])/resolution):
+        int((ovl_x_min - new_origin[0])/resolution) + ovl_x_size
+    ] = old_map[
+        int((ovl_y_min - old_origin[1])/resolution):
+        int((ovl_y_min - old_origin[1])/resolution) + ovl_y_size,
+        int((ovl_x_min - old_origin[0])/resolution):
+        int((ovl_x_min - old_origin[0])/resolution) + ovl_x_size
+    ]
+    return 
+
+
+
+
 if __name__ == "__main__":
 
     # test update_odom_by_action function 

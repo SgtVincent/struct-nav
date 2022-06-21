@@ -4,7 +4,7 @@
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="wheel_odom" default="true"/>
     <arg name="habitat_update_rate" default="4.0" />
-    <arg name="grid_global_min_size" default="5.0" />
+    <arg name="initial_map_size" default="10.0" />
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson_high_res.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/"/>
@@ -18,7 +18,7 @@
         <param name="agent_type" value="$(arg agent_type)" />
         <param name="camera_calib" value="$(arg camera_calib)" />
         <param name="rate" type="double" value="$(arg habitat_update_rate)" />
-        <param name="grid_global_min_size" value="$(arg grid_global_min_size)" />
+        <param name="initial_map_size" value="$(arg initial_map_size)" />
         <param name="wheel_odom" value="$(arg wheel_odom)"/>
 
         <!-- topics  -->

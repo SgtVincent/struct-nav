@@ -1,7 +1,7 @@
 <launch>
 
     <arg name="wheel_odom" default="true"/>
-
+    <arg name="grid_global_min_size" default="10.0"/>
     <!-- habitat agent & habitat simulator -->
     <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
         <arg name="agent_type" value="frontier_explore" />
@@ -20,7 +20,7 @@
         <arg name="rviz" value="false" />
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />
-
+        <arg name="grid_global_min_size" value="$(arg grid_global_min_size)"/>
         <!-- topics  -->
         <!-- input -->
         <arg name="rgb_topic" value="/camera/rgb/image" />

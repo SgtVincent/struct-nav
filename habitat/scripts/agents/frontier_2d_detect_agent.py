@@ -17,6 +17,7 @@ import skimage.morphology
 import rospy
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
+from nav_msgs.srv import GetMap
 from visualization_msgs.msg import Marker, MarkerArray
 
 from utils.publishers import HabitatObservationPublisher
@@ -29,12 +30,14 @@ from arguments import get_args
 from agents.utils.utils_frontier_explore import (
     frontier_goals, 
     dist_odom_to_goal,
+    copy_map_overlap,
     update_odom_by_action,
     target_goals,
 )
 
 from agents.utils.ros_utils import (
     safe_call_reset_service, 
+    safe_get_map_service,
     publish_frontiers,
     publish_object_goal,
     publish_pose
@@ -53,6 +56,7 @@ DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/
 # DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info_gibson.yaml"
 DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
+DEFAULT_MAP_SIZE = 5.0
 VISUALIZE = False
 DEBUG = False
 DEBUG_VIS = False
@@ -105,12 +109,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.col_width = None
         self.curr_loc = None
         self.last_loc = None
+        self.map_origin = None
+        self.map_shape = None
         self.last_action = None
         self.count_forward_actions = None
+        self.map_reset = False
         self.goal_name = None
         self.spot_goal = False
         self.actions_queue = deque([], maxlen=4)
         
+
         # from ObjectGoalEnv
         self.info = {}
         self.info["distance_to_goal"] = None
@@ -136,6 +144,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             "~camera_calib", DEFAULT_CAMERA_CALIB
         )
         self.wheel_odom = rospy.get_param("~wheel_odom", False)
+        self.initial_map_size = rospy.get_param("~initial_map_size", DEFAULT_MAP_SIZE)
         # assert (
         #     agent_type in AGENT_CLASS_MAPPING.keys()
         # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
@@ -236,15 +245,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # transformation.publish_agent_init_tf(sim_agent)
 
         # 3. initialize episode variables
-        # TODO: add map size to ros params ! 
-        # map_shape = (
-        #     args.map_size_cm // args.map_resolution_cm,
-        #     args.map_size_cm // args.map_resolution_cm,
-        # )
-        map_shape = int(20 / 0.05)
-        self.collision_map = np.zeros(map_shape)
-        self.visited = np.zeros(map_shape)
-        self.visited_vis = np.zeros(map_shape)
+        
+        # map-related info should be initialized by first ros message in an episode
+        # map_shape = self.initial_map_size
+        self.map_reset = True # flag to re-initialize map in parse_ros_messages
+        self.collision_map = None
+        self.visited = None
+        self.visited_vis = None
+        self.curr_loc = None
+        self.map_origin = None
+        self.map_shape = None
         self.col_width = 1
         self.count_forward_actions = 0
         self.cnt_pub = 0
@@ -253,12 +263,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.last_action = None
         self.last_odom_mat = np.eye(4)
         self.actions_queue = deque([], maxlen=4)
-        # self.curr_loc = [
-        #     args.map_size / 2.0,
-        #     args.map_size / 2.0,
-        #     0.0,
-        # ]
-        
+
         if args.visualize or args.print_images:
             self.vis_image = vu.init_occ_image(self.goal_name)
 
@@ -267,9 +272,31 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         if publish_obs:
             self.pub_obs.publish(obs)
             self.cnt_pub += 1
+            time.sleep(1)
             # if DEBUG:
             #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
         
+        # NOTE: 1. after resetting the episode, if not to request new grid map, then
+        # inconsistency between old grid map message from last episode and 
+        # observations of this episode will lead to error 
+        # NOTE: 2. there are some cases rtabmap does not have time to initialize 
+        # new grid map, keep publishing observations until new map ready 
+        service_name="/rtabmap/get_map"
+        timeout=5.
+        success = False
+        while(not success):
+            try:
+                rospy.wait_for_service(service_name, timeout=timeout)
+                response = rospy.ServiceProxy(service_name, GetMap)()
+                success = True
+            except rospy.ServiceException as e:
+                rospy.logwarn(f"Get map by calling {service_name} failed: {e}")
+                rospy.logwarn("Republishing observations...")
+                self.pub_obs.publish(obs)
+                time.sleep(0.5)
+        
+        self.grid_map_msg = response.map
+
         if args.visualize or args.print_images:
             self.legend = cv2.imread("docs/legend.png")
             self.rgb_vis = None
@@ -281,7 +308,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         return obs, info
 
     def parse_ros_messages(self):
+        
         odom_msg: Odometry = self.odom_msg
+        # TODO: try requesting map by service and see how it performs
         grid_map_msg: OccupancyGrid = self.grid_map_msg
 
         # update timestamps for last processed messages
@@ -292,24 +321,58 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
         )
-        # self.reset(grid_map.shape)
 
-        # TODO: add map expansion logic for following maps
-        # FIXME: the present strategy is simple:
-        # - when grid_map is expanded, drop all previous memory and reallocate
-        # empty maps to record collisions and visited places during running
-        if (
-            self.collision_map is None
-            or self.collision_map.shape != grid_map.shape
-        ):
-            self.collision_map = np.zeros_like(grid_map)
-            self.visited = np.zeros_like(grid_map)
-            self.visited_vis = np.zeros_like(grid_map)
-            # map_resolution = grid_map_msg.info.resolution
-
+        ################ process grid_map udpate ########################
         map_origin_position = grid_map_msg.info.origin.position
         map_origin = np.array([map_origin_position.x, map_origin_position.y])
 
+        # if reset() function is called, re-initialize map here 
+        if self.map_reset:
+            self.collision_map = np.zeros_like(grid_map)
+            self.visited = np.zeros_like(grid_map)
+            self.visited_vis = np.zeros_like(grid_map)
+            self.curr_loc = None # used to detect collision
+            self.map_origin = map_origin
+            self.map_shape = grid_map.shape
+            self.map_reset = False
+
+        # if map has been expanded or shifted by rtabmap, re-initialize map 
+        # and copy overlapping areas
+        o_shift = np.round(
+            (self.map_origin - map_origin) / self.map_resolution
+        ).astype(int)
+        if self.map_shape != grid_map.shape or np.any(o_shift != 0):
+            
+            old_collision_map = self.collision_map
+            old_visited = self.visited
+            old_visited_vis = self.visited_vis
+            old_curr_loc = self.curr_loc # [x, y, o]
+            # old_map_origin = self.map_origin
+            # old_map_shape = self.map_shape
+            
+            # create expanded new maps
+            self.collision_map = np.zeros_like(grid_map)
+            self.visited = np.zeros_like(grid_map)
+            self.visited_vis = np.zeros_like(grid_map)
+
+            # # calculate mapping from old map to new map
+            # # NOTE: new map_origin could be larger than old map_origin thus 
+            # # making this origin shift negative 
+            # self.curr_loc[:2] = old_curr_loc[:2] + old_map_origin - map_origin
+            # r, c = o_shift[1], o_shift[0]
+            
+            # copy overlaping areas on old map to new map
+            copy_map_overlap(self.map_origin, old_collision_map, map_origin, 
+                self.collision_map, self.map_resolution)
+            copy_map_overlap(self.map_origin, old_visited, map_origin, 
+                self.visited, self.map_resolution)
+            copy_map_overlap(self.map_origin, old_visited_vis, map_origin, 
+                self.visited_vis, self.map_resolution)
+
+            self.map_origin = map_origin
+            self.map_shape = grid_map.shape
+            
+        ################ process odometry update ######################
         # NOTE: there are zero quaternions when visual odometry is lost 
         odom_pose_mat = np.zeros((4,4))
         try: # try to parse visual odometry if valid 
@@ -476,7 +539,18 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             (goal_position - map_origin) / map_resolution
         ).astype(int)
         # NOTE: (x,y) is (col, row) in image
-        goal_map[pixel_position[1], pixel_position[0]] = 1.0
+        if occupancy_map[pixel_position[1], pixel_position[0]]: 
+            # if goal not reachable, then find closest pixel as new goal 
+            rs, cs = np.where(occupancy_map == 0.)
+            free_locs = np.stack([cs, rs], axis=1)
+            closest_idx = np.argmin(
+                np.linalg.norm(free_locs - pixel_position, axis=1)
+            )
+            closest_loc = free_locs[closest_idx, :]
+            goal_map[closest_loc[1], closest_loc[0]] = 1.0
+            
+        else:
+            goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
         p_input = {}
         p_input["map_pred"] = occupancy_map
@@ -486,6 +560,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         p_input["pose_pred"][:2] = odom_map_pose[:2] - map_origin
         # NOTE: in plan() function, xy-angle is calculated in pixel_x-pixel_y (y-x)
         # frame, instead of world xy-frame, need to plus 90 degree for correction
+        # e.g., initial xy-angle from odom is 0 degree, while in map it is 90 degree (+y direction)
         p_input["pose_pred"][2] = odom_map_pose[2] + 90
         p_input["pose_pred"][3:] = np.array(
             [0, grid_map.shape[0], 0, grid_map.shape[1]]
@@ -618,43 +693,42 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     last_start, start, self.visited_vis[gx1:gx2, gy1:gy2]
                 )
 
-        # FIXME: add collision check
         # Collision check
-        # if self.last_action == 1:
-        #     x1, y1, t1 = self.last_loc
-        #     x2, y2, _ = self.curr_loc
-        #     buf = 4
-        #     length = 2
+        if self.last_action == 1 and self.last_loc is not None:
+            x1, y1, t1 = self.last_loc
+            x2, y2, _ = self.curr_loc
+            buf = 4
+            length = 2
 
-        #     if abs(x1 - x2) < 0.05 and abs(y1 - y2) < 0.05:
-        #         self.col_width += 2
-        #         if self.col_width == 7:
-        #             length = 4
-        #             buf = 3
-        #         self.col_width = min(self.col_width, 5)
-        #     else:
-        #         self.col_width = 1
+            if abs(x1 - x2) < 0.05 and abs(y1 - y2) < 0.05:
+                self.col_width += 2
+                if self.col_width == 7:
+                    length = 4
+                    buf = 3
+                self.col_width = min(self.col_width, 5)
+            else:
+                self.col_width = 1
 
-        #     dist = pu.get_l2_distance(x1, x2, y1, y2)
-        #     if dist < args.collision_threshold:  # Collision
-        #         width = self.col_width
-        #         for i in range(length):
-        #             for j in range(width):
-        #                 wx = x1 + 0.05 * (
-        #                     (i + buf) * np.cos(np.deg2rad(t1))
-        #                     + (j - width // 2) * np.sin(np.deg2rad(t1))
-        #                 )
-        #                 wy = y1 + 0.05 * (
-        #                     (i + buf) * np.sin(np.deg2rad(t1))
-        #                     - (j - width // 2) * np.cos(np.deg2rad(t1))
-        #                 )
-        #                 r, c = wy, wx
-        #                 r, c = (
-        #                     int(r / self.map_resolution),
-        #                     int(c / self.map_resolution),
-        #                 )
-        #                 [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
-        #                 self.collision_map[r, c] = 1
+            dist = pu.get_l2_distance(x1, x2, y1, y2)
+            if dist < args.collision_threshold:  # Collision
+                width = self.col_width
+                for i in range(length):
+                    for j in range(width):
+                        wx = x1 + 0.05 * (
+                            (i + buf) * np.cos(np.deg2rad(t1))
+                            + (j - width // 2) * np.sin(np.deg2rad(t1))
+                        )
+                        wy = y1 + 0.05 * (
+                            (i + buf) * np.sin(np.deg2rad(t1))
+                            - (j - width // 2) * np.cos(np.deg2rad(t1))
+                        )
+                        r, c = wy, wx
+                        r, c = (
+                            int(r / self.map_resolution),
+                            int(c / self.map_resolution),
+                        )
+                        [r, c] = pu.threshold_poses([r, c], self.collision_map.shape)
+                        self.collision_map[r, c] = 1
 
         stg, stop = self._get_stg(
             map_pred, start, np.copy(goal), planning_window
