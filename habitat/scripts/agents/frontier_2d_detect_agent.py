@@ -2,6 +2,8 @@ import math
 import os
 import time
 from collections import deque
+
+from matplotlib.transforms import Transform
 import agents.utils.visualization as vu
 import cv2
 import envs.utils.pose as pu
@@ -15,12 +17,13 @@ import skimage.morphology
 
 # ros packages
 import rospy
-from geometry_msgs.msg import PoseStamped
+import tf2_ros
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from nav_msgs.srv import GetMap
 from visualization_msgs.msg import Marker, MarkerArray
 
-from utils.publishers import HabitatObservationPublisher
+from utils.publishers import HabitatObservationPublisher, PointCloudPublisher
 from utils.transformation import (
     publish_agent_init_tf,
     publish_static_base_to_cam,
@@ -39,7 +42,7 @@ from agents.utils.ros_utils import (
     safe_call_reset_service, 
     safe_get_map_service,
     publish_frontiers,
-    publish_object_goal,
+    publish_targets,
     publish_pose
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
@@ -58,9 +61,11 @@ DEFAULT_GOAL_RADIUS = 0.25
 DEFAULT_MAX_ANGLE = 0.1
 DEFAULT_MAP_SIZE = 5.0
 VISUALIZE = False
+# DEBUG flags: 
 DEBUG = False
 DEBUG_VIS = False
-DEBUG_WHEEL_ODOM = True
+DEBUG_WHEEL_ODOM = False
+DEBUG_DETECT = True
 
 class Frontier2DDetectionAgent(ObjectGoal_Env):
     def __init__(self, args, rank, config_env, dataset):
@@ -82,10 +87,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
         self.obs_height = config_env.SIMULATOR.RGB_SENSOR.HEIGHT
         self.obs_fov = config_env.SIMULATOR.RGB_SENSOR.HFOV
+        self.obs_min_depth = config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH
+        self.obs_max_depth = config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH
         self.sensor_height = config_env.SIMULATOR.AGENT_0.HEIGHT
         self.forward_dist = config_env.SIMULATOR.FORWARD_STEP_SIZE # 0.25 by default
         self.turn_angle = config_env.SIMULATOR.TURN_ANGLE # 30 degrees by default 
-
+        
 
         # TODO: should place 2D recognition models in a separate ROS pacakge
         # fix this before release! 
@@ -106,6 +113,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.collision_map = None
         self.visited = None
         self.visited_vis = None
+        self.goal_map = None
         self.col_width = None
         self.curr_loc = None
         self.last_loc = None
@@ -115,7 +123,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.count_forward_actions = None
         self.map_reset = False
         self.goal_name = None
-        self.spot_goal = False
+        self.spot_goal = 0
         self.actions_queue = deque([], maxlen=4)
         
 
@@ -143,8 +151,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.camera_info_file = rospy.get_param(
             "~camera_calib", DEFAULT_CAMERA_CALIB
         )
-        self.wheel_odom = rospy.get_param("~wheel_odom", False)
         self.initial_map_size = rospy.get_param("~initial_map_size", DEFAULT_MAP_SIZE)
+        
+        # setup pseudo wheel odometry to fuse with rtabmap visual odometry 
+        self.wheel_odom = rospy.get_param("~wheel_odom", False)
+        self.whee_odom_frame_id = ""
+        if self.wheel_odom:
+            self.whee_odom_frame_id = rospy.get_param("~wheel_odom_frame_id", "")
+        
+        self.state_update_mode = rospy.get_param("~state_update_mode", "listen")
+
         # assert (
         #     agent_type in AGENT_CLASS_MAPPING.keys()
         # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
@@ -161,6 +177,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info"
         )
+        # self.wheel_odom_topic = rospy.get_param(
+        #     "~wheel_odom_topic", ""
+        # )
         self.true_pose_topic = rospy.get_param("~true_pose_topic", "")
         self.cloud_topic = rospy.get_param(
             "~cloud_topic", "/rtabmap/cloud_map"
@@ -177,18 +196,19 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         # ros pub and sub
         self.rate = rospy.Rate(self.rate_value)
+        
         self.pub_obs = HabitatObservationPublisher(
             rgb_topic=self.rgb_topic,
             depth_topic=self.depth_topic,
-            # semantic_topic=self.semantic_topic,
+            semantic_topic=self.semantic_topic,
             camera_info_topic=self.camera_info_topic,
             true_pose_topic=self.true_pose_topic,
             camera_info_file=self.camera_info_file,
+            wheel_odom_frame_id=self.whee_odom_frame_id,
             # sim_config=self.habitat_env.sim.sim_config
         )
 
         self.cam_int_mat = np.array(self.pub_obs.camera_info.K).reshape((3,3))
-        
         publish_static_base_to_cam(self.sensor_height)
 
         # action_publisher = rospy.Publisher(
@@ -197,15 +217,26 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
 
-        self.sub_odom = rospy.Subscriber(
-            self.odom_topic, Odometry, self.callback_odom
-        )
-        print(f"subscribing to {self.odom_topic}...")
+        if self.state_update_mode == "listen":
+            rospy.loginfo(f"Agent running in listen mode to update state")
+            self.sub_odom = rospy.Subscriber(
+                self.odom_topic, Odometry, self.callback_odom
+            )
+            rospy.loginfo(f"subscribing to {self.odom_topic}...")
 
-        self.sub_grid_map = rospy.Subscriber(
-            self.grid_map_topic, OccupancyGrid, self.callback_grid_map
-        )
-        print(f"subscribing to {self.grid_map_topic}...")
+            self.sub_grid_map = rospy.Subscriber(
+                self.grid_map_topic, OccupancyGrid, self.callback_grid_map
+            )
+            rospy.loginfo(f"subscribing to {self.grid_map_topic}...")
+        elif self.state_update_mode == "request":
+            rospy.loginfo(f"Agent running in request mode to update state")
+            # skip subscriber initialization 
+        else:
+            raise NotImplementedError
+
+        # tf listener 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.pub_frontiers = rospy.Publisher(
             self.frontiers_topic, MarkerArray, queue_size=1
@@ -215,8 +246,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.pub_wheel_odom_pose = rospy.Publisher(
                 "~wheel_odom", PoseStamped, queue_size=1
             )
-
-        self.rate = rospy.Rate(self.rate_value)
+        
+        self.pub_detected_goal_pts = None # do not publish 
+        if DEBUG_DETECT:
+            self.pub_detected_goal_pts = PointCloudPublisher(
+                "~detected_goal_pts"
+            )
 
         # cached messages
         self.odom_msg = None
@@ -248,10 +283,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         
         # map-related info should be initialized by first ros message in an episode
         # map_shape = self.initial_map_size
-        self.map_reset = True # flag to re-initialize map in parse_ros_messages
+        self.map_reset = True # flag to re-initialize map in process_ros_messages
         self.collision_map = None
         self.visited = None
         self.visited_vis = None
+        self.goal_map = None
         self.curr_loc = None
         self.map_origin = None
         self.map_shape = None
@@ -259,7 +295,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.count_forward_actions = 0
         self.cnt_pub = 0
         self.cnt_action = 0
-        self.spot_goal = False
+        self.spot_goal = 0
         self.last_action = None
         self.last_odom_mat = np.eye(4)
         self.actions_queue = deque([], maxlen=4)
@@ -307,22 +343,62 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.obs = obs 
         return obs, info
 
-    def parse_ros_messages(self):
+    def process_ros_messages(self):
         
-        odom_msg: Odometry = self.odom_msg
-        # TODO: try requesting map by service and see how it performs
-        grid_map_msg: OccupancyGrid = self.grid_map_msg
+        # waiting for odometry update 
+        while (
+            self.odom_msg == None or 
+            self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
+            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
+        ):
+            # waiting for data
+            cur_time = rospy.Time().now().to_sec()
+            time_diff = cur_time - self.last_update_time
+            if DEBUG:
+                print(
+                    f"[DEBUG] waiting for odometry message update since {time_diff} seconds ago"
+                )
+            self.rate.sleep()
 
-        # update timestamps for last processed messages
-        self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
+        odom_msg: Odometry = self.odom_msg
         self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
+        
+        if self.state_update_mode == "listen":
+            while (
+                self.grid_map_msg == None
+                # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
+            ):
+                # waiting for map data 
+                cur_time = rospy.Time().now().to_sec()
+                time_diff = cur_time - self.last_update_time
+                self.rate.sleep()
+
+            grid_map_msg: OccupancyGrid = self.grid_map_msg
+            # update timestamps for last processed messages
+            self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
+
+        elif self.state_update_mode == "request":
+            grid_map_msg: OccupancyGrid = safe_get_map_service()
+            # odom_msg: TransformStamped = self.tf_buffer.lookup_transform(
+            #     "base_link", "map", rospy.Time(0))
+
         self.last_update_time = rospy.Time().now().to_sec()
 
+        ################ process grid_map udpate ########################
+        grid_map, map_origin = self.process_map_msg(grid_map_msg)
+
+        ################ process odometry update ######################
+        odom_map_pose, odom_pose_mat = self.process_odom_msg(odom_msg)
+        # save odom_pose_mat in case visual odom lost 
+        self.last_odom_mat = odom_pose_mat
+
+        return grid_map, map_origin, odom_map_pose, odom_pose_mat
+
+    def process_map_msg(self, grid_map_msg: OccupancyGrid):
+        
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
         )
-
-        ################ process grid_map udpate ########################
         map_origin_position = grid_map_msg.info.origin.position
         map_origin = np.array([map_origin_position.x, map_origin_position.y])
 
@@ -331,6 +407,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.collision_map = np.zeros_like(grid_map)
             self.visited = np.zeros_like(grid_map)
             self.visited_vis = np.zeros_like(grid_map)
+            self.goal_map = np.zeros_like(grid_map)
             self.curr_loc = None # used to detect collision
             self.map_origin = map_origin
             self.map_shape = grid_map.shape
@@ -341,19 +418,22 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         o_shift = np.round(
             (self.map_origin - map_origin) / self.map_resolution
         ).astype(int)
+        
         if self.map_shape != grid_map.shape or np.any(o_shift != 0):
             
             old_collision_map = self.collision_map
             old_visited = self.visited
             old_visited_vis = self.visited_vis
+            old_goal_map = self.goal_map
             old_curr_loc = self.curr_loc # [x, y, o]
-            # old_map_origin = self.map_origin
+            old_map_origin = self.map_origin
             # old_map_shape = self.map_shape
             
             # create expanded new maps
             self.collision_map = np.zeros_like(grid_map)
             self.visited = np.zeros_like(grid_map)
             self.visited_vis = np.zeros_like(grid_map)
+            self.goal_map = np.zeros_like(grid_map)
 
             # # calculate mapping from old map to new map
             # # NOTE: new map_origin could be larger than old map_origin thus 
@@ -362,17 +442,21 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             # r, c = o_shift[1], o_shift[0]
             
             # copy overlaping areas on old map to new map
-            copy_map_overlap(self.map_origin, old_collision_map, map_origin, 
+            copy_map_overlap(old_map_origin, old_collision_map, map_origin, 
                 self.collision_map, self.map_resolution)
-            copy_map_overlap(self.map_origin, old_visited, map_origin, 
+            copy_map_overlap(old_map_origin, old_visited, map_origin, 
                 self.visited, self.map_resolution)
-            copy_map_overlap(self.map_origin, old_visited_vis, map_origin, 
+            copy_map_overlap(old_map_origin, old_visited_vis, map_origin, 
                 self.visited_vis, self.map_resolution)
+            copy_map_overlap(old_map_origin, old_goal_map, map_origin, 
+                self.goal_map, self.map_resolution)
 
             self.map_origin = map_origin
             self.map_shape = grid_map.shape
-            
-        ################ process odometry update ######################
+        
+        return grid_map, map_origin
+
+    def process_odom_msg(self, odom_msg):
         # NOTE: there are zero quaternions when visual odometry is lost 
         odom_pose_mat = np.zeros((4,4))
         try: # try to parse visual odometry if valid 
@@ -418,11 +502,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             odom_map_pose = np.copy(odom_pos)
             odom_angle = R.from_matrix(odom_rot).as_euler("zxy", degrees=True)[0]
             odom_map_pose[2] = odom_angle
-
-        # save odom_pose_mat in case visual odom lost 
-        self.last_odom_mat = odom_pose_mat
-
-        return grid_map, map_origin, odom_map_pose, odom_pose_mat
+        
+        return odom_map_pose, odom_pose_mat            
 
     # wrapper function to execute one step
     def plan_act(self):
@@ -445,46 +526,21 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             action: string of an action accepted by habitat simulator
 
         """
-        ############ parse ros messages ################
+        ############ process ros messages ################
 
-        # FIXME: cannot receive grid_map message
-        while self.odom_msg == None or self.grid_map_msg == None:
-            # waiting for data
-            # return "stay"
-            print("waiting for first odom_msg and grid_map_msg")
-            time.sleep(0.5)
-
-        while (
-            self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
-            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
-        ):
-            # waiting for data
-            cur_time = rospy.Time().now().to_sec()
-            time_diff = cur_time - self.last_update_time
-            # time_diff = cur_time - max(
-            #     self.last_odom_msg_time, self.last_grid_map_msg_time
-            # )
-            if DEBUG:
-                print(
-                    f"[DEBUG] waiting for message update since {time_diff} seconds ago"
-                )
-            time.sleep(0.5)
-            # return "stay"
-
-        grid_map, map_origin, odom_map_pose, odom_pose_mat = self.parse_ros_messages()
-        map_resolution = self.map_resolution
+        grid_map, map_origin, odom_map_pose, odom_pose_mat = self.process_ros_messages()
+        # map_resolution = self.map_resolution
 
         ################## check if target object already known ############
         if (self.goal_idx + 1) in self.obs['semantic']: # zero for background
-            self.spot_goal = True
+            self.spot_goal = 1
 
-        found_goal = 0
-        if self.spot_goal == False:
+        if self.spot_goal == 0:
             ##################  generate frontiers and goals ##############
-            frontiers, goals = frontier_goals(
+            frontiers, goals, goal_map = frontier_goals(
                 grid_map,
                 map_origin,
-                map_resolution,
+                self.map_resolution,
                 odom_map_pose[:2],
                 cluster_trashhole=self.args.cluster_trashhole,
                 num_goals=1,
@@ -503,30 +559,37 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     self.obs_fov
                 )
                 # targets in 3d, goals in 2d 
-                targets, target_sizes, goals = target_goals(
+                targets, goal_map = target_goals(
+                    grid_map,
+                    map_origin,
+                    self.map_resolution,
                     sem_img=self.obs['semantic'],
                     depth_img=self.obs['depth'],
                     goal_idx=self.goal_idx + 1,  # zero for background
                     cam_param=camera_param,
                     odom_pose_mat=odom_pose_mat,
-                    num_goals=1,
+                    max_depth=self.obs_max_depth,
+                    min_depth=self.obs_min_depth,
+                    # pub_goal_pts=self.pub_detected_goal_pts,
+                    sample_targets=100,
                 )
-                # set z-value to target size for visualization
-                targets[:, 2] = target_sizes 
-                goal_position = goals[0, :]
-                publish_frontiers(targets, goals, self.pub_frontiers)
-                self.last_goal_position = goal_position
+                # set z-value to unified size for visualization
+                targets[:, 2] = 1. 
+                publish_targets(targets, self.pub_frontiers)
+                # merge new goal map with old 
+                # goal_map should be updated in process_ros_messages if shape changed 
+                assert grid_map.shape == self.goal_map.shape
+                self.goal_map[goal_map==1.] = 1.
+                goal_map = self.goal_map
 
             else: # object disappears from observation 
-                goal_position = self.last_goal_position
+                goal_map = self.goal_map
 
             # calculate if goal is found within 
-            dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
-            if dist2goal < self.success_dist * 0.8: # leave margin for noisy odometry
-                found_goal = 1
-            # only publish the only goal and empty frontiers 
-            publish_object_goal([goal_position], self.pub_frontiers)
-            # publish point cloud if needed here
+            # dist2goal = dist_odom_to_goal(odom_pose_mat, goal_position, dist_2d=True)
+            # if dist2goal < self.success_dist * 0.8: # leave margin for noisy odometry
+            #     found_goal = 1
+
 
         ################### generate action by planners ################
         # convert ros-format grid_map to object-goal-nav style maps
@@ -534,23 +597,23 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         explore_map = (grid_map >= 0).astype(np.float32)
 
         # convert (x,y) goal center to goal map
-        goal_map = np.zeros_like(grid_map)
-        pixel_position = (
-            (goal_position - map_origin) / map_resolution
-        ).astype(int)
-        # NOTE: (x,y) is (col, row) in image
-        if occupancy_map[pixel_position[1], pixel_position[0]]: 
-            # if goal not reachable, then find closest pixel as new goal 
-            rs, cs = np.where(occupancy_map == 0.)
-            free_locs = np.stack([cs, rs], axis=1)
-            closest_idx = np.argmin(
-                np.linalg.norm(free_locs - pixel_position, axis=1)
-            )
-            closest_loc = free_locs[closest_idx, :]
-            goal_map[closest_loc[1], closest_loc[0]] = 1.0
+        # goal_map = np.zeros_like(grid_map)
+        # pixel_position = (
+        #     (goal_position - map_origin) / map_resolution
+        # ).astype(int)
+        # # NOTE: (x,y) is (col, row) in image
+        # if occupancy_map[pixel_position[1], pixel_position[0]]: 
+        #     # if goal not reachable, then find closest pixel as new goal 
+        #     rs, cs = np.where(occupancy_map == 0.)
+        #     free_locs = np.stack([cs, rs], axis=1)
+        #     closest_idx = np.argmin(
+        #         np.linalg.norm(free_locs - pixel_position, axis=1)
+        #     )
+        #     closest_loc = free_locs[closest_idx, :]
+        #     goal_map[closest_loc[1], closest_loc[0]] = 1.0
             
-        else:
-            goal_map[pixel_position[1], pixel_position[0]] = 1.0
+        # else:
+        #     goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
         p_input = {}
         p_input["map_pred"] = occupancy_map
@@ -566,7 +629,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             [0, grid_map.shape[0], 0, grid_map.shape[1]]
         )
         p_input["goal"] = goal_map
-        p_input["found_goal"] = found_goal
+        p_input["found_goal"] = self.spot_goal
         p_input["wait"] = False
 
         action = self.plan(p_input)
@@ -777,6 +840,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             action = 0  # Stop
         else:
             (stg_x, stg_y) = stg
+            
+            if stg_x < 0: # planner failed due to synchronization problem of rtabmap
+                # by default, move forward 
+                action = 1
+
             angle_st_goal = math.degrees(
                 math.atan2(stg_x - start[0], stg_y - start[1])
             )
@@ -848,17 +916,22 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         selem = skimage.morphology.disk(10)
         goal = skimage.morphology.binary_dilation(goal, selem) != True
         goal = 1 - goal * 1.0
-        planner.set_multi_goal(goal)
+        
+        try: 
+            planner.set_multi_goal(goal)
 
-        state = [start[0] - x1, start[1] - y1]
-        stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
-        stg_x, stg_y = stg_x + x1, stg_y + y1
-        # original code here: 
-        # state = [start[0] - x1 + 1, start[1] - y1 + 1]
-        # stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
-        # stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
-
-        return (stg_x, stg_y), stop
+            state = [start[0] - x1, start[1] - y1]
+            stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+            stg_x, stg_y = stg_x + x1, stg_y + y1
+            # original code here: 
+            # state = [start[0] - x1 + 1, start[1] - y1 + 1]
+            # stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+            # stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
+            return (stg_x, stg_y), stop
+        except Exception as e:
+            rospy.logwarn(f"Planner failed, with error {e}, reset found_goal state...")
+            self.spot_goal = 0
+            return (-1, -1), 0
 
     def _visualize(self, inputs):
         args = self.args

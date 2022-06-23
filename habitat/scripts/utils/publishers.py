@@ -1,16 +1,37 @@
 """Publisher helpers."""
+import struct
 import quaternion as qt 
 import numpy as np
 import rospy
-import tf.transformations as tf
+import tf2_ros
+from tf2_msgs.msg import TFMessage
+from tf import transformations
 import yaml
 import habitat_sim
 import cv2
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PoseStamped, Point, Quaternion
-from sensor_msgs.msg import CameraInfo, Image
+from std_msgs.msg import Header
+from geometry_msgs.msg import (
+    PoseStamped, Point, Quaternion, TransformStamped, Vector3
+)
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
+import sensor_msgs.point_cloud2 as pc2
 from nav_msgs.msg import Odometry
+
 DEPTH_SCALE = 1
+
+FIELDS_XYZ = [
+    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+]
+FIELDS_XYZRGB = FIELDS_XYZ + [
+    PointField(name="rgba", offset=12, datatype=PointField.UINT32, count=1)
+]
+
+# Bit operations
+BIT_MOVE_16 = 2 ** 16
+BIT_MOVE_8 = 2 ** 8
 
 
 def get_camera_info(filepath):
@@ -72,9 +93,10 @@ class HabitatObservationPublisher:
         depth_topic="",
         semantic_topic="",
         camera_info_topic="",
-        wheel_odom_topic="",
+        wheel_odom_topic="", # publish wheel_odom by Odometry message
         true_pose_topic="",
         camera_info_file="",
+        wheel_odom_frame_id="", # publish wheel_odom as tf: odom_wheel -> base_link
         sim_config=None,
     ):
         """Initialize publisher with topic handles."""
@@ -91,6 +113,10 @@ class HabitatObservationPublisher:
         self.publish_wheel_odom = False
         self.true_pose_topic = true_pose_topic
         self.publish_true_pose = False
+        # publish wheel odometry as tf: odom_wheel -> base_link, 
+        # see "guess_frame_id" in http://wiki.ros.org/rtabmap_ros
+        self.wheel_odom_frame_id = wheel_odom_frame_id
+        self.publish_wheel_odom_tf = False
 
 
         # Initialize camera info publisher.
@@ -131,6 +157,11 @@ class HabitatObservationPublisher:
             self.wheel_odom_publisher = rospy.Publisher(
                 wheel_odom_topic, Odometry, queue_size=10
             )
+
+        # Initialize tf publisher for wheel odometry
+        if len(wheel_odom_frame_id) > 0:
+            self.publish_wheel_odom_tf = True
+            self.tf_publisher = rospy.Publisher("/tf", TFMessage, queue_size=1)
 
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
@@ -231,13 +262,32 @@ class HabitatObservationPublisher:
             # Publish odometry message
             self.wheel_odom_publisher.publish(odom_msg)
 
+        # publish wheel odometry as tf: odom_wheel -> base_link
+        if self.publish_wheel_odom_tf:
 
+            wo_msg = TransformStamped()
+            wo_msg.header.stamp = cur_time
+            wo_msg.header.frame_id = self.wheel_odom_frame_id
+            wo_msg.child_frame_id = "base_link"
+                
+            # construct position and rotation
+            pose_mat = observations["odom_pose_mat"]
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+
+            wo_msg.transform.translation = Vector3(x, y, z)
+            wo_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # add to this list if more tfs needed 
+            tf_msgs = TFMessage([wo_msg])
+            self.tf_publisher.publish(tf_msgs)
+            
         # Publish true pose
         if self.publish_true_pose:
             position, rotation = observations["agent_position"]
             y, z, x = position
             cur_orientation = rotation
-            cur_euler_angles = tf.euler_from_quaternion(
+            cur_euler_angles = transformations.euler_from_quaternion(
                 [
                     cur_orientation.w,
                     cur_orientation.x,
@@ -258,5 +308,63 @@ class HabitatObservationPublisher:
                 cur_pose.pose.orientation.x,
                 cur_pose.pose.orientation.y,
                 cur_pose.pose.orientation.z,
-            ) = tf.quaternion_from_euler(0, 0, cur_z_angle)
+            ) = transformations.transformation.quaternion_from_euler(0, 0, cur_z_angle)
             self.pose_publisher.publish(cur_pose)
+
+
+
+class PointCloudPublisher:
+    """Publisher for point cloud."""
+
+    def __init__(self, topic_name, frame_id="map", queue_size=1):
+        """Set point cloud publisher"""
+        self.pub = rospy.Publisher(
+            topic_name, PointCloud2, queue_size=queue_size
+        )
+        self.frame_id = frame_id
+
+    def publish_o3d_pcl(self, open3d_cloud):
+        
+        points = np.asarray(open3d_cloud.points, dtype=np.float32)
+        colors = None
+        if open3d_cloud.colors is not None:
+            colors = np.floor(np.asarray(open3d_cloud.colors) * 255).astype(
+                np.uint32
+            ) 
+        pcl_msg = self.create_msg(points, colors)
+        self.pub.publish(pcl_msg)
+        return
+
+    def publish_np_pcl(self, points, colors=None):
+        
+        pcl_msg = self.create_msg(points, colors)
+        self.pub.publish(pcl_msg)
+        return 
+
+    def create_msg(self, points, colors):
+
+        header = Header(frame_id=self.frame_id)
+        header.stamp = rospy.Time.now()
+
+        # Set "fields" and "cloud_data"
+        if colors is None:  # XYZ only
+            fields = FIELDS_XYZ
+            cloud_data = points
+        else:  # XYZ + RGB
+            fields = FIELDS_XYZRGB
+            # -- Change rgb color from "three float" to "one 24-byte int"
+            # 0x00FFFFFF is white, 0x00000000 is black.
+
+            cloud_data = []
+            for i in range(points.shape[0]):
+                xyz = points[i]
+                c = colors[i]
+                rgba = struct.unpack(
+                    "I", struct.pack("BBBB", c[2], c[1], c[0], 255)
+                )[0]
+
+                pt = [xyz[0], xyz[1], xyz[2], rgba]
+                cloud_data.append(pt)
+
+        # create ros_cloud
+        return pc2.create_cloud(header, fields, cloud_data)

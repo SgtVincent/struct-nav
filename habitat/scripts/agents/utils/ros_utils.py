@@ -4,7 +4,7 @@ import quaternion as qt
 import numpy as np 
 from std_srvs.srv import Empty, EmptyRequest
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header, String
+from std_msgs.msg import Header, String, ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point, Quaternion, PoseStamped
 from nav_msgs.msg import Odometry
@@ -36,8 +36,8 @@ def safe_get_map_service(service_name="/rtabmap/get_map", timeout=5.):
             time.sleep(0.5)
     return response.map 
 
-
-def publish_frontiers(frontiers, goals, publisher):
+def publish_frontiers(frontiers, goals, publisher, 
+    f_c=(0., 1.0, 0., 0.5), g_c=(1.0, 0., 0., 0.5)):
 
     marker_arr = MarkerArray()
     # color_map = cm.get_cmap("plasma")
@@ -52,10 +52,8 @@ def publish_frontiers(frontiers, goals, publisher):
         marker.scale.x = 0.5
         marker.scale.y = 0.5
         marker.scale.z = 0.5
-        marker.color.r = 1.0
-        marker.color.g = 0.0
-        marker.color.b = 0.0
-        marker.color.a = 0.5
+        # color: (r,g,b,a) 4-tuple
+        marker.color = ColorRGBA(*g_c)
         marker.pose.orientation.w = 1.0
         marker.pose.position.x = g[0]
         marker.pose.position.y = g[1]
@@ -82,10 +80,7 @@ def publish_frontiers(frontiers, goals, publisher):
         marker.scale.x = 0.5 * f[2] / frontiers_mean_scale
         marker.scale.y = 0.5 * f[2] / frontiers_mean_scale
         marker.scale.z = 0.5 * f[2] / frontiers_mean_scale
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
-        marker.color.a = 0.5
+        marker.color = ColorRGBA(*f_c)
         marker.pose.orientation.w = 1.0
         marker.pose.position.x = f[0]
         marker.pose.position.y = f[1]
@@ -97,21 +92,23 @@ def publish_frontiers(frontiers, goals, publisher):
     publisher.publish(marker_arr)
     return 
 
-def publish_object_goal(goals, publisher):
+
+
+def publish_targets(targets, publisher):
 
     marker_arr = MarkerArray()
     # color_map = cm.get_cmap("plasma")
     # publish goals
-    for i, g in enumerate(goals):
+    for i, g in enumerate(targets):
 
         marker = Marker()
         marker.header = Header()
         marker.header.frame_id = "map"
         marker.id = i  # avoid overwrite
         marker.type = marker.SPHERE
-        marker.scale.x = 0.5
-        marker.scale.y = 0.5
-        marker.scale.z = 0.5
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
         marker.color.r = 0.0
         marker.color.g = 0.0
         marker.color.b = 1.0

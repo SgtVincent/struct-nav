@@ -1,6 +1,6 @@
 ## Installation with RoboStack
 
-### Install RoboStack environments
+### Install RoboStack environments with python 3.8
 
 You can follow the instructions below or refer to [Robostack Installation page](https://robostack.github.io/GettingStarted.html) for more details
 
@@ -57,6 +57,7 @@ pip install -e .
 ```bash
 # for example, install pytorch 1.9.0 with cuda 11.3
 # mamba install pytorch==1.9.0 torchvision==0.10.0 torchaudio==0.9.0 cudatoolkit=11.3 -c pytorch -c conda-forge
+cd ~/catkin_ws/src/struct-nav/habitat
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 pip install -r requirements.txt
 ```

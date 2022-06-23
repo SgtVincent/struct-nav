@@ -100,6 +100,8 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
+        odom_wheel:
+          Value: true
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -109,9 +111,10 @@ Visualization Manager:
       Tree:
         map:
           odom:
-            base_link:
-              camera_link:
-                {}
+            odom_wheel:
+              base_link:
+                camera_link:
+                  {}
       Update Interval: 0
       Value: true
     - Class: rviz/Image
@@ -278,6 +281,34 @@ Visualization Manager:
       Topic: /eval_habitat_env/wheel_odom
       Unreliable: false
       Value: false
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: ""
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: ""
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Flat Squares
+      Topic: /eval_habitat_env/detected_goal_pts
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -302,7 +333,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 16.815893173217773
+      Distance: 10.762470245361328
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -310,17 +341,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.9589561820030212
-        Y: 0.2637876570224762
-        Z: -1.0311071872711182
+        X: 1.4103816747665405
+        Y: -0.34550994634628296
+        Z: 0.23594976961612701
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3847965002059937
+      Pitch: 0.6897963285446167
       Target Frame: base_link
-      Yaw: 4.621766567230225
+      Yaw: 4.431718349456787
     Saved: ~
 Window Geometry:
   Displays:

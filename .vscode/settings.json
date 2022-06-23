@@ -59,5 +59,6 @@
     },
     "python.formatting.blackArgs": [
         "--line-length 100"
-    ]
+    ],
+    "ros.rosSetupScript": "/home/junting/miniforge3/envs/struct_nav/local_setup.sh"
 }

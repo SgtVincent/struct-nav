@@ -28,7 +28,7 @@ SIMULATOR:
         HEIGHT: 720
         HFOV: 90
         MIN_DEPTH: 0.0
-        MAX_DEPTH: 10.0
+        MAX_DEPTH: 5.0
         NORMALIZE_DEPTH: False
         POSITION: [0, 0.88, 0]
 TASK:
@@ -50,7 +50,7 @@ TASK:
 DATASET:
     TYPE: PointNav-v1
     SPLIT: train
-    CONTENT_SCENES: ["Collierville.glb"]
+    CONTENT_SCENES: ["Corozal.glb"]
     # DATA_PATH: "data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
     # EPISODES_DIR: "data/datasets/objectnav/gibson/v1/{split}/"
     # SCENES_DIR: "data/scene_datasets/"
