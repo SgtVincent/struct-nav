@@ -181,6 +181,60 @@ class HabitatObservationPublisher:
             self.camera_info.header.stamp = cur_time
             self.camera_info_publisher.publish(self.camera_info)
 
+        # publish wheel odometry as tf: odom_wheel -> base_link
+        # NOTE: publish guess frame before observations
+        # Otherwise odometry update will be aborted 
+        if self.publish_wheel_odom_tf:
+
+            wo_msg = TransformStamped()
+            wo_msg.header.stamp = cur_time
+            wo_msg.header.frame_id = self.wheel_odom_frame_id
+            wo_msg.child_frame_id = "base_link"
+                
+            # construct position and rotation
+            pose_mat = observations["odom_pose_mat"]
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+
+            wo_msg.transform.translation = Vector3(x, y, z)
+            wo_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # add to this list if more tfs needed 
+            tf_msgs = TFMessage([wo_msg])
+            self.tf_publisher.publish(tf_msgs)
+
+        if self.publish_wheel_odom:
+            
+            pose_mat = observations["odom_pose_mat"]
+            odom_msg = Odometry()
+
+            odom_msg.header.stamp = cur_time
+            odom_msg.header.frame_id = 'odom'
+            odom_msg.child_frame_id = 'base_link'
+            
+            # construct position and rotation
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+            odom_msg.pose.pose.position = Point(x, y, z)
+            odom_msg.pose.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # create pseudo diagnal covariance matrix
+            # robot on x-y plane
+            p_cov = np.array([
+                5e-2, 0., 0., 0., 0., 0.,
+                0., 5e-2, 0., 0., 0., 0.,
+                0., 0., 1e3, 0., 0., 0.,
+                0., 0., 0., 1e3, 0., 0.,
+                0., 0., 0., 0., 1e3, 0.,
+                0., 0., 0., 0., 0., 1e-2,
+            ])
+            odom_msg.pose.covariance = p_cov.tolist()
+
+            # NOTE: if to implement continous control, add psedu twist message
+            
+            # Publish odometry message
+            self.wheel_odom_publisher.publish(odom_msg)
+
         # Publish RGB image.
         if self.publish_rgb:
             # self.image = self.cvbridge.cv2_to_imgmsg(observations['rgb'])
@@ -229,58 +283,6 @@ class HabitatObservationPublisher:
             #     2,
             #     semantic_color,
             # )
-
-        if self.publish_wheel_odom:
-            
-            pose_mat = observations["odom_pose_mat"]
-            odom_msg = Odometry()
-
-            odom_msg.header.stamp = cur_time
-            odom_msg.header.frame_id = 'odom'
-            odom_msg.child_frame_id = 'base_link'
-            
-            # construct position and rotation
-            x, y, z = pose_mat[:3,3]
-            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
-            odom_msg.pose.pose.position = Point(x, y, z)
-            odom_msg.pose.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
-
-            # create pseudo diagnal covariance matrix
-            # robot on x-y plane
-            p_cov = np.array([
-                5e-2, 0., 0., 0., 0., 0.,
-                0., 5e-2, 0., 0., 0., 0.,
-                0., 0., 1e3, 0., 0., 0.,
-                0., 0., 0., 1e3, 0., 0.,
-                0., 0., 0., 0., 1e3, 0.,
-                0., 0., 0., 0., 0., 1e-2,
-            ])
-            odom_msg.pose.covariance = p_cov.tolist()
-
-            # NOTE: if to implement continous control, add psedu twist message
-            
-            # Publish odometry message
-            self.wheel_odom_publisher.publish(odom_msg)
-
-        # publish wheel odometry as tf: odom_wheel -> base_link
-        if self.publish_wheel_odom_tf:
-
-            wo_msg = TransformStamped()
-            wo_msg.header.stamp = cur_time
-            wo_msg.header.frame_id = self.wheel_odom_frame_id
-            wo_msg.child_frame_id = "base_link"
-                
-            # construct position and rotation
-            pose_mat = observations["odom_pose_mat"]
-            x, y, z = pose_mat[:3,3]
-            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
-
-            wo_msg.transform.translation = Vector3(x, y, z)
-            wo_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
-
-            # add to this list if more tfs needed 
-            tf_msgs = TFMessage([wo_msg])
-            self.tf_publisher.publish(tf_msgs)
             
         # Publish true pose
         if self.publish_true_pose:

@@ -267,81 +267,88 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.cnt_action = 0
 
     def reset(self, publish_obs=True):
-        args = self.args
-
-        # 1. call reset function of ObjectGoal_Env to reset scene in habitat-lab
-        obs, info = super().reset()
-
-        # 2. reset map and odom in rtabmap_ros
-        safe_call_reset_service("/rtabmap/reset")  # reset map
-        safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
-        # Initialize TF tree with ground truth init pose (if any)
-        # sim_agent = sim.get_agent(0)
-        # transformation.publish_agent_init_tf(sim_agent)
-
-        # 3. initialize episode variables
         
-        # map-related info should be initialized by first ros message in an episode
-        # map_shape = self.initial_map_size
-        self.map_reset = True # flag to re-initialize map in process_ros_messages
-        self.collision_map = None
-        self.visited = None
-        self.visited_vis = None
-        self.goal_map = None
-        self.curr_loc = None
-        self.map_origin = None
-        self.map_shape = None
-        self.col_width = 1
-        self.count_forward_actions = 0
-        self.cnt_pub = 0
-        self.cnt_action = 0
-        self.spot_goal = 0
-        self.last_action = None
-        self.last_odom_mat = np.eye(4)
-        self.actions_queue = deque([], maxlen=4)
-
-        if args.visualize or args.print_images:
-            self.vis_image = vu.init_occ_image(self.goal_name)
-
-        # 4. publish observation if publish_obs set to True
-        obs = self._preprocess_obs(obs)
-        if publish_obs:
-            self.pub_obs.publish(obs)
-            self.cnt_pub += 1
-            time.sleep(1)
-            # if DEBUG:
-            #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
-        
-        # NOTE: 1. after resetting the episode, if not to request new grid map, then
-        # inconsistency between old grid map message from last episode and 
-        # observations of this episode will lead to error 
-        # NOTE: 2. there are some cases rtabmap does not have time to initialize 
-        # new grid map, keep publishing observations until new map ready 
-        service_name="/rtabmap/get_map"
-        timeout=5.
         success = False
         while(not success):
-            try:
-                rospy.wait_for_service(service_name, timeout=timeout)
-                response = rospy.ServiceProxy(service_name, GetMap)()
-                success = True
-            except rospy.ServiceException as e:
-                rospy.logwarn(f"Get map by calling {service_name} failed: {e}")
-                rospy.logwarn("Republishing observations...")
+            args = self.args
+            # 1. call reset function of ObjectGoal_Env to reset scene in habitat-lab
+            obs, info = super().reset()
+
+            # 2. initialize episode variables
+            
+            # map-related info should be initialized by first ros message in an episode
+            # map_shape = self.initial_map_size
+            self.map_reset = True # flag to re-initialize map in process_ros_messages
+            self.collision_map = None
+            self.visited = None
+            self.visited_vis = None
+            self.goal_map = None
+            self.curr_loc = None
+            self.map_origin = None
+            self.map_shape = None
+            self.col_width = 1
+            self.count_forward_actions = 0
+            self.cnt_pub = 0
+            self.cnt_action = 0
+            self.spot_goal = 0
+            self.last_action = None
+            self.last_odom_mat = np.eye(4)
+            self.actions_queue = deque([], maxlen=4)
+
+            if args.visualize or args.print_images:
+                self.legend = cv2.imread("docs/legend.png")
+                self.rgb_vis = None
+                self.vis_image = vu.init_occ_image(
+                    self.goal_name
+                )  # , self.legend)
+
+            ############ reset ROS-related class ###################
+            
+            # 3. reset map and odom in rtabmap_ros
+            safe_call_reset_service("/rtabmap/reset")  # reset map
+            safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
+            time.sleep(1.0)
+            
+            # 4. publish observation
+            obs = self._preprocess_obs(obs)
+            if publish_obs:
                 self.pub_obs.publish(obs)
+                self.cnt_pub += 1
                 time.sleep(0.5)
-        
-        self.grid_map_msg = response.map
-
-        if args.visualize or args.print_images:
-            self.legend = cv2.imread("docs/legend.png")
-            self.rgb_vis = None
-            self.vis_image = vu.init_occ_image(
-                self.goal_name
-            )  # , self.legend)
-
+                # if DEBUG:
+                #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
+            
+            # NOTE: 1. after resetting the episode, if not to request new grid map, then
+            # inconsistency between old grid map message from last episode and 
+            # observations of this episode will lead to error 
+            # NOTE: 2. there are some cases rtabmap does not have time to initialize 
+            # new grid map, keep publishing observations until new map ready 
+            timeout=5.
+            map_ready = False
+            max_fail = 3
+            fail_cnt = 0
+            
+            while(not map_ready and fail_cnt < max_fail):
+                try:
+                    rospy.wait_for_service("/rtabmap/get_map", timeout=timeout)
+                    response = rospy.ServiceProxy("/rtabmap/get_map", GetMap)()
+                    map_ready = True
+                    success = True
+                    self.grid_map_msg = response.map
+                    
+                except rospy.ServiceException as e:
+                    fail_cnt += 1
+                    rospy.logwarn(f"Get map by calling /rtabmap/get_map failed: {e}")
+                    # safe_call_reset_service("/rtabmap/reset")  # reset map
+                    # safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
+                    # time.sleep(1.0)
+                    rospy.logwarn("Republishing observations...")
+                    self.pub_obs.publish(obs)
+                    time.sleep(0.5)
+                    
         self.obs = obs 
         return obs, info
+
 
     def process_ros_messages(self):
         
@@ -545,13 +552,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 cluster_trashhole=self.args.cluster_trashhole,
                 num_goals=1,
             )
-            # TODO: think about goal selection strategy
-            goal_position = goals[0, :]
-            publish_frontiers(frontiers, goals, self.pub_frontiers)
+            if len(frontiers) > 0:
+                publish_frontiers(frontiers, goals, self.pub_frontiers)
 
         else: 
             ######### if target object already observed, go directly ########## 
-            # TODO: Improve this by sliding window average ! 
             if (self.goal_idx + 1) in self.obs['semantic']: 
                 camera_param=get_camera_matrix(
                     self.obs_width,
@@ -718,6 +723,11 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         map_pred = np.rint(planner_inputs["map_pred"])
         goal = planner_inputs["goal"]
 
+        if np.all(goal == 0) and planner_inputs["found_goal"] == 0:
+            action = 0  # Stop
+            rospy.logwarn("Scene fully explored while no goal detected, stop episode")
+            return action 
+
         # Get pose prediction and global policy planning window
         # FIXME: neural slam has local planning window
         # now planning is running on global map, not scalable
@@ -872,7 +882,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 action = 1  # Forward
 
             # overwrite local planner if agent is stuck locally
-            if self.actions_queue.count(3) + self.actions_queue.count(2) >=4:
+            # current policy: last 4 actions are lrlr or rlrl
+            # TODO: investigate why it get stuck and solve the problem
+            if self.actions_queue.count(3)==2 and self.actions_queue.count(2)==2:
                 action = 1 # Execute forward to get away from left-right swing cycle
 
         return action

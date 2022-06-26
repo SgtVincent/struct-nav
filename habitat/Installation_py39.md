@@ -1,25 +1,16 @@
 ## Installation with RoboStack
 
-### Install RoboStack environments with python 3.9
+### Install miniconda and create environment 
 
 You can follow the instructions below or refer to [Robostack Installation page](https://robostack.github.io/GettingStarted.html) for more details
 
 1. Install [miniconda](https://docs.conda.io/en/latest/miniconda.html) or [miniforge](https://github.com/conda-forge/miniforge) from official site
-2. Install mamba in your **base** environment
-
+2. Install mamba in your **base** environment. **DO NOT** install mamba in your robostack environment 
 ```bash
 conda install mamba -n base -c conda-forge
 ```
 
-3. Create environment for ROS + conda with python 3.9
-
-NOTE: The reason to use python 3.9 is that, Robostack has moved whole project to 
-python=3.9, there are a lot of outdated packages with python=3.8. Specifically, 
-there is only rtabmap_ros<=0.20.14 with python=3.8, which has performances drop compared to rtabmap_ros=0.20.18 with python=3.9.  
-
-One problem with python 3.9 is that, habitat pre-built packages support python<=3.8, which
-means that you have to build habitat packages from source. 
-
+3. Create envrionment to install robostack 
 ```bash
 # now create a new environment
 mamba create -n ros_env python=3.9
@@ -30,7 +21,35 @@ conda config --env --add channels conda-forge
 # and the robostack channels
 conda config --env --add channels robostack
 conda config --env --add channels robostack-experimental
+```
 
+
+### Install habitat-sim and habitat-lab
+Note that after installation of robostack dependencies, system C/C++ dependencies will be overwritten by 
+robostack, which leads to conflicts when building habitat-sim from source. (Possibly caused by that cmake/make system default paths 
+are redirected to conda environment paths, and this leads to cuda/opengl link problem.)
+
+```bash
+git clone --branch v0.2.1 https://github.com/facebookresearch/habitat-sim.git
+cd habitat-sim 
+pip install -r requirements.txt    
+python setup.py install --with-cuda
+cd ..
+git clone --branch v0.2.1 https://github.com/facebookresearch/habitat-lab.git
+cd habitat-lab
+pip install -e .
+```
+
+### Install ros packages under Robostack framework
+
+NOTE: The reason to use python 3.9 is that, Robostack has moved whole project to 
+python=3.9, there are a lot of outdated packages with python=3.8. Specifically, 
+there is only rtabmap_ros<=0.20.14 with python=3.8, which has performances drop compared to rtabmap_ros=0.20.18 with python=3.9.  
+
+One problem with python 3.9 is that, habitat pre-built packages support python<=3.8, which
+means that you have to build habitat packages from source. 
+
+```bash
 # install ros-noetic
 mamba install ros-noetic-desktop
 
@@ -50,16 +69,9 @@ For more available ROS packages in Robostack channel, you can refer to [this pag
 
 Make sure you **DO NOT** install any ros packages with apt commands in the system, since this will lead to environment conflicts.
 
-4. Install Habitat dependencies
 
-```bash
-mamba install habitat-sim withbullet headless -c conda-forge -c aihabitat
-git clone --branch stable https://github.com/facebookresearch/habitat-lab.git
-cd habitat-lab
-pip install -e .
-```
 
-5. Install other dependencies
+### Install other python dependencies
 
 ```bash
 # for example, install pytorch 1.9.0 with cuda 11.3
@@ -67,19 +79,14 @@ pip install -e .
 cd ~/catkin_ws/src/struct-nav/habitat
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 pip install -r requirements.txt
-```
 
-6. Install detectron2 
-
-Please see https://detectron2.readthedocs.io/en/latest/tutorials/install.html for install instructions. If you follow the same package versions in steps above to install environment, you could also execute following commands to install detectron2.
-
-```bash
+# Please see https://detectron2.readthedocs.io/en/latest/tutorials/install.html for install instructions. If you follow the same package versions in steps above to install environment, you could also execute following commands to install detectron2.
 python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.9/index.html
 ```
+### Build ROS packages
 
-7. Build ROS packages
-   TODO: add this denpendency to rosdep
-   PyKDL: Since PyKDL installed by ros-noetic-tf2-geometry-msgs is outdated and depends on old releases of PyQt5-sip, sip packages, you should rebuild this module from source code:
+TODO: add this denpendency to rosdep
+PyKDL: Since PyKDL installed by ros-noetic-tf2-geometry-msgs is outdated and depends on old releases of PyQt5-sip, sip packages, you should rebuild this module from source code:
 
 ```bash
 cd ~/catkin_ws/src/struct-nav
@@ -87,7 +94,8 @@ git clone https://github.com/orocos/orocos_kinematics_dynamics.git
 cd orocos_kinematics_dynamics
 git submodule update --init
 cd ~/catkin_ws
-catkin build python_orocos_kdl
+# catkin build python_orocos_kdl
+catkin build
 source devel/setup.sh
 ```
 

@@ -1,6 +1,6 @@
 <launch>
     <arg name="agent_type" default="frontier_2d_detection" />
-    <arg name="grid_normals_segmentation" default="true" />
+    <arg name="grid_normals_segmentation" default="false" />
     <arg name="grid_global_min_size" default="10.0" />
     <!-- flag to enable wheel odometer -->
     <arg name="wheel_odom" default="true" />
@@ -49,9 +49,9 @@
         <!-- by default predict ground from point normals-->
         <arg name="grid_normals_segmentation" value="$(arg grid_normals_segmentation)" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_max_ground_height" value="0.20" />
+        <arg name="grid_max_ground_height" value="0.10" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_min_ground_height" value="-0.20" />
+        <arg name="grid_min_ground_height" value="-0.10" />
 
         <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
         <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum neighbors.] -->

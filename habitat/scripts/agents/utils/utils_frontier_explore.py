@@ -200,7 +200,7 @@ def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist",
         goal_map[int(current_position[1]), int(current_position[0])] = 1
         selem = disk(3)
         goal_map = binary_dilation(goal_map, selem)
-        traversible_ma[(goal_map == 1)&(traversible_ma.mask == False)] = 0
+        traversible_ma[(goal_map == 1)] = 0
         fmm_dist = skfmm.distance(traversible_ma, dx=1)
         fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
 
@@ -284,6 +284,10 @@ def frontier_goals(
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
+    
+    # no frontiers in current scene 
+    if len(frontiers_grid) == 0: 
+        return [], [], np.zeros_like(map_raw)
     
     centroids_grid = compute_centroids(frontiers_grid, map_resolution)
     current_position_grid = np.round(

@@ -50,13 +50,14 @@ TASK:
 DATASET:
     TYPE: PointNav-v1
     SPLIT: train
-    CONTENT_SCENES: ["Corozal.glb"]
+    CONTENT_SCENES: ["Wiconisco.glb"]
     # DATA_PATH: "data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
     # EPISODES_DIR: "data/datasets/objectnav/gibson/v1/{split}/"
     # SCENES_DIR: "data/scene_datasets/"
-    DATA_PATH: "/home/junting/Downloads/datasets/habitat_data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
-    EPISODES_DIR: "/home/junting/Downloads/datasets/habitat_data/datasets/objectnav/gibson/v1/{split}/"
-    SCENES_DIR: "/home/junting/Downloads/datasets/habitat_data/scene_datasets/"
-    # DATA_PATH: "/media/junting/SSD_data/habitat_data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
-    # EPISODES_DIR: "/media/junting/SSD_data/habitat_data/datasets/objectnav/gibson/v1/{split}/"
-    # SCENES_DIR: "/media/junting/SSD_data/habitat_data/scene_datasets/"
+    # DATA_PATH: "/home/junting/Downloads/datasets/habitat_data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
+    # EPISODES_DIR: "/home/junting/Downloads/datasets/habitat_data/datasets/objectnav/gibson/v1/{split}/"
+    # SCENES_DIR: "/home/junting/Downloads/datasets/habitat_data/scene_datasets/"
+    DATA_PATH: "/media/junting/SSD_data/habitat_data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
+    EPISODES_DIR: "/media/junting/SSD_data/habitat_data/datasets/objectnav/gibson/v1/{split}/"
+    SCENES_DIR: "/media/junting/SSD_data/habitat_data/scene_datasets/"
+
