@@ -10,6 +10,7 @@
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="habitat_update_rate" default="2.0" />
 
+
     <node pkg="habitat_ros" type="main.py" name="habitat_agent" output="screen">
         <!-- <param name="task_config" value="$(find habitat_ros)/scripts/envs/habitat/configs/challenge_objectnav2021.local.rgbd.yaml" /> -->
         <param name="agent_type" value="$(arg agent_type)" />

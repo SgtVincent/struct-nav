@@ -11,7 +11,7 @@ import numpy as np
 import open3d as o3d
 import trimesh
 from tqdm import tqdm
-from utils import define, util, util_label, util_ply
+from sg_nav_utils import define, util, util_label, util_ply
 from utils.util_search import SAMPLE_METHODS, find_neighbors
 
 

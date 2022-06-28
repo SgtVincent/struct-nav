@@ -12,11 +12,11 @@
     // will be detected based on the file contents. Set to false to keep
     // the values you've explicitly set, above.
     "editor.detectIndentation": false,
-    "editor.formatOnSave": false,
+    "editor.formatOnSave": true,
     "[python]": {
         "editor.rulers": [80],
         // Python use black as formatter
-        "editor.defaultFormatter": null,
+        "editor.defaultFormatter": null
     },
     "python.formatting.provider": "black",
     "python.linting.pylintEnabled": true,
@@ -25,9 +25,9 @@
         "--disable=C0111",
         "--extension-pkg-whitelist=cv2"
     ],
-    "python.linting.pydocstyleEnabled": false,
+    "python.linting.pydocstyleEnabled": true,
     "python.linting.pydocstyleArgs": ["--convention=google"],
-    "python.linting.mypyEnabled": false,
+    "python.linting.mypyEnabled": true,
     "spellright.language": ["en"],
     "spellright.documentTypes": [
         "markdown",
@@ -56,8 +56,5 @@
     "cmake.configureOnOpen": false,
     "[xml]": {
         "editor.defaultFormatter": "redhat.vscode-xml"
-    },
-    "python.formatting.blackArgs": [
-        "--line-length 100"
-    ]
+    }
 }

@@ -8,7 +8,7 @@ from agents.dummy_agents import RandomWalkAgent, SpinningAgent
 from agents.frontier_explore_agent import FrontierExploreAgent
 from agents.utils.arguments import get_args
 from utils.publishers import HabitatObservationPublisher
-from simulator import init_sim
+from utils.simulator import init_sim
 
 # from std_msgs.msg import Int32
 from subscribers import PointCloudSubscriber
@@ -107,6 +107,17 @@ def main():
         print("AGENT TYPE {} IS NOT DEFINED!!!".format(agent_type))
         return
 
+    # ros pub and sub
+    rate = rospy.Rate(rate_value)
+    publisher = HabitatObservationPublisher(
+        rgb_topic,
+        depth_topic,
+        camera_info_topic,
+        true_pose_topic,
+        camera_info_file,
+        # sim_config=sim.config, # bugs remained!
+    )
+
     # Run the simulator with agent
     # observations = sim.reset()
     # observations = sim.step("stay")
@@ -142,7 +153,7 @@ def main():
 
         # if VISUALIZE and cnt_sub == 11:
         #     coo = o3d.geometry.TriangleMesh.create_coordinate_frame()
-        #     o3d_cloud = transformation.coo_rtab2mp3d(o3d_cloud)
+        #     o3d_cloud = transformation.o3d_rtab2mp3d(o3d_cloud)
         #     o3d.visualization.draw_geometries([coo, o3d_cloud])
 
         # message processing and synchronization should be down in agent.act()

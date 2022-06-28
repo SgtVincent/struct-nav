@@ -38,7 +38,7 @@ class SceneGraphBase(ABC):
         pass
 
     @abstractmethod
-    def __init__(self, config) -> None:
+    def __init__(self) -> None:
         """Initialize scene graph on different 3D datasets"""
         """Parsing of 3D datasets should be implemented in dataset module"""
         pass
@@ -60,7 +60,7 @@ class SceneGraphHabitat(SceneGraphBase):
     region_layer = None
 
     def __init__(self, config, scene_name=None) -> None:
-        super().__init__(config)
+        super().__init__()
         self.config = config
         self.scene_name = scene_name
 

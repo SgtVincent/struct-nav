@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from matplotlib.path import Path
 
 
 def get_contour_points(pos, origin, size=20):
@@ -28,6 +29,23 @@ def draw_line(start, end, mat, steps=25, w=1):
         mat[x - w : x + w, y - w : y + w] = 1
     return mat
 
+
+def draw_polygen(map, poly_verts, value=5):
+    nx, ny = map.shape
+
+    # Create vertex coordinates for each grid cell...
+    # (<0,0> is at the top left of the grid in this system)
+    x, y = np.meshgrid(np.arange(nx), np.arange(ny))
+    x, y = x.flatten(), y.flatten()
+
+    points = np.vstack((x,y)).T
+
+    path = Path(poly_verts)
+    grid = path.contains_points(points)
+    grid = grid.reshape((ny,nx))
+
+    map[grid.T] = value
+    return map
 
 def init_sem_image(goal_name, legend):
     vis_image = np.ones((655, 1165, 3)).astype(np.uint8) * 255

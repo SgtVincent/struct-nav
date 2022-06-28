@@ -1,12 +1,12 @@
 <launch>
 
     <arg name="grid_normals_segmentation" default="true" />
-    <arg name="grid_global_min_size" default="10.0"/>
+    <arg name="grid_global_min_size" default="10.0" />
     <!-- flag to enable wheel odometer -->
-    <arg name="wheel_odom" default="true"/>
-    <arg name="whee_odom_frame_id" default="odom_wheel"/>
-    
-    
+    <arg name="wheel_odom" default="true" />
+    <arg name="whee_odom_frame_id" default="odom_wheel" />
+
+
     <!-- habitat agent & habitat simulator -->
     <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
         <arg name="agent_type" value="frontier_explore" />
@@ -14,7 +14,7 @@
     <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
     <!-- <arg name="habitat_update_rate" value="2.0" />
     </include> -->
-    
+
     <!-- rtabmap -->
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
 
@@ -26,10 +26,10 @@
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />
         <arg name="approx_rgbd_sync" value="false" />
-        <arg name="grid_global_min_size" value="$(arg grid_global_min_size)"/>
-        <arg name="wheel_odom" value="$(arg wheel_odom)"/>
+        <arg name="grid_global_min_size" value="$(arg grid_global_min_size)" />
+        <arg name="wheel_odom" value="$(arg wheel_odom)" />
         <arg if="$(arg wheel_odom)" name="odom_guess_frame_id" value="$(arg whee_odom_frame_id)" />
-        
+
         <!-- topics  -->
         <!-- input -->
         <arg name="rgb_topic" value="/camera/rgb/image" />
@@ -39,19 +39,19 @@
         <arg name="scan_topic" value="/scan" />
         <arg name="odom_topic" value="/odom" />
         <!-- output -->
-        
+
         <!-- map parameters-->
         <arg name="grid_3d" value="true" />
         <arg name="grid_ray_tracing" value="true" />
         <arg name="grid_cell_size" value="0.05" />
         <arg name="grid_depth_decimation" value="4" />
-        
+
         <!-- by default predict ground from point normals-->
         <arg name="grid_normals_segmentation" value="$(arg grid_normals_segmentation)" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_max_ground_height" value="0.20"/>
+        <arg name="grid_max_ground_height" value="0.20" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_min_ground_height" value="-0.20"/>
+        <arg name="grid_min_ground_height" value="-0.20" />
 
         <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
         <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum neighbors.] -->
@@ -63,6 +63,9 @@
         <!-- <arg name="move_base_topic" value="/move_base" /> -->
 
     </include>
+
+    <!-- DEBUG node to publish ground truth matterport3D scene point clouds-->
+    <!-- <node pkg="habitat_ros" type="publish_gt_mp3d.py" name="publish_gt_mp3d" output="screen" /> -->
 
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz" />
     <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->

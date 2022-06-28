@@ -12,7 +12,7 @@ from shutil import copyfile
 
 import numpy as np
 from plyfile import PlyData
-from utils import define
+from sg_nav_utils import define
 
 try:
     from sets import Set

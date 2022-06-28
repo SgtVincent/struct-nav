@@ -494,7 +494,7 @@ class SGFN:
             drop_last=False,
             shuffle=False,
         )
-        from utils import util_eva
+        from sg_nav_utils import util_eva
 
         eva_tool = util_eva.EvalSceneGraph(
             self.dataset_valid.classNames,
@@ -669,7 +669,7 @@ class SGFN:
             drop_last=False,
             shuffle=False,
         )
-        from utils import util_eva
+        from sg_nav_utils import util_eva
 
         eva_tool = util_eva.EvalSceneGraph(
             self.dataset_eval.classNames,
