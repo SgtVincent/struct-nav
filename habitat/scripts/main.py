@@ -100,7 +100,7 @@ def main():
         agent_args.grid_map_topic = grid_map_topic
         agent_args.frontiers_topic = frontiers_topic
         # agent_args.goal_topic = goal_topic
-        agent = FrontierExploreAgent(agent_args)
+        agent = FrontierExploreAgent(agent_args, sim)
         # agent.reset()  # must call this function to initialize agent
 
     else:

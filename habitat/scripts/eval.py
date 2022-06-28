@@ -4,8 +4,6 @@ import os
 import logging
 import time
 import json
-import gym
-from matplotlib import docstring
 import torch.nn as nn
 import torch
 import numpy as np
@@ -18,15 +16,12 @@ from arguments import get_args
 
 os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
-import open3d as o3d
 import rospy
 # from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
 from arguments import get_args
-from simulator import init_sim
 
 # from std_msgs.msg import Int32
 from subscribers import PointCloudSubscriber
-from utils import transformation
 
 
 def main():
