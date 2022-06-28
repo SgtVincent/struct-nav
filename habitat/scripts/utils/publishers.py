@@ -1,16 +1,39 @@
 """Publisher helpers."""
-
+import struct
+import quaternion as qt 
 import numpy as np
 import rospy
-import tf.transformations as tf
+import tf2_ros
+from tf2_msgs.msg import TFMessage
+from tf import transformations
 import yaml
 import habitat_sim
-import magnum
+import cv2
 from cv_bridge import CvBridge
+from std_msgs.msg import Header
+from geometry_msgs.msg import (
+    PoseStamped, Point, Quaternion, TransformStamped, Vector3
+)
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
+import sensor_msgs.point_cloud2 as pc2
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
 
 DEPTH_SCALE = 1
+
+FIELDS_XYZ = [
+    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+]
+FIELDS_XYZRGB = FIELDS_XYZ + [
+    PointField(name="rgba", offset=12, datatype=PointField.UINT32, count=1)
+]
+
+# Bit operations
+BIT_MOVE_16 = 2 ** 16
+BIT_MOVE_8 = 2 ** 8
 
 
 def get_camera_info(filepath):
@@ -39,10 +62,12 @@ def get_camera_info_config(config: habitat_sim.Configuration):
     height = sensor_spec.resolution[0].item()  # numpy.int32 to native int
     width = sensor_spec.resolution[1].item()
     hfov = float(sensor_spec.hfov) / 180.0 * np.pi  # degree to radius
+    fx = cx = width / 2.0 / np.tan(hfov / 2.0)
+    fy = cy = height / 2.0 / np.tan(hfov / 2.0)
     K_mat = np.array(
         [
-            [width / 2.0 / np.tan(hfov / 2.0), 0.0, 0.0],
-            [0.0, height / 2.0 / np.tan(hfov / 2.0), 0.0],
+            [fx, 0.0, cx],
+            [0.0, fy, cy],
             [0.0, 0.0, 1.0],
         ]
     )
@@ -68,13 +93,33 @@ class HabitatObservationPublisher:
         self,
         rgb_topic="",
         depth_topic="",
+        semantic_topic="",
         camera_info_topic="",
+        wheel_odom_topic="", # publish wheel_odom by Odometry message
         true_pose_topic="",
         camera_info_file="",
+        wheel_odom_frame_id="", # publish wheel_odom as tf: odom_wheel -> base_link
         sim_config=None,
     ):
         """Initialize publisher with topic handles."""
         self.cvbridge = CvBridge()
+        self.camera_info_topic = camera_info_topic
+        self.publish_camera_info = False
+        self.rgb_topic = rgb_topic
+        self.publish_rgb = False
+        self.depth_topic = depth_topic
+        self.publish_depth = False
+        self.semantic_topic = semantic_topic
+        self.publish_semantic = False
+        self.wheel_odom_topic = wheel_odom_topic
+        self.publish_wheel_odom = False
+        self.true_pose_topic = true_pose_topic
+        self.publish_true_pose = False
+        # publish wheel odometry as tf: odom_wheel -> base_link, 
+        # see "guess_frame_id" in http://wiki.ros.org/rtabmap_ros
+        self.wheel_odom_frame_id = wheel_odom_frame_id
+        self.publish_wheel_odom_tf = False
+
 
         # Initialize camera info publisher.
         if len(camera_info_topic) > 0:
@@ -86,8 +131,6 @@ class HabitatObservationPublisher:
                 self.camera_info = get_camera_info_config(sim_config)
             else:
                 self.camera_info = get_camera_info(camera_info_file)
-        else:
-            self.publish_camera_info = False
 
         # Initialize RGB image publisher.
         if len(rgb_topic) > 0:
@@ -95,8 +138,6 @@ class HabitatObservationPublisher:
             self.image_publisher = rospy.Publisher(
                 rgb_topic, Image, latch=True, queue_size=100
             )
-        else:
-            self.publish_rgb = False
 
         # Initialize depth image publisher.
         if len(depth_topic) > 0:
@@ -104,8 +145,25 @@ class HabitatObservationPublisher:
             self.depth_publisher = rospy.Publisher(
                 depth_topic, Image, latch=True, queue_size=100
             )
-        else:
-            self.publish_depth = False
+
+        # Initialize semantic image publisher
+        if len(semantic_topic) > 0:
+            self.publish_semantic = True
+            self.semantic_publisher = rospy.Publisher(
+                semantic_topic, Image, latch=True, queue_size=100
+            )
+
+        # Initialize wheel odometry publisher 
+        if len(wheel_odom_topic) > 0:
+            self.publish_wheel_odom = True
+            self.wheel_odom_publisher = rospy.Publisher(
+                wheel_odom_topic, Odometry, queue_size=10
+            )
+
+        # Initialize tf publisher for wheel odometry
+        if len(wheel_odom_frame_id) > 0:
+            self.publish_wheel_odom_tf = True
+            self.tf_publisher = rospy.Publisher("/tf", TFMessage, queue_size=1)
 
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
@@ -114,12 +172,69 @@ class HabitatObservationPublisher:
             self.pose_publisher = rospy.Publisher(
                 true_pose_topic, PoseStamped, latch=True, queue_size=100
             )
-        else:
-            self.publish_true_pose = False
 
     def publish(self, observations):
         """Publish messages."""
         cur_time = rospy.Time.now()
+
+        # Publish camera info.
+        if self.publish_camera_info:
+            self.camera_info.header.stamp = cur_time
+            self.camera_info_publisher.publish(self.camera_info)
+
+        # publish wheel odometry as tf: odom_wheel -> base_link
+        # NOTE: publish guess frame before observations
+        # Otherwise odometry update will be aborted 
+        if self.publish_wheel_odom_tf:
+
+            wo_msg = TransformStamped()
+            wo_msg.header.stamp = cur_time
+            wo_msg.header.frame_id = self.wheel_odom_frame_id
+            wo_msg.child_frame_id = "base_link"
+                
+            # construct position and rotation
+            pose_mat = observations["odom_pose_mat"]
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+
+            wo_msg.transform.translation = Vector3(x, y, z)
+            wo_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # add to this list if more tfs needed 
+            tf_msgs = TFMessage([wo_msg])
+            self.tf_publisher.publish(tf_msgs)
+
+        if self.publish_wheel_odom:
+            
+            pose_mat = observations["odom_pose_mat"]
+            odom_msg = Odometry()
+
+            odom_msg.header.stamp = cur_time
+            odom_msg.header.frame_id = 'odom'
+            odom_msg.child_frame_id = 'base_link'
+            
+            # construct position and rotation
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+            odom_msg.pose.pose.position = Point(x, y, z)
+            odom_msg.pose.pose.orientation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            # create pseudo diagnal covariance matrix
+            # robot on x-y plane
+            p_cov = np.array([
+                5e-2, 0., 0., 0., 0., 0.,
+                0., 5e-2, 0., 0., 0., 0.,
+                0., 0., 1e3, 0., 0., 0.,
+                0., 0., 0., 1e3, 0., 0.,
+                0., 0., 0., 0., 1e3, 0.,
+                0., 0., 0., 0., 0., 1e-2,
+            ])
+            odom_msg.pose.covariance = p_cov.tolist()
+
+            # NOTE: if to implement continous control, add psedu twist message
+            
+            # Publish odometry message
+            self.wheel_odom_publisher.publish(odom_msg)
 
         # Publish RGB image.
         if self.publish_rgb:
@@ -139,17 +254,43 @@ class HabitatObservationPublisher:
             depth.header.frame_id = "base_scan"
             self.depth_publisher.publish(depth)
 
-        # Publish camera info.
-        if self.publish_camera_info:
-            self.camera_info.header.stamp = cur_time
-            self.camera_info_publisher.publish(self.camera_info)
+        if self.publish_semantic:
+            semantic = observations["semantic"]
+            assert np.max(semantic) < 256  # use uint8 to encode image
 
+            # convert semantic image to rgb color image to publish
+            semantic_color = cv2.applyColorMap(
+                semantic.astype(np.uint8), cv2.COLORMAP_JET
+            )
+            semantic_msg = self.cvbridge.cv2_to_imgmsg(semantic_color)
+            semantic_msg.encoding = "bgr8"  # "rgb8"
+            semantic_msg.header.stamp = cur_time
+            semantic_msg.header.frame_id = "camera_link"
+            self.semantic_publisher.publish(semantic_msg)
+
+            # NOTE: following code could be use as reverse mapping from rgb color iamges
+            # back to semantic images
+            # create an inverse from the colormap to semantic values
+            # semantic_values = np.arange(256, dtype=np.uint8)
+            # color_values = map(
+            #     tuple,
+            #     cv2.applyColorMap(semantic_values, cv2.COLORMAP_JET).reshape(
+            #         256, 3
+            #     ),
+            # )
+            # color_to_semantic_map = dict(zip(color_values, semantic_values))
+            # semantic_decoded = np.apply_along_axis(
+            #     lambda bgr: color_to_semantic_map[tuple(bgr)],
+            #     2,
+            #     semantic_color,
+            # )
+ 
         # Publish true pose
         if self.publish_true_pose:
             position, rotation = observations["agent_position"]
             y, z, x = position
             cur_orientation = rotation
-            cur_euler_angles = tf.euler_from_quaternion(
+            cur_euler_angles = transformations.euler_from_quaternion(
                 [
                     cur_orientation.w,
                     cur_orientation.x,
@@ -170,5 +311,62 @@ class HabitatObservationPublisher:
                 cur_pose.pose.orientation.x,
                 cur_pose.pose.orientation.y,
                 cur_pose.pose.orientation.z,
-            ) = tf.quaternion_from_euler(0, 0, cur_z_angle)
+            ) = transformations.quaternion_from_euler(0, 0, cur_z_angle)
             self.pose_publisher.publish(cur_pose)
+
+
+class PointCloudPublisher:
+    """Publisher for point cloud."""
+
+    def __init__(self, topic_name, frame_id="map", queue_size=1):
+        """Set point cloud publisher"""
+        self.pub = rospy.Publisher(
+            topic_name, PointCloud2, queue_size=queue_size
+        )
+        self.frame_id = frame_id
+
+    def publish_o3d_pcl(self, open3d_cloud):
+        
+        points = np.asarray(open3d_cloud.points, dtype=np.float32)
+        colors = None
+        if open3d_cloud.colors is not None:
+            colors = np.floor(np.asarray(open3d_cloud.colors) * 255).astype(
+                np.uint32
+            ) 
+        pcl_msg = self.create_msg(points, colors)
+        self.pub.publish(pcl_msg)
+        return
+
+    def publish_np_pcl(self, points, colors=None):
+        
+        pcl_msg = self.create_msg(points, colors)
+        self.pub.publish(pcl_msg)
+        return 
+
+    def create_msg(self, points, colors):
+
+        header = Header(frame_id=self.frame_id)
+        header.stamp = rospy.Time.now()
+
+        # Set "fields" and "cloud_data"
+        if colors is None:  # XYZ only
+            fields = FIELDS_XYZ
+            cloud_data = points
+        else:  # XYZ + RGB
+            fields = FIELDS_XYZRGB
+            # -- Change rgb color from "three float" to "one 24-byte int"
+            # 0x00FFFFFF is white, 0x00000000 is black.
+
+            cloud_data = []
+            for i in range(points.shape[0]):
+                xyz = points[i]
+                c = colors[i]
+                rgba = struct.unpack(
+                    "I", struct.pack("BBBB", c[2], c[1], c[0], 255)
+                )[0]
+
+                pt = [xyz[0], xyz[1], xyz[2], rgba]
+                cloud_data.append(pt)
+
+        # create ros_cloud
+        return pc2.create_cloud(header, fields, cloud_data)

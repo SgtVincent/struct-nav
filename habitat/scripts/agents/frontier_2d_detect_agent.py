@@ -82,6 +82,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.map_resolution = args.map_resolution_cm / 100.0
         self.sem_model = args.sem_model
         self.success_dist = args.success_dist
+        self.frontier_mode = args.frontier_mode
 
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
@@ -551,6 +552,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 odom_map_pose[:2],
                 cluster_trashhole=self.args.cluster_trashhole,
                 num_goals=1,
+                mode=self.frontier_mode,
             )
             if len(frontiers) > 0:
                 publish_frontiers(frontiers, goals, self.pub_frontiers)
