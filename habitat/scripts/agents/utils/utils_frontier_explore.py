@@ -3,22 +3,27 @@ from habitat.utils.visualizations import maps
 from habitat_sim import PathFinder, Simulator
 import magnum as mn
 import math
+from math import dist
 import numpy as np
 import skimage
-from matplotlib import docstring
+from skimage.morphology import square, disk, binary_dilation, binary_opening
 from skimage.measure import find_contours
+from numpy import ma 
+import skfmm
+from sklearn.cluster import DBSCAN
 
 from utils.transformation import points_rtab2habitat
 
 # import matplotlib.pyplot as plt
 # import plotly
 # import plotly.express as px
+from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 
 DEBUG_VIS = False
 if DEBUG_VIS:
     from matplotlib import cm
     from matplotlib import pyplot as plt
-
+        
 
 class UnionFind:
     """Union-find data structure. Items must be hashable."""
@@ -107,47 +112,20 @@ def get_frontiers(
     ] = 1.0
 
     # dilate contours_positive_map, which is boundary of obstacles
-    selem = skimage.morphology.disk(dilate_size)
-    contours_positive_dilated = skimage.morphology.binary_dilation(
+    selem = disk(dilate_size)
+    contours_positive_dilated = binary_dilation(
         contours_positive_map, selem
     )
     contours_negative_map[contours_positive_dilated == 1] = 0
     candidates = np.argwhere(contours_negative_map == 1)
     # NOTE: Do not forget to convert (row, col) to (x, y) !!!!
     candidates = candidates[:, [1, 0]]
-    # translate contours to map frame
-    candidates = candidates * map_resolution + map_origin
+    # NOTE: change candidates to grid arrays instead of real world coords 
+    # # translate contours to map frame
+    # candidates = candidates * map_resolution + map_origin
     # convert set of frotiers into a list (hasable type data structre)
     candidates = candidates.tolist()
     candidates = [tuple(x) for x in candidates]
-
-    # convert contour np arrays into sets
-    # set_negative = set([tuple(x) for x in contours_negative])
-    # set_positive = set([tuple(x) for x in contours_positive])
-
-    # perform set difference operation to find candidates
-    # candidates = set_negative.difference(set_positive)
-
-    # translate contours to map frame
-    # for index in range(len(contours_negative)):
-    #     contours_negative[index][0] = round(
-    #         contours_negative[index][0] * map_resolution + map_origin[0], 2
-    #     )
-    #     contours_negative[index][1] = round(
-    #         contours_negative[index][1] * map_resolution + map_origin[1], 2
-    #     )
-
-    # translate contours to map frame
-    # for index in range(len(contours_positive)):
-    #     contours_positive[index][0] = round(
-    #         contours_positive[index][0] * map_resolution + map_origin[0], 2
-    #     )
-    #     contours_positive[index][1] = round(
-    #         contours_positive[index][1] * map_resolution + map_origin[1], 2
-    #     )
-
-    # convert set of frotiers into a list (hasable type data structre)
-    # candidates = [x for x in candidates]
 
     if DEBUG_VIS:
         # from matplotlib import pyplot as plt
@@ -159,9 +137,11 @@ def get_frontiers(
         map_vis = np.copy(saved_map) + 1
         map_vis[saved_map >= 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
-        contours_candidates_vis = (
-            np.array(candidates) - map_origin
-        ) / map_resolution
+        # contours_candidates_vis = (
+        #     np.array(candidates) - map_origin
+        # ) / map_resolution
+        contours_candidates_vis = np.array(candidates)
+
         plt.scatter(
             contours_candidates_vis[:, 0],
             contours_candidates_vis[:, 1],
@@ -175,7 +155,7 @@ def get_frontiers(
         plt.show()
 
     # group candidates points into clusters based on distance
-    candidates = group_frontier_grid(candidates, cluster_trashhole)
+    candidates = group_frontier_grid(candidates, cluster_trashhole / map_resolution)
 
     # make list of np arrays of clustered frontier points
     frontiers = []
@@ -209,10 +189,10 @@ def compute_centroids(list_of_arrays, map_resolution):
     return centroids
 
 
-def compute_goals(centroids, current_position, num_goals=3):
+def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
+    map_raw=None, map_origin=None, map_resolution=None):
 
     # chosen utility function : length / distance
-
     # pre allocate utility_array
     utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
 
@@ -220,18 +200,35 @@ def compute_goals(centroids, current_position, num_goals=3):
     # substitute length atribute with utility of point
     utility_array = np.copy(centroids)
 
-    # compute current position on the map
-    # current_position, current_quaternion = get_current_pose('/map', '/odom')
+    if dist_type == "geo_dist":
+        # compute traversible map  
+        traversible = map_raw < 1.0
+        traversible_ma = ma.masked_values(traversible * 1, 0)
+        goal_map = np.zeros_like(traversible)
+        goal_map[int(current_position[1]), int(current_position[0])] = 1
+        selem = disk(3)
+        goal_map = binary_dilation(goal_map, selem)
+        traversible_ma[(goal_map == 1)] = 0
+        fmm_dist = skfmm.distance(traversible_ma, dx=1)
+        fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
+
 
     for index, c in enumerate(centroids):
 
-        # compute manhattan distance
-        man_dist = abs(current_position[0] - centroids[index][0]) + abs(
-            current_position[1] - centroids[index][1]
-        )
+        if dist_type == "man_dist": # compute manhattan distance
+            
+            dist = abs(current_position[0] - centroids[index][0]) + abs(
+                current_position[1] - centroids[index][1]
+            )
+        elif dist_type == "geo_dist": # compute geodesic distance 
+            
+            dist = fmm_dist[int(centroids[index][1]), 
+                int(centroids[index][0])]
 
         # compute length / distance
-        utility = centroids[index][2] ** 2 / man_dist  # why squared?
+        # utility = centroids[index][2] ** 2 / dist
+        # utility = centroids[index][2] / dist
+        utility = np.sqrt(centroids[index][2]) / dist
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility
@@ -253,7 +250,7 @@ def compute_goals(centroids, current_position, num_goals=3):
             goals.append(coordanate)
 
     # return goal as np array
-    return np.array(goals)
+    return np.array(goals).astype(int)
 
 
 def compute_geo_utility(centroids, current_position):
@@ -429,7 +426,7 @@ def frontier_goals(
     map_resolution,
     current_position,
     cluster_trashhole=0.2,
-    num_goals=3,
+    num_goals=1,
     sim=None,
     mode="geo+sem",
 ):
@@ -445,8 +442,9 @@ def frontier_goals(
         num_goals (int): number of desired goals selected from frontiers
 
     Returns:
-        centroids (numpy.Array): (C, 3), each row is (x, y, size)
-        goals (numpy.Array): (num_goals, 2) positions of goals
+        centroids (numpy.ndarray): (C, 3), each row is (x, y, size)
+        goals (numpy.ndarray): (num_goals, 2) positions of goals
+        goal_map (numpy.ndarray): (M,N) map, 
 
     """
     ###################### Improvement Trial 1 #########################
@@ -454,28 +452,83 @@ def frontier_goals(
     # frontier grids, which leads to bad frontier center, first filter out those
     # small area by dilation of obstacle map
     # Result: not working well
-    # selem = skimage.morphology.disk(3)  # make sure be consistent with planner
+    # selem = disk(3)  # make sure be consistent with planner
     # occupancy_map = (map_raw == 100).astype(int)
     # map_dilated = np.copy(map_raw)
-    # occupancy_dilated = skimage.morphology.binary_dilation(occupancy_map, selem)
+    # occupancy_dilated = binary_dilation(occupancy_map, selem)
     # map_dilated[occupancy_dilated == 1] = 100.0
 
-    frontiers = get_frontiers(
+    frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
-    centroids = compute_centroids(frontiers, map_resolution)
+    if len(frontiers_grid) == 0: 
+        return [], [], np.zeros_like(map_raw)
+    
     # NOTE: using learning to propose additional centroids?
+    centroids_grid = compute_centroids(frontiers_grid, map_resolution)
 
     if mode == "geo":
-        goals = compute_goals(centroids, current_position, num_goals)
+        # no frontiers in current scene 
+        current_position_grid = np.round(
+            (current_position - map_origin) / map_resolution
+        ).astype(int)
+        
+        goals_grid = compute_goals(
+            centroids_grid, 
+            current_position_grid, 
+            num_goals,
+            dist_type="geo_dist",
+            map_raw=map_raw, 
+            map_origin=map_origin, 
+            map_resolution=map_resolution
+        )
+        centroids = np.array(centroids_grid) * map_resolution 
+        centroids[:, :2] = centroids[:, :2] + map_origin
+        goals = goals_grid * map_resolution + map_origin
+
+        # create goal map for global planner
+        goal_grid = goals_grid[0,:]
+        goal_map = np.zeros_like(map_raw)
+        occupancy_map = (map_raw == 100).astype(np.float32)
+        # NOTE: (x,y) is (col, row) in image
+        if occupancy_map[goal_grid[1], goal_grid[0]]: 
+            # if goal not reachable, then find closest pixel as new goal 
+            rs, cs = np.where(occupancy_map == 0.)
+            free_locs = np.stack([cs, rs], axis=1)
+            closest_idx = np.argmin(
+                np.linalg.norm(free_locs - goal_grid, axis=1)
+            )
+            closest_loc = free_locs[closest_idx, :]
+            goal_map[closest_loc[1], closest_loc[0]] = 1.0
+        else:
+            goal_map[goal_grid[1], goal_grid[0]] = 1.0
+            
     elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
-        geo_utility_array = compute_geo_utility(centroids, current_position)
+        geo_utility_array = compute_geo_utility(centroids_grid, current_position)
         sem_utility_array = compute_sem_utility(
-            centroids, scene_graph=None, goal_cat="shower", sim=sim
+            centroids_grid, scene_graph=None, goal_cat="shower", sim=sim
         )
         utility_array = combine_utilities(geo_utility_array, sem_utility_array)
-        goals = get_goals(utility_array, num_goals)
+        goals_grid = get_goals(utility_array, num_goals)
+        goals = goals_grid * map_resolution + map_origin
+
+        # create goal map for global planner
+        goal_grid = goals_grid[0,:]
+        goal_map = np.zeros_like(map_raw)
+        occupancy_map = (map_raw == 100).astype(np.float32)
+        # NOTE: (x,y) is (col, row) in image
+        if occupancy_map[goal_grid[1], goal_grid[0]]: 
+            # if goal not reachable, then find closest pixel as new goal 
+            rs, cs = np.where(occupancy_map == 0.)
+            free_locs = np.stack([cs, rs], axis=1)
+            closest_idx = np.argmin(
+                np.linalg.norm(free_locs - goal_grid, axis=1)
+            )
+            closest_loc = free_locs[closest_idx, :]
+            goal_map[closest_loc[1], closest_loc[0]] = 1.0
+        else:
+            goal_map[goal_grid[1], goal_grid[0]] = 1.0
 
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
@@ -489,37 +542,43 @@ def frontier_goals(
         map_vis[map_vis > 100] = 2.0  # obstacle
         im = plt.imshow(map_vis)
 
-        frontiers_vis = [
-            (np.array(f) - map_origin) / map_resolution for f in frontiers
-        ]
+        # frontiers_vis = [
+        #     (np.array(f) - map_origin) / map_resolution for f in frontiers
+        # ]
+        frontiers_vis = frontiers_grid
         colormap = cm.get_cmap("plasma")
         num_f = len(frontiers_vis)
         for i, f in enumerate(frontiers_vis):
             plt.scatter(f[:, 0], f[:, 1], color=colormap(float(i) / num_f))
         # visualize centroids
         # centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
-        # sizes = centroids[:, 2] * 2
-        # N = centroids_vis.shape[0]
-        # colors = colormap(np.arange(0, N) / float(N))
-        # plt.scatter(
-        #     x=centroids_vis[:, 0],
-        #     y=centroids_vis[:, 1],
-        #     s=sizes,
-        #     c=colors,
-        #     alpha=0.6,
-        # )
-        # visualize utility
-        utility_vis = (utility_array[:, :2] - map_origin) / map_resolution
-        sizes = utility_array[:, 2] / utility_array[:, 2].min() * 1000
-        N = utility_vis.shape[0]
-        colors = colormap(np.arange(0, N) / float(N))
-        plt.scatter(
-            x=utility_vis[:, 0],
-            y=utility_vis[:, 1],
-            s=sizes,
-            c=colors,
-            alpha=0.6,
-        )
+        
+        if mode == "geo":
+            centroids_vis = centroids_grid[:, :2]
+            sizes = centroids_grid[:, 2] * 2
+            N = centroids_vis.shape[0]
+            colors = colormap(np.arange(0, N) / float(N))
+            plt.scatter(
+                x=centroids_vis[:, 0],
+                y=centroids_vis[:, 1],
+                s=sizes,
+                c=colors,
+                alpha=0.6,
+            )
+
+        elif mode == "geo+sem":
+            # visualize utility
+            utility_vis = (utility_array[:, :2] - map_origin) / map_resolution
+            sizes = utility_array[:, 2] / utility_array[:, 2].min() * 1000
+
+            colors = colormap(np.arange(0, N) / float(N))
+            plt.scatter(
+                x=utility_vis[:, 0],
+                y=utility_vis[:, 1],
+                s=sizes,
+                c=colors,
+                alpha=0.6,
+            )
         # visualize goals
         goals_vis = (np.array(goals) - map_origin) / map_resolution
         n_goals = len(goals)
@@ -539,67 +598,198 @@ def frontier_goals(
         ax.invert_yaxis()
 
         plt.show()
+        plt.pause(0.001)
+        input("press enter to continue")
+        # plt.waitforbuttonpress(20)
 
-    return centroids, goals
+    return centroids, goals, goal_map
 
-
-# TODO: Reuse from sg_nav
-
-# display a topdown map with matplotlib
-
-
-def display_map(topdown_map, key_points=None, block=False):
-    plt.figure(figsize=(12, 8))
-    ax = plt.subplot(1, 1, 1)
-    ax.axis("off")
-    plt.imshow(topdown_map)
-    # plot points on map
-    if key_points is not None:
-        for point in key_points:
-            plt.plot(point[0], point[1], marker="o", markersize=10, alpha=0.8)
-    plt.show(block=block)
-
-
-# display the path on the 2D topdown map
-# @path_points: list of (3,) positions in habitat coords frame
-
-
-def display_path(
-    sim: Simulator, path_points: list, meters_per_pixel=0.025, plt_block=False
+def target_goals(
+    map_raw,
+    map_origin,
+    map_resolution,
+    sem_img,
+    depth_img,
+    goal_idx,
+    cam_param,
+    odom_pose_mat,
+    max_depth=5.0,
+    min_depth=0.0,
+    sensor_height=0.88,
+    pub_goal_pts=None, 
+    sample_targets=100, 
+    filter_outlier=True,
 ):
+    if pub_goal_pts: # [debug] publish goal pts if not None 
+        raise NotImplementedError
 
-    scene_bb = sim.get_active_scene_graph().get_root_node().cumulative_bb
-    height = scene_bb.y().min
-    top_down_map = maps.get_topdown_map(
-        sim.pathfinder, height, meters_per_pixel=meters_per_pixel
+    mask = np.logical_and(
+        np.logical_and(sem_img == goal_idx, depth_img.squeeze() > min_depth), 
+        (depth_img.squeeze() < max_depth)
     )
-    recolor_map = np.array(
-        [[255, 255, 255], [128, 128, 128], [0, 0, 0]], dtype=np.uint8
-    )
-    top_down_map = recolor_map[top_down_map]
-    grid_dimensions = (top_down_map.shape[0], top_down_map.shape[1])
-    # convert world trajectory points to maps module grid points
-    trajectory = [
-        maps.to_grid(
-            path_point[2],
-            path_point[0],
-            grid_dimensions,
-            pathfinder=sim.pathfinder,
-        )
-        for path_point in path_points
+    
+    # unproject segmentation mask to point clouds 
+    pts_cam = get_point_cloud_from_Y(
+        depth_img,
+        camera_matrix=cam_param,
+    ).squeeze()
+    rs, cs = np.where(mask)
+    target_pts_cam = pts_cam[rs, cs]
+    # sensor height does not affect xy-position
+    target_pts_odom = target_pts_cam - np.array([0,0,sensor_height])
+    target_pts_world = odom_pose_mat @ np.concatenate(
+        (target_pts_odom, np.ones((target_pts_odom.shape[0],1))), axis=1
+    ).T
+    target_pts_world = (target_pts_world.T)[:, :3] 
+    N = target_pts_world.shape[0]
+    sample_size = min(sample_targets, N)
+    targets =target_pts_world[np.random.choice(N, size=sample_size, replace=False), :]
+
+    # create goal map for global planner
+    goal_map = np.zeros_like(map_raw)
+    target_pts_grid = ((target_pts_world[:,:2] - map_origin) / map_resolution).astype(int)
+    target_pts_grid_safe = target_pts_grid[
+        (np.all(target_pts_grid >= 0, axis=1)) &
+        (np.all(target_pts_grid[:, ::-1] < goal_map.shape, axis=1)), 
+        : 
     ]
-    grid_tangent = mn.Vector2(
-        trajectory[1][1] - trajectory[0][1],
-        trajectory[1][0] - trajectory[0][0],
-    )
-    path_initial_tangent = grid_tangent / grid_tangent.length()
-    initial_angle = math.atan2(
-        path_initial_tangent[0], path_initial_tangent[1]
-    )
-    # draw the agent and trajectory on the map
-    maps.draw_path(top_down_map, trajectory)
-    maps.draw_agent(
-        top_down_map, trajectory[0], initial_angle, agent_radius_px=8
-    )
-    print("\nDisplay the map with agent and path overlay:")
-    display_map(top_down_map, block=plt_block)
+    goal_map[target_pts_grid_safe[:, 1], target_pts_grid_safe[:,0]] = 1.0
+    if filter_outlier:
+        goal_map = binary_opening(goal_map, disk(1))
+    return targets, goal_map.astype(float)
+
+    # NOTE: comment code to segment detected targets to instances, not used 
+    # labels, num_targets = skimage.measure.label(mask, return_num=True, connectivity=2)
+    # target_list = []
+    # target_sizes = []
+    # dists_to_odom = []
+    # for label in range(1, num_targets+1):
+    #     rs, cs = np.where(labels == label)
+    #     target_pts_cam = pts_cam[rs, cs]
+    #     # sensor height does not affect xy-position
+    #     target_pts_odom = target_pts_cam - np.array([0,0,sensor_height])
+    #     target_pts_world = odom_pose_mat @ np.concatenate(
+    #         (target_pts_odom, np.ones((target_pts_odom.shape[0],1))), axis=1
+    #     ).T
+    #     target_pts_world = (target_pts_world.T)[:, :3] 
+    #     target = np.mean(target_pts_world, axis=0)
+    #     target_list.append(target)
+    #     target_sizes.append(target_pts_world.shape[0])
+    #     dists_to_odom.append(dist_odom_to_goal(odom_pose_mat, target[:2]))
+
+    # targets = np.stack(target_list, axis=0)
+    # target_sizes = np.array(target_sizes)
+
+
+def dist_odom_to_goal(odom_mat, goal, dist_2d=True):
+    
+    if dist_2d: # ignore z-axis distance
+        odom_pos = np.copy(odom_mat[:2,3])
+    else: 
+        odom_pos = np.copy(odom_mat[:3,3])
+
+    return np.linalg.norm(odom_pos - goal)
+
+
+def update_odom_by_action(odom_mat, action, forward_dist=0.25, turn_angle=30.):
+    
+    new_odom_mat = np.copy(odom_mat)
+    
+    if action == 0: # Stop
+        pass
+    
+    elif action == 1: # Forward
+        # NOTE: in rtabmap coords frame, front is +y direction 
+        new_pos = odom_mat @ np.array([0., forward_dist, 0., 1.])
+        new_odom_mat = np.copy(odom_mat)
+        new_odom_mat[:3, 3] = new_pos[:3]
+
+    elif action == 2: # Left, xy-plane counter-clockwise 
+        rad = np.deg2rad(turn_angle)
+        turn_mat = np.array([
+            [np.cos(rad), -np.sin(rad), 0.],
+            [np.sin(rad), np.cos(rad), 0.],
+            [0.,        0.,     1.]
+        ])
+        new_rot = odom_mat[:3, :3] @ turn_mat
+        new_odom_mat[:3, :3] = new_rot
+
+    elif action == 3: # Right, xy-plane clockwise
+        rad = np.deg2rad(turn_angle)
+        turn_mat = np.array([
+            [np.cos(rad), np.sin(rad), 0.],
+            [-np.sin(rad), np.cos(rad), 0.],
+            [0.,        0.,     1.]
+        ])
+        new_rot = odom_mat[:3, :3] @ turn_mat
+        new_odom_mat[:3, :3] = new_rot
+
+    return new_odom_mat
+
+
+# def cluster_from_points(pts, method="dbscan", **kwargs):
+#     if method == "dbscan":
+#         # use DBSCAN to cluster detected target points 
+#         dbscan_eps=kwargs.get('dbscan_eps', 0.1)
+#         db = DBSCAN(eps=dbscan_eps, min_samples=10).fit(pts)
+#         core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+#         core_samples_mask[db.core_sample_indices_] = True
+#         labels = db.labels_
+#         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+#         n_noise = list(labels).count(-1)
+
+#     else: 
+#         raise NotImplementedError
+    
+#     return 
+
+def copy_map_overlap(old_origin, old_map, new_origin, new_map, resolution):
+    
+    # Assume there is no rotation between the two maps 
+    old_x_max = old_origin[0] + old_map.shape[1] * resolution
+    old_y_max = old_origin[1] + old_map.shape[0] * resolution
+    new_x_max = new_origin[0] + new_map.shape[1] * resolution
+    new_y_max = new_origin[1] + new_map.shape[0] * resolution
+
+    ovl_x_min = max(old_origin[0], new_origin[0])
+    ovl_y_min = max(old_origin[1], new_origin[1])
+    ovl_x_max = min(old_x_max, new_x_max)
+    ovl_y_max = min(old_y_max, new_y_max)
+    ovl_x_size = np.floor((ovl_x_max - ovl_x_min) / resolution).astype(int)
+    ovl_y_size = np.floor((ovl_y_max - ovl_y_min) / resolution).astype(int)
+
+    # copy the overlapping area
+    new_map[
+        int((ovl_y_min - new_origin[1])/resolution):
+        int((ovl_y_min - new_origin[1])/resolution) + ovl_y_size,
+        int((ovl_x_min - new_origin[0])/resolution):
+        int((ovl_x_min - new_origin[0])/resolution) + ovl_x_size
+    ] = old_map[
+        int((ovl_y_min - old_origin[1])/resolution):
+        int((ovl_y_min - old_origin[1])/resolution) + ovl_y_size,
+        int((ovl_x_min - old_origin[0])/resolution):
+        int((ovl_x_min - old_origin[0])/resolution) + ovl_x_size
+    ]
+    return 
+
+
+
+if __name__ == "__main__":
+
+    # test update_odom_by_action function 
+    import open3d as o3d 
+    import copy 
+    
+    world_mat = np.eye(4)
+    world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+        size=1.0, origin=np.array([0., 0., 0.]))
+    # rotate to left by 30 degrees
+    left_rot_mat = update_odom_by_action(world_mat, 2)
+    left_rot_frame = copy.deepcopy(world_frame).rotate(
+        left_rot_mat[:3,:3], center=(0, 0, 0))
+    # move forward by 2
+    forward_mat = update_odom_by_action(left_rot_mat, 1, forward_dist=2.)
+    forward_frame = copy.deepcopy(left_rot_frame).translate(
+        forward_mat[:3, 3], relative=False)
+
+    o3d.visualization.draw_geometries([world_frame, left_rot_frame, forward_frame])

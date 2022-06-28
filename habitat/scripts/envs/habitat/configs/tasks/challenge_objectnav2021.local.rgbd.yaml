@@ -1,5 +1,5 @@
 ENVIRONMENT:
-  MAX_EPISODE_STEPS: 500000
+  MAX_EPISODE_STEPS: 500
   ITERATOR_OPTIONS:
     SHUFFLE: False
 SIMULATOR:
@@ -14,18 +14,18 @@ SIMULATOR:
     GPU_DEVICE_ID: 0
     ALLOW_SLIDING: False
   SEMANTIC_SENSOR:
-    WIDTH: 1280 # 640
-    HEIGHT: 720 # 480
+    WIDTH: 640
+    HEIGHT: 480
     HFOV: 79
     POSITION: [0, 0.88, 0]
   RGB_SENSOR:
-    WIDTH: 1280
-    HEIGHT: 720
+    WIDTH: 640
+    HEIGHT: 480
     HFOV: 79
     POSITION: [0, 0.88, 0]
   DEPTH_SENSOR:
-    WIDTH: 1280
-    HEIGHT: 720
+    WIDTH: 640
+    HEIGHT: 480
     HFOV: 79
     MIN_DEPTH: 0.5
     MAX_DEPTH: 5.0
@@ -49,5 +49,8 @@ TASK:
 DATASET:
   TYPE: ObjectNav-v1
   SPLIT: val_mini
-  DATA_PATH: /home/lig/github/habitat-challenge/habitat-challenge-data/objectgoal_mp3d/{split}/{split}.json.gz
-  SCENES_DIR: "/home/lig/github/habitat-challenge/habitat-challenge-data/data/scene_datasets/"
+  DATA_PATH: "/media/junting/SSD_data/habitat_data/datasets/objectnav/mp3d/v1/{split}/{split}.json.gz"
+  # EPISODES_DIR: "/media/junting/SSD_data/habitat_data/datasets/objectnav/gibson/v1/{split}/"
+  SCENES_DIR: "/media/junting/SSD_data/habitat_data/scene_datasets/"
+  # DATA_PATH: habitat-challenge-data/objectgoal_mp3d/{split}/{split}.json.gz
+  # SCENES_DIR: "habitat-challenge-data/data/scene_datasets/"

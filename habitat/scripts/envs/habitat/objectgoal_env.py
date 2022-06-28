@@ -1,20 +1,19 @@
+import json
 import bz2
 import gzip
-import json
-
 import _pickle as cPickle
-import envs.utils.pose as pu
 import gym
 import numpy as np
 import quaternion
 import skimage.morphology
-from envs.constants import coco_categories
-from envs.utils.fmm_planner import FMMPlanner
-
 import habitat
 
+from envs.utils.fmm_planner import FMMPlanner
+from envs.constants import coco_categories
+import envs.utils.pose as pu
 
-class ObjectGoalEnv(habitat.RLEnv):
+
+class ObjectGoal_Env(habitat.RLEnv):
     """The Object Goal Navigation environment class. The class is responsible
     for loading the dataset, generating episodes, and computing evaluation
     metrics.
@@ -39,11 +38,12 @@ class ObjectGoalEnv(habitat.RLEnv):
             self.dataset_info = cPickle.load(f)
 
         # Specifying action and observation space
-        self.action_space = gym.spaces.Discrete(3)
+        # not used, also raise error 
+        # self.action_space = gym.spaces.Discrete(3)
 
-        self.observation_space = gym.spaces.Box(
-            0, 255, (3, args.frame_height, args.frame_width), dtype="uint8"
-        )
+        # self.observation_space = gym.spaces.Box(
+        #     0, 255, (3, args.frame_height, args.frame_width), dtype="uint8"
+        # )
 
         # Initializations
         self.episode_no = 0
@@ -83,7 +83,7 @@ class ObjectGoalEnv(habitat.RLEnv):
         """
 
         args = self.args
-        self.scene_path = self.habitat_env.sim.config.SCENE
+        self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
 
         if self.scene_path != self.last_scene_path:
@@ -119,7 +119,7 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         # Setup ground truth planner
         object_boundary = args.success_dist
-        map_resolution = args.map_resolution
+        map_resolution = args.map_resolution_cm
         selem = skimage.morphology.disk(2)
         traversible = (
             skimage.morphology.binary_dilation(sem_map[0], selem) != True
@@ -171,11 +171,11 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         args = self.args
 
-        self.scene_path = self.habitat_env.sim.config.SCENE
+        self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
         scene_name = self.scene_path.split("/")[-1].split(".")[0]
 
         scene_info = self.dataset_info[scene_name]
-        map_resolution = args.map_resolution
+        map_resolution = args.map_resolution_cm
 
         floor_idx = np.random.randint(len(scene_info.keys()))
         floor_height = scene_info[floor_idx]["floor_height"]
@@ -345,10 +345,10 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         if new_scene:
             obs = super().reset()
-            self.scene_name = self.habitat_env.sim.config.SCENE
+            self.scene_name = self.habitat_env.sim.config.sim_cfg.scene_id
             print("Changing scene: {}/{}".format(self.rank, self.scene_name))
 
-        self.scene_path = self.habitat_env.sim.config.SCENE
+        self.scene_path = self.habitat_env.sim.config.sim_cfg.scene_id
 
         if self.split == "val":
             obs = self.load_new_episode()
@@ -357,7 +357,7 @@ class ObjectGoalEnv(habitat.RLEnv):
 
         rgb = obs["rgb"].astype(np.uint8)
         depth = obs["depth"]
-        state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
+        # state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
         self.last_sim_location = self.get_sim_location()
 
         # Set info
@@ -366,7 +366,7 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.info["goal_cat_id"] = self.goal_idx
         self.info["goal_name"] = self.goal_name
 
-        return state, self.info
+        return obs, self.info
 
     def step(self, action):
         """Function to take an action in the environment.
@@ -410,7 +410,8 @@ class ObjectGoalEnv(habitat.RLEnv):
         self.timestep += 1
         self.info["time"] = self.timestep
 
-        return state, rew, done, self.info
+        # return state, rew, done, self.info
+        return obs, rew, done, self.info
 
     def get_reward_range(self):
         """This function is not used, Habitat-RLEnv requires this function"""
@@ -463,9 +464,10 @@ class ObjectGoalEnv(habitat.RLEnv):
         info = {}
         return info
 
-    def get_spaces(self):
-        """Returns observation and action spaces for the ObjectGoal task."""
-        return self.observation_space, self.action_space
+    # not used, raise error 
+    # def get_spaces(self):
+    #     """Returns observation and action spaces for the ObjectGoal task."""
+    #     return self.observation_space, self.action_space
 
     def get_sim_location(self):
         """Returns x, y, o pose of the agent in the Habitat simulator."""

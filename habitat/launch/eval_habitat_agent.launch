@@ -1,0 +1,39 @@
+<launch>
+    <arg name="agent_type" default="frontier_2d_detection" />
+    <!-- <arg name="agent_type" default="frontier_explore" /> -->
+    <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
+    <arg name="wheel_odom" default="true"/>
+    <arg name="wheel_odom_frame_id" default="odom_wheel" />
+    <arg name="habitat_update_rate" default="4.0" />
+    <arg name="initial_map_size" default="10.0" />
+    <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
+    <arg name="task_config" default="tasks/objectnav_gibson_high_res.yaml" />
+    <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/"/>
+
+
+    <node pkg="habitat_ros" type="eval.py" name="eval_habitat_env" output="screen">
+
+        <param name="config_dir" value="$(arg config_dir)" />
+        <param name="task_config" value="$(arg task_config)" />
+        <param name="sem_config_dir" value="$(arg sem_config_dir)" /> 
+        <param name="agent_type" value="$(arg agent_type)" />
+        <param name="camera_calib" value="$(arg camera_calib)" />
+        <param name="rate" type="double" value="$(arg habitat_update_rate)" />
+        <param name="initial_map_size" value="$(arg initial_map_size)" />
+        <param name="wheel_odom" value="$(arg wheel_odom)"/>
+        <param name="wheel_odom_frame_id" value="$(arg wheel_odom_frame_id)" />
+
+        <!-- topics  -->
+        <param name="rgb_topic" value="/camera/rgb/image" />
+        <param name="depth_topic" value="/camera/depth/image" />
+        <param name="semantic_topic" value="/camera/semantic/image" />
+        <param name="camera_info_topic" value="/camera/rgb/camera_info"/>
+        <!-- <param name="wheel_odom_topic" value="/wheel_odom" if="$(arg wheel_odom)"/>  -->
+        <!-- <param name="true_pose_topic" value="/camera/true_pose"/> -->
+        <param name="cloud_topic" value="/rtabmap/cloud_map" />
+        <!-- topics for local policy generation -->
+        <param name="odom_topic" value="/odom" />
+        <param name="grid_map_topic" value="/rtabmap/grid_map" />
+
+    </node>
+</launch>

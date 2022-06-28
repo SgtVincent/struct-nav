@@ -16,7 +16,8 @@ from habitat_sim import geo
 from agents.utils.arguments import get_args
 from agents.utils.utils_frontier_explore import frontier_goals
 from envs.constants import color_palette
-from envs.habitat.objectgoal_env import ObjectGoalEnv
+
+# from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
 from geometry_msgs.msg import PoseStamped
 from habitat_sim import Simulator
@@ -55,14 +56,14 @@ args.exp_name
 DEBUG_VIS = False  # visualize frontiers, goals, odom on 2D grid map
 DEBUG_TF = True  # print transformation from rtabmap to habitat w.r.t. time
 
-
+# this class is designed for running in habitat_sim
 class FrontierExploreAgent:
     def __init__(self, args, sim: Simulator):
 
         self.args = args
         # super().__init__(args, rank, config_env, dataset)
         self.sim = sim
-
+        
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
         self.action_names = {
@@ -111,7 +112,9 @@ class FrontierExploreAgent:
         # cached messages
         self.odom_msg = None
         self.grid_map_msg = None
-
+        self.last_odom_msg_time = 0.0  # last odom_msg timestamp
+        self.last_grid_map_msg_time = 0.0  # last grid_map_msg timestamp
+        self.last_update_time = 0.0
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
 
@@ -152,6 +155,11 @@ class FrontierExploreAgent:
     def parse_ros_messages(self):
         odom_msg: Odometry = self.odom_msg
         grid_map_msg: OccupancyGrid = self.grid_map_msg
+
+        # update timestamps for last processed messages
+        self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
+        self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
+        self.last_update_time = rospy.Time().now().to_sec()
 
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
@@ -221,8 +229,23 @@ class FrontierExploreAgent:
         ############ parse ros messages ################
 
         # FIXME: cannot receive grid_map message
-        while self.odom_msg == None or self.grid_map_msg == None:
+        if self.odom_msg == None or self.grid_map_msg == None:
             # waiting for data
+            return "stay"
+
+        if (
+            self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
+            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
+        ):
+            # waiting for data
+            cur_time = rospy.Time().now().to_sec()
+            time_diff = cur_time - self.last_update_time
+            # time_diff = cur_time - max(
+            #     self.last_odom_msg_time, self.last_grid_map_msg_time
+            # )
+            print(
+                f"DEBUG: waiting for message update since {time_diff} seconds ago"
+            )
             return "stay"
 
         grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
@@ -284,69 +307,6 @@ class FrontierExploreAgent:
         # TODO: add logic for STOP action
 
         return self.action_names[action]
-
-    def plan_act_and_preprocess(self, planner_inputs):
-        """Function responsible for planning, taking the action and
-        preprocessing observations
-
-        Args:
-            planner_inputs (dict):
-                dict with following keys:
-                    'map_pred'  (ndarray): (M, M) map prediction
-                    'goal'      (ndarray): (M, M) mat denoting goal locations
-                    'pose_pred' (ndarray): (7,) array denoting pose (x,y,o)
-                                 and planning window (gx1, gx2, gy1, gy2)
-                     'found_goal' (bool): whether the goal object is found
-
-        Returns:
-            obs (ndarray): preprocessed observations ((4+C) x H x W)
-            reward (float): amount of reward returned after previous action
-            done (bool): whether the episode has ended
-            info (dict): contains timestep, pose, goal category and
-                         evaluation metric info
-        """
-
-        # plan
-        if planner_inputs["wait"]:
-            self.last_action = None
-            self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-            return np.zeros(self.obs.shape), 0.0, False, self.info
-
-        # Reset reward if new long-term goal
-        if planner_inputs["new_goal"]:
-            self.info["g_reward"] = 0
-
-        action = self.plan(planner_inputs)
-
-        if self.args.visualize or self.args.print_images:
-            self._visualize(planner_inputs)
-        # NOTE: sem_exp uses habitat-lab api for simulation intereaction
-        # if action >= 0:
-
-        #     # act
-        #     action = {"action": action}
-        #     obs, rew, done, info = super().step(action)
-
-        #     # preprocess obs
-        #     obs = self._preprocess_obs(obs)
-        #     self.last_action = action["action"]
-        #     self.obs = obs
-        #     self.info = info
-
-        #     info["g_reward"] += rew
-
-        #     return obs, rew, done, info
-
-        # else:
-        #     self.last_action = None
-        #     self.info["sensor_pose"] = [0.0, 0.0, 0.0]
-        #     return np.zeros(self.obs_shape), 0.0, False, self.info
-
-        # NOTE: this version uses habitat_sim for simulation interaction
-        # since reward is not needed
-        obs = self.sim.step(action)
-        self.obs = obs
-        return obs
 
     def plan(self, planner_inputs):
         """Function responsible for planning

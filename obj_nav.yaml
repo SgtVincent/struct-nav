@@ -1,0 +1,389 @@
+!!python/object/new:habitat.config.default.Config
+dictitems:
+  ACTION_SPACE_CONFIG: v0
+  AGENTS:
+  - AGENT_0
+  AGENT_0: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      ANGULAR_ACCELERATION: 12.56
+      ANGULAR_FRICTION: 1.0
+      COEFFICIENT_OF_RESTITUTION: 0.0
+      HEIGHT: 1.5
+      IS_SET_START_STATE: false
+      LINEAR_ACCELERATION: 20.0
+      LINEAR_FRICTION: 0.5
+      MASS: 32.0
+      RADIUS: 0.1
+      SENSORS:
+      - RGB_SENSOR
+      START_POSITION:
+      - 0
+      - 0
+      - 0
+      START_ROTATION:
+      - 0
+      - 0
+      - 0
+      - 1
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  ARM_DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimDepthSensor
+      UUID: robot_arm_depth
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  ARM_RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimRGBSensor
+      UUID: robot_arm_rgb
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  DEFAULT_AGENT_ID: 0
+  DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 256
+      HFOV: 90
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimDepthSensor
+      WIDTH: 256
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  EQUIRECT_DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      TYPE: HabitatSimEquirectangularDepthSensor
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  EQUIRECT_RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      TYPE: HabitatSimEquirectangularRGBSensor
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  EQUIRECT_SEMANTIC_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      TYPE: HabitatSimEquirectangularSemanticSensor
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  FISHEYE_DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      ALPHA: 0.57
+      FOCAL_LENGTH:
+      - 364.84
+      - 364.86
+      HEIGHT: 480
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      PRINCIPAL_POINT_OFFSET: null
+      SENSOR_MODEL_TYPE: DOUBLE_SPHERE
+      TYPE: HabitatSimFisheyeDepthSensor
+      WIDTH: 640
+      XI: -0.27
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  FISHEYE_RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      ALPHA: 0.57
+      FOCAL_LENGTH:
+      - 364.84
+      - 364.86
+      HEIGHT: 640
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      PRINCIPAL_POINT_OFFSET: null
+      SENSOR_MODEL_TYPE: DOUBLE_SPHERE
+      TYPE: HabitatSimFisheyeRGBSensor
+      WIDTH: 640
+      XI: -0.27
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  FISHEYE_SEMANTIC_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      ALPHA: 0.57
+      FOCAL_LENGTH:
+      - 364.84
+      - 364.86
+      HEIGHT: 640
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      PRINCIPAL_POINT_OFFSET: null
+      SENSOR_MODEL_TYPE: DOUBLE_SPHERE
+      TYPE: HabitatSimFisheyeSemanticSensor
+      WIDTH: 640
+      XI: -0.27
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  FORWARD_STEP_SIZE: 0.25
+  HABITAT_SIM_V0: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      ALLOW_SLIDING: true
+      ENABLE_PHYSICS: false
+      GPU_DEVICE_ID: 0
+      GPU_GPU: false
+      PHYSICS_CONFIG_FILE: ./data/default.physics_config.json
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  HEAD_DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimDepthSensor
+      UUID: robot_head_depth
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  HEAD_RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimRGBSensor
+      UUID: robot_head_rgb
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 256
+      HFOV: 90
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimRGBSensor
+      WIDTH: 256
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  SCENE: data/scene_datasets/habitat-test-scenes/skokloster-castle.glb
+  SEED: 100
+  SEMANTIC_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimSemanticSensor
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  THIRD_DEPTH_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      MAX_DEPTH: 10.0
+      MIN_DEPTH: 0.0
+      NORMALIZE_DEPTH: true
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimDepthSensor
+      UUID: robot_third_rgb
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  THIRD_RGB_SENSOR: !!python/object/new:habitat.config.default.Config
+    dictitems:
+      HEIGHT: 480
+      HFOV: 90
+      ORIENTATION:
+      - 0.0
+      - 0.0
+      - 0.0
+      POSITION:
+      - 0
+      - 1.25
+      - 0
+      SENSOR_SUBTYPE: PINHOLE
+      TYPE: HabitatSimRGBSensor
+      UUID: robot_third_rgb
+      WIDTH: 640
+    state:
+      __deprecated_keys__: !!set {}
+      __immutable__: true
+      __new_allowed__: true
+      __renamed_keys__: {}
+  TILT_ANGLE: 15
+  TURN_ANGLE: 10
+  TYPE: Sim-v0
+state:
+  __deprecated_keys__: !!set {}
+  __immutable__: true
+  __new_allowed__: true
+  __renamed_keys__: {}

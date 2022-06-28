@@ -11,7 +11,9 @@ Integrate Habitat simulator with ROS
 - Rtabmap-ros
 - Python packages: numpy, gym, keyboard, cv_bridge
 
-## Installation
+## Installation (recommended)
+
+## Installation (deprecated)
 
 1. Install ROS noetic on your system ([https://www.ros.org/install/](https://www.ros.org/install/)).
 
@@ -29,7 +31,29 @@ Integrate Habitat simulator with ROS
 
 8. Install [Rtabmap-ros](https://github.com/introlab/rtabmap_ros)
 
-9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite`
+<!-- 9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite` -->
+
+## Data preparation
+
+### Running eval with Gibson
+
+You need to process semantic scene graph annotations to load gibson dataset. Refer to https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md#gibson-and-3dscenegraph-datasets for more details.
+
+1. Download semantic scene graph annotations from Stanford [3DSceneGraph](https://github.com/StanfordVL/3DSceneGraph) repository. Unzip the tiny and medium split zip files.
+
+2. Convert to habitat-compatible formats
+
+```bash
+# you need to clone habitat-sim repo to run following scripts
+git clone https://github.com/facebookresearch/habitat-sim.git
+cd habitat-sim
+git checkout v0.2.1
+
+# run conversion script
+tools/gen_gibson_semantics.sh /path/to/3DSceneGraph_medium/automated_graph /path/to/habitat_data/scene_datasets/gibson  /path/to/habitat_data/scene_datasets/gibson
+
+tools/gen_gibson_semantics.sh /path/to/3DSceneGraph_tiny/verified_graph /path/to/habitat_data/scene_datasets/gibson  /path/to/habitat_data/scene_datasets/gibson
+```
 
 ## Launch habitat node
 
@@ -76,5 +100,7 @@ roslaunch rtabmap_ros rtabmap.launch \
 
 ### TODO LIST
 
+- [x] Load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)
+- [ ] Implement internal odometry to avoid visual odometry lost
+- [ ] Implement collision map tracking with considering map growing (controlled by rtabmap) to avoid being stuck by navmesh deficiency or map prediction error.
 - [ ] consider if we need to move agent & planning functions from habitat_ros to a new package
-- [ ] load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)

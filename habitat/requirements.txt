@@ -1,8 +1,13 @@
 numpy
 gym
 keyboard
-cv_bridge
 scikit-image
 scikit-fmm
-transformations
-rospkg
+scikit-learn
+open3d
+# PyQt5
+# PyQt5-sip==4.19.18
+# cv_bridge
+# rospkg
+# sip
+

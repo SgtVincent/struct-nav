@@ -78,10 +78,10 @@ class FMMPlanner:
 
     # this function calculate distance from free space points to goal area with
     # FMM algorithm
-    # FIXME: traversible_ma[goal_map == 1] set obstacles positions in goal area to traversible
     def set_multi_goal(self, goal_map):
         traversible_ma = ma.masked_values(self.traversible * 1, 0)
-        traversible_ma[goal_map == 1] = 0
+        # traversible_ma[goal_map == 1] = 0
+        traversible_ma[(goal_map == 1)&(traversible_ma.mask == False)] = 0
         dd = skfmm.distance(traversible_ma, dx=1)
         dd = ma.filled(dd, np.max(dd) + 1)
         self.fmm_dist = dd

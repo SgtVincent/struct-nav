@@ -33,7 +33,7 @@ def get_camera_matrix(width, height, fov):
     return camera_matrix
 
 
-def get_point_cloud_from_z(Y, camera_matrix, scale=1):
+def get_point_cloud_from_Y(Y, camera_matrix, scale=1):
     """Projects the depth image Y into a 3D point cloud.
     Inputs:
         Y is ...xHxW
@@ -44,6 +44,9 @@ def get_point_cloud_from_z(Y, camera_matrix, scale=1):
         Z is positive up in the image
         XYZ is ...xHxWx3
     """
+    if Y.shape[-1] == 1: # shape HXWX1
+        Y = Y.squeeze()
+
     x, z = np.meshgrid(
         np.arange(Y.shape[-1]), np.arange(Y.shape[-2] - 1, -1, -1)
     )

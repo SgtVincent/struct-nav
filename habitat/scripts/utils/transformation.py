@@ -23,9 +23,9 @@ from habitat_sim import geo
 
 # NOTE: tf2_geometry_msgs depends on cython library PyKDL, which is compiled when
 # installing ros-xxx-full package. Need to add path to this package to sys.path
-sys.path.append(
-    "/usr/lib/python3/dist-packages"
-)  # needed by tf2_geometry_msgs
+# sys.path.append(
+#     "/usr/lib/python3/dist-packages"
+# )  # needed by tf2_geometry_msgs
 import tf2_geometry_msgs
 
 # NOTE: transformation between frames and transformation between points in frames are inverse matrix
@@ -247,6 +247,35 @@ def publish_agent_init_tf(agent: Agent, sensor_id="rgb", instant_pub=True):
     transforms = [tf_base2cam]
     if instant_pub:
         broadcaster.sendTransform(transforms)
+
+    return transforms
+
+
+def publish_static_base_to_cam(sensor_height):
+
+    broadcaster = tf2_ros.StaticTransformBroadcaster()
+    ros_time = rospy.Time.now()
+
+    # 3. create base_link (rtabmap_coords) to camera_link (habitat_coords)
+    tf_base2cam = TransformStamped()
+
+    tf_base2cam.header.stamp = ros_time
+    tf_base2cam.header.frame_id = "base_link"  # z-axis upright
+    tf_base2cam.child_frame_id = "camera_link"  # y-axis upright
+
+    tf_base2cam.transform.translation.x = 0.0
+    tf_base2cam.transform.translation.y = 0.0
+    tf_base2cam.transform.translation.z = sensor_height
+
+    quat = quat_from_two_vectors(np.array([0, 0, -1]), geo.GRAVITY)
+    tf_base2cam.transform.rotation.x = quat.x
+    tf_base2cam.transform.rotation.y = quat.y
+    tf_base2cam.transform.rotation.z = quat.z
+    tf_base2cam.transform.rotation.w = quat.w
+
+    # transforms = [tf_world2map, tf_mp3d2cam]
+    transforms = [tf_base2cam]
+    broadcaster.sendTransform(transforms)
 
     return transforms
 

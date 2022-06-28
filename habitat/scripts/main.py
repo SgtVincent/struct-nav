@@ -4,7 +4,8 @@
 import numpy as np
 import open3d as o3d
 import rospy
-from agents import FrontierExploreAgent, RandomWalkAgent, SpinningAgent
+from agents.dummy_agents import RandomWalkAgent, SpinningAgent
+from agents.frontier_explore_agent import FrontierExploreAgent
 from agents.utils.arguments import get_args
 from utils.publishers import HabitatObservationPublisher
 from utils.simulator import init_sim
@@ -14,7 +15,7 @@ from subscribers import PointCloudSubscriber
 from utils import transformation
 
 # parameters used for debuging with python debugger
-DEFAULT_RATE = 1
+DEFAULT_RATE = 1.0
 # DEFAULT_TEST_SCENE = "/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
 DEFAULT_TEST_SCENE = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
 DEFAULT_CAMERA_CALIB = "./envs/habitat/configs/camera_info.yaml"
@@ -41,6 +42,9 @@ def main():
     # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
     rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
     depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image")
+    semantic_topic = rospy.get_param(
+        "~semantic_topic", ""
+    )  # "/camera/semantic/image") # not to pulish gt by default
     camera_info_topic = rospy.get_param(
         "~camera_info_topic", "/camera/rgb/camera_info"
     )
@@ -56,6 +60,16 @@ def main():
         frontiers_topic = rospy.get_param("~frontiers_topic", "/frontiers")
         # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
 
+    # ros pub and sub
+    rate = rospy.Rate(rate_value)
+    publisher = HabitatObservationPublisher(
+        rgb_topic=rgb_topic,
+        depth_topic=depth_topic,
+        semantic_topic=semantic_topic,
+        camera_info_topic=camera_info_topic,
+        true_pose_topic=true_pose_topic,
+        camera_info_file=camera_info_file,
+    )
     # action_publisher = rospy.Publisher(
     #     "habitat_action", Int32, latch=True, queue_size=100
     # )
@@ -86,7 +100,7 @@ def main():
         agent_args.grid_map_topic = grid_map_topic
         agent_args.frontiers_topic = frontiers_topic
         # agent_args.goal_topic = goal_topic
-        agent = FrontierExploreAgent(agent_args, sim)
+        agent = FrontierExploreAgent(agent_args)
         # agent.reset()  # must call this function to initialize agent
 
     else:
@@ -116,12 +130,13 @@ def main():
 
     action = "stay"  # initial action to get first frame
     while not rospy.is_shutdown():
-        print(f"Step {cnt_action}:simulator execute action {action}")
-        observations = sim.step(action)
-        cnt_action += 1
+        if action != "stay" or cnt_action == 0:
+            print(f"Step {cnt_action}:simulator execute action {action}")
+            observations = sim.step(action)
+            cnt_action += 1
 
-        publisher.publish(observations)
-        cnt_pub += 1
+            publisher.publish(observations)
+            cnt_pub += 1
         # FIXME: consider to move publishing point cloud to data process function
         # in agents
         # NOTE: test if rgbd data has been received by rtabmap
