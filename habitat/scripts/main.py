@@ -2,6 +2,7 @@
 """Main function for the habitat node."""
 
 from mimetypes import init
+import quaternion as qt 
 import numpy as np
 import open3d as o3d
 import rospy
@@ -80,7 +81,9 @@ def main():
     # Initial Sim
     test_scene = rospy.get_param("~test_scene", DEFAULT_TEST_SCENE)
     init_pos = rospy.get_param("~init_pos", [1.0, 0.0, -1.0])
-    sim, action_names = init_sim(test_scene, init_pos)
+    init_rot = rospy.get_param("~init_rot", [1.0, 0.0, -1.0, 0.0]) # rotate -90 degree to y-axis
+    init_rot = qt.quaternion(*(np.array(init_rot)/ np.linalg.norm(init_rot)))
+    sim, action_names = init_sim(test_scene, init_pos, init_rot)
     observations = sim.step("stay")
     # Initialize TF tree with ground truth init pose (if any)
     sim_agent = sim.get_agent(0)
