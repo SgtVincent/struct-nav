@@ -1,18 +1,14 @@
 <launch>
 
-    <arg name="grid_normals_segmentation" default="true" />
+    <arg name="grid_normals_segmentation" default="false" />
     <arg name="grid_global_min_size" default="10.0" />
-    <!-- flag to enable wheel odometer -->
-    <arg name="wheel_odom" default="true" />
-    <arg name="whee_odom_frame_id" default="odom_wheel" />
-
 
     <!-- habitat agent & habitat simulator -->
     <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
-        <arg name="agent_type" value="frontier_explore" />
-        <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
-    <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
-    <!-- <arg name="habitat_update_rate" value="2.0" />
+        <arg name="agent_type" value="frontier_explore" /> -->
+    <!-- <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
+    <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" />
+        <arg name="habitat_update_rate" value="2.0" />
     </include> -->
 
     <!-- rtabmap -->
@@ -27,8 +23,6 @@
         <arg name="approx_sync" value="false" />
         <arg name="approx_rgbd_sync" value="false" />
         <arg name="grid_global_min_size" value="$(arg grid_global_min_size)" />
-        <arg name="wheel_odom" value="$(arg wheel_odom)" />
-        <arg if="$(arg wheel_odom)" name="odom_guess_frame_id" value="$(arg whee_odom_frame_id)" />
 
         <!-- topics  -->
         <!-- input -->

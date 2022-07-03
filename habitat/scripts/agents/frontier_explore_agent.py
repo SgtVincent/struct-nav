@@ -19,7 +19,7 @@ from envs.constants import color_palette
 
 # from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Vector3, Quaternion
 from habitat_sim import Simulator
 from matplotlib import cm
 from matplotlib.pyplot import grid
@@ -54,7 +54,7 @@ args.exp_name
 """
 
 DEBUG_VIS = False  # visualize frontiers, goals, odom on 2D grid map
-DEBUG_TF = True  # print transformation from rtabmap to habitat w.r.t. time
+DEBUG_GT_POSE = True  # publish ground truth agent pose 
 
 # this class is designed for running in habitat_sim
 class FrontierExploreAgent:
@@ -82,7 +82,8 @@ class FrontierExploreAgent:
         self.last_action = None
         self.count_forward_actions = None
         self.goal_name = None
-
+        self.init_pos = args.init_pos
+        self.init_rot = args.init_rot
         # from ObjectGoalEnv
         self.info = {}
         self.info["distance_to_goal"] = None
@@ -252,7 +253,7 @@ class FrontierExploreAgent:
         ##################  generate frontiers and goals ##############
         map_resolution = self.args.map_resolution
 
-        frontiers, goals = frontier_goals(
+        frontiers, goals, goal_map = frontier_goals(
             grid_map,
             map_origin,
             map_resolution,
@@ -260,14 +261,15 @@ class FrontierExploreAgent:
             cluster_trashhole=self.args.cluster_trashhole,
             num_goals=1,
             sim=self.sim,
+            mode="geo"
         )
         # TODO: think about goal selection strategy
         goal_position = goals[0, :]
 
         self.publish_frontiers(frontiers, goals)
 
-        if DEBUG_TF:
-            self.debug_tf_func()
+        if DEBUG_GT_POSE:
+            self.debug_gt_pose()
 
         ################### generate action by planners ################
         # convert ros-format grid_map to object-goal-nav style maps
@@ -275,12 +277,12 @@ class FrontierExploreAgent:
         explore_map = (grid_map >= 0).astype(np.float32)
 
         # convert (x,y) goal center to goal map
-        goal_map = np.zeros_like(grid_map)
-        pixel_position = (
-            (goal_position - map_origin) / map_resolution
-        ).astype(int)
-        # NOTE: (x,y) is (col, row) in image
-        goal_map[pixel_position[1], pixel_position[0]] = 1.0
+        # goal_map = np.zeros_like(grid_map)
+        # pixel_position = (
+        #     (goal_position - map_origin) / map_resolution
+        # ).astype(int)
+        # # NOTE: (x,y) is (col, row) in image
+        # goal_map[pixel_position[1], pixel_position[0]] = 1.0
 
         p_input = {}
         p_input["map_pred"] = occupancy_map
@@ -665,79 +667,51 @@ class FrontierExploreAgent:
 
         self.pub_frontiers.publish(marker_arr)
 
-    # record /debug/tf_rtab2habitat by rosbag to do offline analysis
-    def debug_tf_func(self):
+    # record /debug/gt_pose by rosbag to do offline analysis
+    def debug_gt_pose(self):
 
-        debug_tf_pub = rospy.Publisher(
-            name="/debug/tf_rtab2habitat",
+        debug_pose_pub = rospy.Publisher(
+            name="/debug/gt_pose",
             data_class=PoseStamped,
             queue_size=10,
         )
-        ############## calculate relative transformation from rtabmap to habitat #############
-        odom_rot = self.odom_msg.pose.pose.orientation
-        odom_pos = self.odom_msg.pose.pose.position
-        odom_rot_mat = R.from_quat(
-            [odom_rot.x, odom_rot.y, odom_rot.z, odom_rot.w]
-        ).as_matrix()
-        tf_rtab2agent = np.zeros((4, 4))
-        tf_rtab2agent[:3, :3] = odom_rot_mat
-        tf_rtab2agent[:3, 3] = np.array([odom_pos.x, odom_pos.y, odom_pos.z])
-        tf_rtab2agent[3, :] = np.array([0.0, 0.0, 0.0, 1.0])
-        # print("odom_mat norm:\n", np.linalg.det(odom_mat))
+
+        ######## calculate agent's pose in rtabmap with do_transform_pose ###########
         habitat_rot = self.sim.get_agent(0).state.rotation
         habitat_pos = self.sim.get_agent(0).state.position
-        habitat_rot_mat = R.from_quat(
-            [habitat_rot.x, habitat_rot.y, habitat_rot.z, habitat_rot.w]
-        ).as_matrix()
-        tf_habitat2agent = np.zeros((4, 4))
-        tf_habitat2agent[:3, :3] = habitat_rot_mat
-        tf_habitat2agent[:3, 3] = habitat_pos
-        tf_habitat2agent[3, :] = np.array([0.0, 0.0, 0.0, 1.0])
-        # print("habitat_mat norm:\n", np.linalg.det(habitat_mat))
+        init_rot = self.init_rot
+        init_pos = self.init_pos 
+        # current pose relative to init pose 
+        rel_pos = habitat_pos - init_pos 
+        rel_rot = habitat_rot / init_rot
 
-        tf_rtab2habitat = tf_rtab2agent @ np.linalg.inv(tf_habitat2agent)
-        # tf_rtab2habitat[abs(tf_rtab2habitat) < 1e-3] = 0.0
-        # print(tf_rtab2habitat)  # , np.linalg.det(tf_rtab2habitat))
-        # print(R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat())
-
-        pose_h_in_r_relative = PoseStamped()
-        pose_h_in_r_relative.header.frame_id = "map"
-        pose_h_in_r_relative.pose.position = Point(*tf_rtab2habitat[:3, 3])
-        tf_rtab2habitat_quat = R.from_matrix(tf_rtab2habitat[:3, :3]).as_quat()
-        pose_h_in_r_relative.pose.orientation = Quaternion(
-            *tf_rtab2habitat_quat
-        )
-
-        # debug_tf_pub.publish(pose_h_in_r_relative)
-
-        ############### calculate agent's pose in rtabmap directly ###########
+        # NOTE: for the correct pose of agent in matterport3D,
+        # you still need to flip y-z axes
+        # according to this issue https://github.com/facebookresearch/habitat-sim/issues/1620
+        correction_rot = quat_from_two_vectors(np.array([0,0,1]), np.array([0,1,0]))
+        rel_rot = rel_rot * correction_rot
 
         pose_a_in_h = PoseStamped()
         pose_a_in_h.header.frame_id = "habitat"
-        pose_a_in_h.pose.position = Point(*habitat_pos)
+        pose_a_in_h.pose.position = Point(*rel_pos)
         pose_a_in_h.pose.orientation = Quaternion(
-            habitat_rot.x, habitat_rot.y, habitat_rot.z, habitat_rot.w
+            rel_rot.x, rel_rot.y, rel_rot.z, rel_rot.w
         )
 
         tf_rtabmap2habitat = TransformStamped()
         tf_rtabmap2habitat.header.frame_id = "map"  # z-axis upright
         tf_rtabmap2habitat.child_frame_id = "habitat"  # y-axis upright
 
-        tf_rtabmap2habitat.transform.translation.x = 0.0
-        tf_rtabmap2habitat.transform.translation.y = 0.0
-        tf_rtabmap2habitat.transform.translation.z = 0.0
+        # initial position is translation from map to habitat in habitat coords 
+        tf_rtabmap2habitat.transform.translation = Vector3(0,0,0)
 
-        quat = quat_from_two_vectors(geo.GRAVITY, np.array([0, 0, -1]))
-        tf_rtabmap2habitat.transform.rotation.x = quat.x
-        tf_rtabmap2habitat.transform.rotation.y = quat.y
-        tf_rtabmap2habitat.transform.rotation.z = quat.z
-        tf_rtabmap2habitat.transform.rotation.w = quat.w
+        # quat = quat_from_two_vectors(np.array([0, -1, 0]), np.array([0, 0, -1]))
+        quat = quat_from_two_vectors(np.array([0, 1, 0]), np.array([0, 0, 1]))
+        tf_rtabmap2habitat.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
 
         pose_a_in_r = tf2_geometry_msgs.do_transform_pose(
             pose_a_in_h, tf_rtabmap2habitat
         )
-        # NOTE: for the correct pose of agent in matterport3D,
-        # you still need to flip y-z axes
-        # according to this issue https://github.com/facebookresearch/habitat-sim/issues/1620
-
-        debug_tf_pub.publish(pose_a_in_r)
+        # pose_a_in_r.pose.orientation = Quaternion(rel_rot.x, rel_rot.y, rel_rot.z, rel_rot.w)
+        #### calculate agent's pose with 
+        debug_pose_pub.publish(pose_a_in_r)

@@ -63,7 +63,7 @@ def make_cfg(settings):
     return habitat_sim.Configuration(sim_cfg, [agent_cfg])
 
 
-def init_sim(test_scene):
+def init_sim(test_scene, init_pos=[0,0,0]):
     """Initialize the simulator with a test scene."""
     rgb_sensor = True  # @param {type:"boolean"}
     depth_sensor = True  # @param {type:"boolean"}
@@ -110,8 +110,9 @@ def init_sim(test_scene):
     # Set agent state
     agent = sim.initialize_agent(sim_settings["default_agent"])
     agent_state = habitat_sim.AgentState()
-    agent_state.position = np.array([0.0, 0.0, 0.0])  # world space
+    # agent_state.position = np.array([0.0, 0.0, 0.0])  # world space
     # agent_state.position = np.array([1.0, 0.0, -1.0])  # world space
+    agent_state.position = np.array(init_pos)
     agent.set_state(agent_state)
 
     # Get agent state

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 """Main function for the habitat node."""
 
+from mimetypes import init
 import numpy as np
 import open3d as o3d
 import rospy
@@ -78,15 +79,13 @@ def main():
 
     # Initial Sim
     test_scene = rospy.get_param("~test_scene", DEFAULT_TEST_SCENE)
-    sim, action_names = init_sim(test_scene)
-
-    # Initialize the agent and environment
-    # env = habitat.Env(config=config)
-    # env.reset()
-
+    init_pos = rospy.get_param("~init_pos", [1.0, 0.0, -1.0])
+    sim, action_names = init_sim(test_scene, init_pos)
+    observations = sim.step("stay")
     # Initialize TF tree with ground truth init pose (if any)
     sim_agent = sim.get_agent(0)
     transformation.publish_agent_init_tf(sim_agent)
+
 
     if agent_type == "random_walk":
         agent = RandomWalkAgent(action_names)
@@ -99,9 +98,10 @@ def main():
         agent_args.odom_topic = odom_topic
         agent_args.grid_map_topic = grid_map_topic
         agent_args.frontiers_topic = frontiers_topic
+        agent_args.init_pos = sim_agent.state.position
+        agent_args.init_rot = sim_agent.state.rotation
         # agent_args.goal_topic = goal_topic
         agent = FrontierExploreAgent(agent_args, sim)
-        # agent.reset()  # must call this function to initialize agent
 
     else:
         print("AGENT TYPE {} IS NOT DEFINED!!!".format(agent_type))
@@ -110,11 +110,11 @@ def main():
     # ros pub and sub
     rate = rospy.Rate(rate_value)
     publisher = HabitatObservationPublisher(
-        rgb_topic,
-        depth_topic,
-        camera_info_topic,
-        true_pose_topic,
-        camera_info_file,
+        rgb_topic=rgb_topic,
+        depth_topic=depth_topic,
+        camera_info_topic=camera_info_topic,
+        true_pose_topic=true_pose_topic,
+        camera_info_file=camera_info_file,
         # sim_config=sim.config, # bugs remained!
     )
 
