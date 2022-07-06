@@ -9,8 +9,10 @@ import rospy
 from agents.dummy_agents import RandomWalkAgent, SpinningAgent
 from agents.frontier_explore_agent import FrontierExploreAgent
 from agents.utils.arguments import get_args
+from agents.utils.ros_utils import safe_call_reset_service
 from utils.publishers import HabitatObservationPublisher
 from utils.simulator import init_sim
+from utils.transformation import pose_habitat2rtabmap, homo_matrix_from_quat
 
 # from std_msgs.msg import Int32
 from subscribers import PointCloudSubscriber
@@ -52,7 +54,7 @@ def main():
     )
     true_pose_topic = rospy.get_param("~true_pose_topic", "")
     cloud_topic = rospy.get_param("~cloud_topic", "/rtabmap/cloud_map")
-
+    
     # topics for planning
     if agent_type in ["frontier_explore"]:
         odom_topic = rospy.get_param("~odom_topic", "/odom")
@@ -61,6 +63,21 @@ def main():
         )
         frontiers_topic = rospy.get_param("~frontiers_topic", "/frontiers")
         # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
+
+    test_scene = rospy.get_param("~test_scene", DEFAULT_TEST_SCENE)
+    # setup ground truth odometry 
+    ground_truth_odom = rospy.get_param("~ground_truth_odom", False)
+    ground_truth_odom_topic = ""
+    if ground_truth_odom:
+        ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
+        odom_topic = ground_truth_odom_topic
+    init_pos = rospy.get_param("~init_pos", [-0.5, 0.0, -0.5]) # [-0.5, 0.0, -0.5]
+    init_rot = rospy.get_param("~init_rot", [1.0, 0.0, 1.0, 0.0]) # [1.0, 0.0, -1.0, 0.0]
+
+    # for debug use, relaunch agent without relaunch rtabmap 
+    safe_call_reset_service("/rtabmap/reset")
+    if not ground_truth_odom:
+        safe_call_reset_service("/rtabmap/reset_odom")
 
     # ros pub and sub
     rate = rospy.Rate(rate_value)
@@ -79,17 +96,15 @@ def main():
     sub_cloud = PointCloudSubscriber(cloud_topic)
 
     # Initial Sim
-    test_scene = rospy.get_param("~test_scene", DEFAULT_TEST_SCENE)
-    init_pos = rospy.get_param("~init_pos", [1.0, 0.0, -1.0])
-    init_rot = rospy.get_param("~init_rot", [1.0, 0.0, -1.0, 0.0]) # rotate -90 degree to y-axis
     init_rot = qt.quaternion(*(np.array(init_rot)/ np.linalg.norm(init_rot)))
     sim, action_names = init_sim(test_scene, init_pos, init_rot)
     observations = sim.step("stay")
     # Initialize TF tree with ground truth init pose (if any)
     sim_agent = sim.get_agent(0)
     transformation.publish_agent_init_tf(sim_agent)
-
-
+    init_pos = sim_agent.state.position
+    init_rot = sim_agent.state.rotation
+    
     if agent_type == "random_walk":
         agent = RandomWalkAgent(action_names)
 
@@ -101,8 +116,9 @@ def main():
         agent_args.odom_topic = odom_topic
         agent_args.grid_map_topic = grid_map_topic
         agent_args.frontiers_topic = frontiers_topic
-        agent_args.init_pos = sim_agent.state.position
-        agent_args.init_rot = sim_agent.state.rotation
+        agent_args.init_pos = init_pos
+        agent_args.init_rot = init_rot
+        agent_args.ground_truth_odom = ground_truth_odom
         # agent_args.goal_topic = goal_topic
         agent = FrontierExploreAgent(agent_args, sim)
 
@@ -116,6 +132,7 @@ def main():
         rgb_topic=rgb_topic,
         depth_topic=depth_topic,
         camera_info_topic=camera_info_topic,
+        ground_truth_odom_topic=ground_truth_odom_topic,
         true_pose_topic=true_pose_topic,
         camera_info_file=camera_info_file,
         # sim_config=sim.config, # bugs remained!
@@ -128,18 +145,25 @@ def main():
     print("TIME TO LAUNCH HABITAT:", robot_start_time - node_start_time)
 
     cnt_pub = 0
-    cnt_sub = 0
+    # cnt_sub = 0
     cnt_action = 0
 
     action = "stay"  # initial action to get first frame
     while not rospy.is_shutdown():
+        print(f"Step {cnt_action}:simulator execute action {action}")
         if action != "stay" or cnt_action == 0:
-            print(f"Step {cnt_action}:simulator execute action {action}")
             observations = sim.step(action)
             cnt_action += 1
-
-            publisher.publish(observations)
-            cnt_pub += 1
+            
+            if ground_truth_odom:
+                agent_state = sim.get_agent(0).get_state()
+                habitat_rot = agent_state.rotation
+                habitat_pos = agent_state.position
+                pos_rtab, rot_rtab = pose_habitat2rtabmap(habitat_pos, habitat_rot, init_pos, init_rot)
+                observations['true_odom_mat'] = homo_matrix_from_quat(rot_rtab, pos_rtab)
+            
+        publisher.publish(observations)
+        cnt_pub += 1
         # FIXME: consider to move publishing point cloud to data process function
         # in agents
         # NOTE: test if rgbd data has been received by rtabmap

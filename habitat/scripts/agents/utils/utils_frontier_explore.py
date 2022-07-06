@@ -12,7 +12,7 @@ from numpy import ma
 import skfmm
 from sklearn.cluster import DBSCAN
 
-from utils.transformation import points_rtab2habitat
+from utils.transformation import points_world2habitat
 
 # import matplotlib.pyplot as plt
 # import plotly
@@ -310,7 +310,7 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     points = np.copy(centroids)
     # TODO: Rtabmap coordinate to habitat coordinate
     points[:, 2] = 0.88
-    points_hab = points_rtab2habitat(points)
+    points_hab = points_world2habitat(points)
     distances = dist2obj_goal(sim, points_hab, goal_cat)
     utility = 1 / distances
     utility_array[:, 2] = utility

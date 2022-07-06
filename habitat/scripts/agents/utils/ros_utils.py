@@ -135,7 +135,6 @@ def publish_odom(pose_mat, publisher, stamp=None, frame_id="odom",
         pose_mat (np.ndarray): (4x4) pose matrix 
         publisher (rospy.Publisher): odometry message publisher
     """
-    # TODO: Finish this odometry publisher 
     msg = Odometry()
     if stamp is None:
         msg.header.stamp = rospy.Time.now()

@@ -2,7 +2,7 @@ import math
 import os
 import time
 from collections import deque
-
+import quaternion as qt
 from matplotlib.transforms import Transform
 import agents.utils.visualization as vu
 import cv2
@@ -27,6 +27,7 @@ from utils.publishers import HabitatObservationPublisher, PointCloudPublisher
 from utils.transformation import (
     publish_agent_init_tf,
     publish_static_base_to_cam,
+    pose_habitat2rtabmap
 )
 # from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
@@ -65,7 +66,7 @@ VISUALIZE = False
 DEBUG = False
 DEBUG_VIS = False
 DEBUG_WHEEL_ODOM = False
-DEBUG_DETECT = True
+DEBUG_DETECT = False
 
 class Frontier2DDetectionAgent(ObjectGoal_Env):
     def __init__(self, args, rank, config_env, dataset):
@@ -149,6 +150,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         """initialize ros related publishers and subscribers for agent"""
         # task_config = rospy.get_param("~task_config")
         self.rate_value = rospy.get_param("~rate", DEFAULT_RATE)
+        rospy.loginfo(f"agent update state from ros at rate {self.rate_value} hz")
         self.camera_info_file = rospy.get_param(
             "~camera_calib", DEFAULT_CAMERA_CALIB
         )
@@ -160,7 +162,14 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         if self.wheel_odom:
             self.whee_odom_frame_id = rospy.get_param("~wheel_odom_frame_id", "")
         
-        self.state_update_mode = rospy.get_param("~state_update_mode", "listen")
+        # setup ground truth odometry 
+        self.ground_truth_odom = rospy.get_param("~ground_truth_odom", False)
+        self.ground_truth_odom_topic = ""
+        if self.ground_truth_odom:
+            self.ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
+        
+        
+        self.map_update_mode = rospy.get_param("~map_update_mode", "listen")
 
         # assert (
         #     agent_type in AGENT_CLASS_MAPPING.keys()
@@ -187,6 +196,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         )
         # topics for planning
         self.odom_topic = rospy.get_param("~odom_topic", "/odom")
+        if self.ground_truth_odom:
+            self.odom_topic = self.ground_truth_odom_topic
+            
         self.grid_map_topic = rospy.get_param(
             "~grid_map_topic", "/rtabmap/grid_map"
         )
@@ -198,15 +210,17 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # ros pub and sub
         self.rate = rospy.Rate(self.rate_value)
         
+        
         self.pub_obs = HabitatObservationPublisher(
             rgb_topic=self.rgb_topic,
             depth_topic=self.depth_topic,
             semantic_topic=self.semantic_topic,
             camera_info_topic=self.camera_info_topic,
+            ground_truth_odom_topic=self.ground_truth_odom_topic,
             true_pose_topic=self.true_pose_topic,
             camera_info_file=self.camera_info_file,
             wheel_odom_frame_id=self.whee_odom_frame_id,
-            # sim_config=self.habitat_env.sim.sim_config
+            sim_config=self.habitat_env.sim.sim_config
         )
 
         self.cam_int_mat = np.array(self.pub_obs.camera_info.K).reshape((3,3))
@@ -217,20 +231,24 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # )
         # publish messages to a topic using rospy.Publisher class
         # self.pub_action = rospy.Publisher("habitat_action", String, queue_size=1)
-
-        if self.state_update_mode == "listen":
-            rospy.loginfo(f"Agent running in listen mode to update state")
+        
+        self.sub_odom = None
+        if not self.ground_truth_odom:
             self.sub_odom = rospy.Subscriber(
                 self.odom_topic, Odometry, self.callback_odom
             )
-            rospy.loginfo(f"subscribing to {self.odom_topic}...")
+            rospy.loginfo(f"subscribing to predicted odom {self.odom_topic}...")
+
+        self.sub_grid_map = None
+        if self.map_update_mode == "listen":
+            rospy.loginfo(f"Agent running in listen mode to update map")
 
             self.sub_grid_map = rospy.Subscriber(
                 self.grid_map_topic, OccupancyGrid, self.callback_grid_map
             )
             rospy.loginfo(f"subscribing to {self.grid_map_topic}...")
-        elif self.state_update_mode == "request":
-            rospy.loginfo(f"Agent running in request mode to update state")
+        elif self.map_update_mode == "request":
+            rospy.loginfo(f"Agent running in request mode to update map")
             # skip subscriber initialization 
         else:
             raise NotImplementedError
@@ -295,6 +313,12 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.last_action = None
             self.last_odom_mat = np.eye(4)
             self.actions_queue = deque([], maxlen=4)
+            
+            if self.ground_truth_odom:
+                # always publish current pose in initial pose frame 
+                # this "normalization" avoids a lot of configurations in rtabmap
+                self.init_pos = info['agent_pose'].position
+                self.init_rot = info['agent_pose'].rotation
 
             if args.visualize or args.print_images:
                 self.legend = cv2.imread("docs/legend.png")
@@ -307,15 +331,17 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             
             # 3. reset map and odom in rtabmap_ros
             safe_call_reset_service("/rtabmap/reset")  # reset map
-            safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
+            if self.sub_odom:
+                safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
             time.sleep(1.0)
             
             # 4. publish observation
-            obs = self._preprocess_obs(obs)
+            obs = self._preprocess_obs(obs, info)
             if publish_obs:
                 self.pub_obs.publish(obs)
                 self.cnt_pub += 1
-                time.sleep(0.5)
+                # self.rate.sleep()
+                time.sleep(1/self.rate_value)
                 # if DEBUG:
                 #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
             
@@ -345,33 +371,38 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     # time.sleep(1.0)
                     rospy.logwarn("Republishing observations...")
                     self.pub_obs.publish(obs)
-                    time.sleep(0.5)
+                    # self.rate.sleep()
+                    time.sleep(1/self.rate_value)
                     
         self.obs = obs 
+        self.info = info
         return obs, info
 
 
     def process_ros_messages(self):
         
-        # waiting for odometry update 
-        while (
-            self.odom_msg == None or 
-            self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
-            # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
-        ):
-            # waiting for data
-            cur_time = rospy.Time().now().to_sec()
-            time_diff = cur_time - self.last_update_time
-            if DEBUG:
-                print(
-                    f"[DEBUG] waiting for odometry message update since {time_diff} seconds ago"
-                )
-            self.rate.sleep()
+        # get odometry update  
+        if not self.ground_truth_odom:
+            while (
+                self.odom_msg == None or 
+                self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
+                # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
+            ):
+                # waiting for data
+                cur_time = rospy.Time().now().to_sec()
+                time_diff = cur_time - self.last_update_time
+                if DEBUG:
+                    print(
+                        f"[DEBUG] waiting for odometry message update since {time_diff} seconds ago"
+                    )
+                # self.rate.sleep()
+                time.sleep(1/self.rate_value)
 
-        odom_msg: Odometry = self.odom_msg
-        self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
+            odom_msg: Odometry = self.odom_msg
+            self.last_odom_msg_time = odom_msg.header.stamp.to_sec()
         
-        if self.state_update_mode == "listen":
+        # get map update 
+        if self.map_update_mode == "listen":
             while (
                 self.grid_map_msg == None
                 # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
@@ -379,13 +410,14 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 # waiting for map data 
                 cur_time = rospy.Time().now().to_sec()
                 time_diff = cur_time - self.last_update_time
-                self.rate.sleep()
+                # self.rate.sleep()
+                time.sleep(1/self.rate_value)
 
             grid_map_msg: OccupancyGrid = self.grid_map_msg
             # update timestamps for last processed messages
             self.last_grid_map_msg_time = grid_map_msg.header.stamp.to_sec()
 
-        elif self.state_update_mode == "request":
+        elif self.map_update_mode == "request":
             grid_map_msg: OccupancyGrid = safe_get_map_service()
             # odom_msg: TransformStamped = self.tf_buffer.lookup_transform(
             #     "base_link", "map", rospy.Time(0))
@@ -396,7 +428,13 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         grid_map, map_origin = self.process_map_msg(grid_map_msg)
 
         ################ process odometry update ######################
-        odom_map_pose, odom_pose_mat = self.process_odom_msg(odom_msg)
+        if self.ground_truth_odom:
+            odom_pose_mat = self.obs['true_odom_mat']
+            odom_map_pose = odom_pose_mat[:3, 3]
+            odom_angle = R.from_matrix(odom_pose_mat[:3,:3]).as_euler("zxy", degrees=True)[0]
+            odom_map_pose[2] = odom_angle
+        else:
+            odom_map_pose, odom_pose_mat = self.process_odom_msg(odom_msg)
         # save odom_pose_mat in case visual odom lost 
         self.last_odom_mat = odom_pose_mat
 
@@ -681,15 +719,16 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
             # act
             action = {"action": action}
-            self.rate.sleep()
             obs, rew, done, info = super().step(action)
             self.last_action = action["action"]
 
             # preprocess obs and publish it 
-            obs = self._preprocess_obs(obs)
+            obs = self._preprocess_obs(obs, info)
             self.pub_obs.publish(obs)
             self.obs = obs
             self.info = info
+            # self.rate.sleep()
+            time.sleep(1/self.rate_value)
 
             # info["g_reward"] += rew
 
@@ -1023,7 +1062,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             cv2.imwrite(fn, self.vis_image)
 
     # TODO: add object detection / segmentation models here
-    def _preprocess_obs(self, obs, use_seg=True):
+    def _preprocess_obs(self, obs, info=None):
 
         # args = self.args
         # not using VecPyTorch to wrap environemnts
@@ -1044,6 +1083,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                 semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
             obs['semantic'] = semantic_image
 
+        # add pseudo wheel odometry pose to observations 
         if self.wheel_odom or DEBUG_WHEEL_ODOM:
             if self.last_action:
                 updated_odom_mat = update_odom_by_action(self.last_odom_mat, self.last_action)
@@ -1051,11 +1091,25 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             else:
                 obs['odom_pose_mat'] = self.last_odom_mat
         
-        if DEBUG_WHEEL_ODOM:
-            publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
-
-        # depth = self._preprocess_depth(depth, args.min_depth, args.max_depth)
-
+        # add ground truth pose to observations
+        if self.ground_truth_odom:
+            true_state = info['agent_pose']
+            true_pos_rtab, true_rot_rtab = pose_habitat2rtabmap(
+                true_state.position, 
+                true_state.rotation,
+                self.init_pos,
+                self.init_rot
+            )
+            
+            true_odom_mat = np.zeros((4,4), dtype=float)
+            true_odom_mat[:3, :3] = qt.as_rotation_matrix(true_rot_rtab)
+            true_odom_mat[:3, 3] = true_pos_rtab
+            true_odom_mat[3, 3] = 1.0
+            obs['true_odom_mat'] = true_odom_mat
+            
+        # if DEBUG_WHEEL_ODOM:
+        #     publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
+        
         # ds = args.env_frame_width // args.frame_width  # Downscaling factor
         # if ds != 1:
         #     rgb = np.asarray(self.res(rgb.astype(np.uint8)))

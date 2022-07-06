@@ -36,7 +36,7 @@ BIT_MOVE_16 = 2 ** 16
 BIT_MOVE_8 = 2 ** 8
 
 
-def get_camera_info(filepath):
+def get_camera_info_file(filepath):
     """Get camera information from a file."""
     with open(filepath, "r", encoding="utf-8") as f:
         yaml_data = yaml.safe_load(f)
@@ -55,19 +55,20 @@ def get_camera_info_config(config: habitat_sim.Configuration):
     Args:
         sim (haibtat_sim.Simulator): simulator config class
     """
-    assert NotImplementedError  # still errors remained, do not use
+    # assert NotImplementedError  # still errors remained, do not use
     sensor_spec: habitat_sim.sensor.CameraSensorSpec = config.agents[
         0
     ].sensor_specifications[1]
     height = sensor_spec.resolution[0].item()  # numpy.int32 to native int
     width = sensor_spec.resolution[1].item()
-    hfov = float(sensor_spec.hfov) / 180.0 * np.pi  # degree to radius
-    fx = cx = width / 2.0 / np.tan(hfov / 2.0)
-    fy = cy = height / 2.0 / np.tan(hfov / 2.0)
+    hfov = np.deg2rad(float(sensor_spec.hfov))  # degree to radius
+    cx = width / 2.0 
+    cy = height / 2.0 
+    f = (width / 2.0) / np.tan(hfov / 2.0)
     K_mat = np.array(
         [
-            [fx, 0.0, cx],
-            [0.0, fy, cy],
+            [f, 0.0, cx],
+            [0.0, f, cy],
             [0.0, 0.0, 1.0],
         ]
     )
@@ -95,10 +96,10 @@ class HabitatObservationPublisher:
         depth_topic="",
         semantic_topic="",
         camera_info_topic="",
-        wheel_odom_topic="", # publish wheel_odom by Odometry message
-        true_pose_topic="",
+        ground_truth_odom_topic="", # publish true odometry as Odometry message
         camera_info_file="",
         wheel_odom_frame_id="", # publish wheel_odom as tf: odom_wheel -> base_link
+        true_pose_topic="",
         sim_config=None,
     ):
         """Initialize publisher with topic handles."""
@@ -111,15 +112,16 @@ class HabitatObservationPublisher:
         self.publish_depth = False
         self.semantic_topic = semantic_topic
         self.publish_semantic = False
-        self.wheel_odom_topic = wheel_odom_topic
-        self.publish_wheel_odom = False
-        self.true_pose_topic = true_pose_topic
-        self.publish_true_pose = False
+        self.true_odom_topic = ground_truth_odom_topic
+        self.publish_true_odom = False
+        self.publish_true_odom_tf = False
         # publish wheel odometry as tf: odom_wheel -> base_link, 
         # see "guess_frame_id" in http://wiki.ros.org/rtabmap_ros
         self.wheel_odom_frame_id = wheel_odom_frame_id
         self.publish_wheel_odom_tf = False
-
+        # true_pose_topic not used 
+        self.true_pose_topic = true_pose_topic
+        self.publish_true_pose = False
 
         # Initialize camera info publisher.
         if len(camera_info_topic) > 0:
@@ -130,7 +132,7 @@ class HabitatObservationPublisher:
             if sim_config is not None:
                 self.camera_info = get_camera_info_config(sim_config)
             else:
-                self.camera_info = get_camera_info(camera_info_file)
+                self.camera_info = get_camera_info_file(camera_info_file)
 
         # Initialize RGB image publisher.
         if len(rgb_topic) > 0:
@@ -154,16 +156,18 @@ class HabitatObservationPublisher:
             )
 
         # Initialize wheel odometry publisher 
-        if len(wheel_odom_topic) > 0:
-            self.publish_wheel_odom = True
-            self.wheel_odom_publisher = rospy.Publisher(
-                wheel_odom_topic, Odometry, queue_size=10
+        if len(ground_truth_odom_topic) > 0:
+            self.publish_true_odom = True
+            self.publish_true_odom_tf = True
+            self.true_odom_publisher = rospy.Publisher(
+                ground_truth_odom_topic, Odometry, queue_size=1
             )
 
         # Initialize tf publisher for wheel odometry
         if len(wheel_odom_frame_id) > 0:
             self.publish_wheel_odom_tf = True
-            self.tf_publisher = rospy.Publisher("/tf", TFMessage, queue_size=1)
+            
+        self.tf_publisher = rospy.Publisher("/tf", TFMessage, queue_size=1)
 
         # Initialize position publisher.
         # if len(true_pose_topic) > 0:
@@ -176,15 +180,21 @@ class HabitatObservationPublisher:
     def publish(self, observations):
         """Publish messages."""
         cur_time = rospy.Time.now()
-
+        
+        ################# publish meta info ##########################
         # Publish camera info.
         if self.publish_camera_info:
             self.camera_info.header.stamp = cur_time
             self.camera_info_publisher.publish(self.camera_info)
 
+        ############## publish transformations ########################
+        
         # publish wheel odometry as tf: odom_wheel -> base_link
+        # publish true odom tf: odom -> base_link
         # NOTE: publish guess frame before observations
         # Otherwise odometry update will be aborted 
+        tf_msgs = []
+
         if self.publish_wheel_odom_tf:
 
             wo_msg = TransformStamped()
@@ -196,17 +206,35 @@ class HabitatObservationPublisher:
             pose_mat = observations["odom_pose_mat"]
             x, y, z = pose_mat[:3,3]
             quat = qt.from_rotation_matrix(pose_mat[:3, :3])
-
             wo_msg.transform.translation = Vector3(x, y, z)
             wo_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
 
-            # add to this list if more tfs needed 
-            tf_msgs = TFMessage([wo_msg])
-            self.tf_publisher.publish(tf_msgs)
-
-        if self.publish_wheel_odom:
+            tf_msgs.append(wo_msg)
             
-            pose_mat = observations["odom_pose_mat"]
+        if self.publish_true_odom_tf:
+            
+            to_msg = TransformStamped()
+            to_msg.header.stamp = cur_time
+            to_msg.header.frame_id = "odom"
+            to_msg.child_frame_id = "base_link"
+                
+            # construct position and rotation
+            pose_mat = observations["true_odom_mat"]
+            x, y, z = pose_mat[:3,3]
+            quat = qt.from_rotation_matrix(pose_mat[:3, :3])
+            to_msg.transform.translation = Vector3(x, y, z)
+            to_msg.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
+
+            tf_msgs.append(to_msg)
+            
+        if len(tf_msgs) > 0:
+            tf_msgs = TFMessage(tf_msgs)
+            self.tf_publisher.publish(tf_msgs)
+            
+        ################# publish odometry ########################
+        if self.publish_true_odom:
+            
+            pose_mat = observations["true_odom_mat"]
             odom_msg = Odometry()
 
             odom_msg.header.stamp = cur_time
@@ -224,9 +252,9 @@ class HabitatObservationPublisher:
             p_cov = np.array([
                 5e-2, 0., 0., 0., 0., 0.,
                 0., 5e-2, 0., 0., 0., 0.,
-                0., 0., 1e3, 0., 0., 0.,
-                0., 0., 0., 1e3, 0., 0.,
-                0., 0., 0., 0., 1e3, 0.,
+                0., 0., 5e-2, 0., 0., 0.,
+                0., 0., 0., 1e-2, 0., 0.,
+                0., 0., 0., 0., 1e-2, 0.,
                 0., 0., 0., 0., 0., 1e-2,
             ])
             odom_msg.pose.covariance = p_cov.tolist()
@@ -234,8 +262,11 @@ class HabitatObservationPublisher:
             # NOTE: if to implement continous control, add psedu twist message
             
             # Publish odometry message
-            self.wheel_odom_publisher.publish(odom_msg)
+            self.true_odom_publisher.publish(odom_msg)
 
+        # NOTE: the observations should be published after camera info, tf, pose 
+        # otherwise odometry and cloud registration will be invalidated by SLAM system 
+        ############## publish observations ##########################
         # Publish RGB image.
         if self.publish_rgb:
             # self.image = self.cvbridge.cv2_to_imgmsg(observations['rgb'])

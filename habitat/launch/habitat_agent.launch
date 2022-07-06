@@ -4,9 +4,10 @@
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
     <!-- <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
     <!-- <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
-    <!-- <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/gibson/Collierville.glb" /> -->
-    <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/gibson/Collierville.glb" />
-
+    <arg name="test_scene" default="/media/junting/SSD_data/habitat_data/scene_datasets/gibson/Collierville.glb" />
+    <!-- <arg name="test_scene" default="/home/junting/Downloads/datasets/habitat_data/scene_datasets/gibson/Collierville.glb" /> -->
+    <arg name="ground_truth_odom" default="true" />
+    <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="habitat_update_rate" default="2.0" />
 
@@ -17,6 +18,8 @@
         <param name="test_scene" value="$(arg test_scene)" />
         <param name="camera_calib" value="$(arg camera_calib)" />
         <param name="rate" type="double" value="$(arg habitat_update_rate)" />
+        <param name="ground_truth_odom" value="$(arg ground_truth_odom)" />
+        <param name="ground_truth_odom_topic" value="$(arg ground_truth_odom_topic)" />
 
         <!-- topics  -->
         <param name="rgb_topic" value="/camera/rgb/image" />

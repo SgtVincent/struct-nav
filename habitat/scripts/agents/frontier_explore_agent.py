@@ -11,30 +11,31 @@ from scipy.spatial.transform import Rotation as R
 import skimage.morphology
 from habitat_sim.utils.common import quat_from_two_vectors, quat_to_coeffs
 from habitat_sim import geo
+from habitat_sim import Simulator
+from matplotlib import cm
+from matplotlib.pyplot import grid
+from PIL import Image
+from torchvision import transforms
+from yaml import Mark
 
 # from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.arguments import get_args
 from agents.utils.utils_frontier_explore import frontier_goals
 from envs.constants import color_palette
-
 # from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
-from geometry_msgs.msg import PoseStamped, Vector3, Quaternion
-from habitat_sim import Simulator
-from matplotlib import cm
-from matplotlib.pyplot import grid
-from nav_msgs.msg import OccupancyGrid, Odometry, Path
-from PIL import Image
-from torchvision import transforms
-from yaml import Mark
+from utils.transformation import pose_habitat2rtabmap
 
 # ros packages
 import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header, String
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import TransformStamped, PoseStamped, Point, Quaternion
+from geometry_msgs.msg import (
+    TransformStamped, PoseStamped, Point, Quaternion, PoseStamped, Vector3, Quaternion
+)
 import tf2_geometry_msgs
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
 
 """
 FrontierExploreAgent arguments:
@@ -84,6 +85,7 @@ class FrontierExploreAgent:
         self.goal_name = None
         self.init_pos = args.init_pos
         self.init_rot = args.init_rot
+        self.ground_truth_odom = args.ground_truth_odom
         # from ObjectGoalEnv
         self.info = {}
         self.info["distance_to_goal"] = None
@@ -230,11 +232,12 @@ class FrontierExploreAgent:
         ############ parse ros messages ################
 
         # FIXME: cannot receive grid_map message
-        if self.odom_msg == None or self.grid_map_msg == None:
-            # waiting for data
+        if self.grid_map_msg == None:
             return "stay"
-
+        
+        # if not self.ground_truth_odom:
         if (
+            self.odom_msg == None or 
             self.last_odom_msg_time == self.odom_msg.header.stamp.to_sec()
             # or self.last_grid_map_msg_time == self.grid_map_msg.header.stamp.to_sec()
         ):
@@ -245,7 +248,7 @@ class FrontierExploreAgent:
             #     self.last_odom_msg_time, self.last_grid_map_msg_time
             # )
             print(
-                f"DEBUG: waiting for message update since {time_diff} seconds ago"
+                f"DEBUG: waiting for odom update since {time_diff} seconds ago"
             )
             return "stay"
 
@@ -675,43 +678,18 @@ class FrontierExploreAgent:
             data_class=PoseStamped,
             queue_size=10,
         )
-
-        ######## calculate agent's pose in rtabmap with do_transform_pose ###########
+        
         habitat_rot = self.sim.get_agent(0).state.rotation
         habitat_pos = self.sim.get_agent(0).state.position
         init_rot = self.init_rot
         init_pos = self.init_pos 
-        # current pose relative to init pose 
-        rel_pos = habitat_pos - init_pos 
-        rel_rot = habitat_rot / init_rot
-
-        # NOTE: for the correct pose of agent in matterport3D,
-        # you still need to flip y-z axes
-        # according to this issue https://github.com/facebookresearch/habitat-sim/issues/1620
-        correction_rot = quat_from_two_vectors(np.array([0,0,1]), np.array([0,1,0]))
-        rel_rot = rel_rot * correction_rot
-
-        pose_a_in_h = PoseStamped()
-        pose_a_in_h.header.frame_id = "habitat"
-        pose_a_in_h.pose.position = Point(*rel_pos)
-        pose_a_in_h.pose.orientation = Quaternion(
-            rel_rot.x, rel_rot.y, rel_rot.z, rel_rot.w
+    
+        ######## calculate agent's pose in rtabmap without ros package ########
+        pos_rtab, rot_rtab = pose_habitat2rtabmap(habitat_pos, habitat_rot, init_pos, init_rot)
+        pose_a_in_r = PoseStamped()
+        pose_a_in_r.header.frame_id = "odom"
+        pose_a_in_r.pose.position = Point(*pos_rtab)
+        pose_a_in_r.pose.orientation = Quaternion(
+            rot_rtab.x, rot_rtab.y, rot_rtab.z, rot_rtab.w
         )
-
-        tf_rtabmap2habitat = TransformStamped()
-        tf_rtabmap2habitat.header.frame_id = "map"  # z-axis upright
-        tf_rtabmap2habitat.child_frame_id = "habitat"  # y-axis upright
-
-        # initial position is translation from map to habitat in habitat coords 
-        tf_rtabmap2habitat.transform.translation = Vector3(0,0,0)
-
-        # quat = quat_from_two_vectors(np.array([0, -1, 0]), np.array([0, 0, -1]))
-        quat = quat_from_two_vectors(np.array([0, 1, 0]), np.array([0, 0, 1]))
-        tf_rtabmap2habitat.transform.rotation = Quaternion(quat.x, quat.y, quat.z, quat.w)
-
-        pose_a_in_r = tf2_geometry_msgs.do_transform_pose(
-            pose_a_in_h, tf_rtabmap2habitat
-        )
-        # pose_a_in_r.pose.orientation = Quaternion(rel_rot.x, rel_rot.y, rel_rot.z, rel_rot.w)
-        #### calculate agent's pose with 
         debug_pose_pub.publish(pose_a_in_r)

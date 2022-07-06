@@ -2,20 +2,24 @@
 
     <arg name="grid_normals_segmentation" default="false" />
     <arg name="grid_global_min_size" default="10.0" />
+    <arg name="ground_truth_odom" default="true" />
+    <arg name="ground_truth_odom_topic" default="/true_odom" />
 
     <!-- habitat agent & habitat simulator -->
     <!-- <include file="$(find habitat_ros)/launch/habitat_agent.launch">
-        <arg name="agent_type" value="frontier_explore" /> -->
-    <!-- <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
-    <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" />
-        <arg name="habitat_update_rate" value="2.0" />
+        <arg name="agent_type" value="frontier_explore" />
+        <arg name="ground_truth_odom" default="true" />
+        <arg name="ground_truth_odom_topic" default="/true_odom" />
+        <arg name="test_scene" value="/media/junting/SSD_data/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
+    <!-- <arg name="test_scene" value="/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb" /> -->
+    <!-- <arg name="habitat_update_rate" value="2.0" />
     </include> -->
 
     <!-- rtabmap -->
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
 
         <arg name="rtabmap_args" value="--delete_db_on_start" />
-        <!-- <arg name="ground_truth_frame_id" value="world"/> -->
+        <arg if="$(arg ground_truth_odom)" name="visual_odometry" value="false" />
         <arg name="frame_id" value="base_link" />
         <arg name="wait_for_transform" value="5.0" />
         <arg name="rviz" value="false" />
@@ -23,6 +27,7 @@
         <arg name="approx_sync" value="false" />
         <arg name="approx_rgbd_sync" value="false" />
         <arg name="grid_global_min_size" value="$(arg grid_global_min_size)" />
+        <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
 
         <!-- topics  -->
         <!-- input -->
@@ -31,7 +36,8 @@
         <!-- <arg name="rgb_topic" value="/camera/semantic/image" /> -->
         <arg name="camera_info_topic" value="/camera/rgb/camera_info" />
         <arg name="scan_topic" value="/scan" />
-        <arg name="odom_topic" value="/odom" />
+        <arg unless="$(arg ground_truth_odom)" name="odom_topic" value="/odom" />
+        <arg if="$(arg ground_truth_odom)" name="odom_topic" value="$(arg ground_truth_odom_topic)" />
         <!-- output -->
 
         <!-- map parameters-->
@@ -43,9 +49,9 @@
         <!-- by default predict ground from point normals-->
         <arg name="grid_normals_segmentation" value="$(arg grid_normals_segmentation)" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_max_ground_height" value="0.20" />
+        <arg name="grid_max_ground_height" value="0.10" />
         <!-- disabled when grid_normals_segmentation is true -->
-        <arg name="grid_min_ground_height" value="-0.20" />
+        <arg name="grid_min_ground_height" value="-0.10" />
 
         <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
         <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum neighbors.] -->

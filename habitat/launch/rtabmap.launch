@@ -161,10 +161,10 @@
     <arg name="use_action_for_goal" default="false" />
     <arg name="map_topic" default="grid_map" />
     <arg name="move_base_topic" default="move_base" />
-    <arg name="grid_global_min_size" default="10.0" /> <!-- min map size (meter) -->
-    <!--<arg name="proj_max_ground_height" default="0.3"/>  points  -->
-    <!-- <arg name="proj_max_height" default="1.5"/> points higher than this height will be ignored on 2d map -->
+    <arg name="rtabmap_detection_rate" default="1" />
+
     <!-- map parameters -->
+    <arg name="grid_global_min_size" default="10.0" /> <!-- min map size (meter) -->
     <!-- grid_3d: A 3D occupancy grid is required if you want an OctoMap (3D ray tracing). 
         Set to false if you want only a 2D map, the cloud will be projected on xy plane. 
         A 2D map can be still generated if checked, but it requires more memory and time to generate it.-->
@@ -175,13 +175,22 @@
     <arg name="grid_cell_size" default="0.05" />
     <arg name="grid_depth_decimation" default="1" />
     <arg name="grid_normals_segmentation" default="true" /> <!-- by default predict ground from point normals-->
-    <arg name="grid_max_ground_height" default="0.30" /> <!-- used function when grid_normals_segmentation is false -->
-    <arg name="grid_min_ground_height" default="-0.30" /> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_max_ground_height" default="0.20" /> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_min_ground_height" default="-0.10" /> <!-- used function when grid_normals_segmentation is false -->
+    <arg name="grid_max_obstacle_height" default="1.0" /> <!-- mapping maximum height of points used for projection -->
     <arg name="grid_cluster_radius" default="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
     <arg name="grid_noise_filtering_min_neighbors" default="5" /> <!-- [Noise filtering minimum neighbors.] -->
     <arg name="grid_noise_filtering_radius" default="0.0" /> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->
-    <arg name="proj_max_height" default="1.0" /> <!-- mapping maximum height of points used for projection -->
-    <arg name="wheel_odom" default="false"/> <!-- fuse wheel odometry if set to true -->
+
+    <!-- rgbd_optimize_from_graph_end: By setting to false (which is the default), on loop closures the graph will be optimized 
+        from the first pose in the map. The TF /map -> /odom will change when this happens. 
+        When set to true, the graph is optimized from the latest node added to the map instead of the first. 
+        By optimizing from the last, the last pose keeps its value and all the previous poses are corrected 
+        according to it (so /odom and /map will always match together).-->
+    <arg name="rgbd_optimize_from_graph_end" default="false" />
+
+    <arg name="ground_truth_odom" default="false" /> <!-- if set to true, use ground truth external odometry instead of visual odometry-->
+    <!-- <arg name="ground_truth_odom_topic" default="" /> -->
     <!-- custom arguments END -->
 
 
@@ -393,6 +402,8 @@
             <param name="gen_depth_fill_holes_error" type="double" value="$(arg gen_depth_fill_holes_error)" />
 
             <!-- custom parameters START -->
+            <param name="Rtabmap/DetectionRate" value="$(arg rtabmap_detection_rate)" />
+
             <param name="GridGlobal/MinSize" type="double" value="$(arg grid_global_min_size)" />
             <param name="Grid/3D" type="bool" value="$(arg grid_3d)" />
             <param name="Grid/RayTracing" type="bool" value="$(arg grid_ray_tracing)" />
@@ -401,10 +412,13 @@
             <param name="Grid/NormalsSegmentation" type="bool" value="$(arg grid_normals_segmentation)" />
             <param name="Grid/MaxGroundHeight" type="double" value="$(arg grid_max_ground_height)" />
             <param name="Grid/MinGroundHeight" type="double" value="$(arg grid_min_ground_height)" />
+            <param name="Grid/MaxObstacleHeight" type="double" value="$(arg grid_max_obstacle_height)" />
             <param name="Grid/ClusterRadius" type="double" value="$(arg grid_cluster_radius)" />
             <param name="Grid/NoiseFilteringMinNeighbors" type="int" value="$(arg grid_noise_filtering_min_neighbors)" />
             <param name="Grid/NoiseFilteringRadius" type="double" value="$(arg grid_noise_filtering_radius)" />
-            <param name="proj_max_height" type="double" value="$(arg proj_max_height)" />
+
+            <param name="RGBD/OptimizeFromGraphEnd" type="bool" value="$(arg rgbd_optimize_from_graph_end)" />
+
             <!-- use actionlib to send goals to move_base -->
             <param name="use_action_for_goal" type="bool" value="$(arg use_action_for_goal)" />
 
@@ -438,7 +452,7 @@
             <!-- custom remap START -->
             <remap from="move_base" to="$(arg move_base_topic)" />
             <remap from="grid_map" to="$(arg map_topic)" />
-            <!-- <remap from="odom" to="/base_controller/odom" if="$(arg wheel_odom)"/> -->
+            <!-- <remap if="$(arg ground_truth_odom)" from="odom" to="$(arg ground_truth_odom_topic)" /> -->
             <!-- custom remap END -->
 
             <!-- localization mode -->

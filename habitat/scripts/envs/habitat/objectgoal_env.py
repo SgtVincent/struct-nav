@@ -365,7 +365,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info["sensor_pose"] = [0.0, 0.0, 0.0]
         self.info["goal_cat_id"] = self.goal_idx
         self.info["goal_name"] = self.goal_name
-
+        self.info["agent_pose"] = super().habitat_env.sim.get_agent_state(0)
+        
         return obs, self.info
 
     def step(self, action):
@@ -395,6 +396,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         dx, dy, do = self.get_pose_change()
         self.info["sensor_pose"] = [dx, dy, do]
         self.path_length += pu.get_l2_distance(0, dx, 0, dy)
+        self.info["agent_pose"] = super().habitat_env.sim.get_agent_state(0)
 
         spl, success, dist = 0.0, 0.0, 0.0
         if done:
