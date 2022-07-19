@@ -255,19 +255,21 @@ class FrontierExploreAgent:
         grid_map, map_origin, odom_map_pose = self.parse_ros_messages()
         ##################  generate frontiers and goals ##############
         map_resolution = self.args.map_resolution
-
-        frontiers, goals, goal_map = frontier_goals(
-            grid_map,
-            map_origin,
-            map_resolution,
-            odom_map_pose[:2],
-            cluster_trashhole=self.args.cluster_trashhole,
-            num_goals=1,
-            sim=self.sim,
-            mode="geo"
-        )
-        # TODO: think about goal selection strategy
-        goal_position = goals[0, :]
+        # sometimes get empty map due to synchronization problem
+        # then skip this frame
+        try:
+            frontiers, goals, goal_map = frontier_goals(
+                grid_map,
+                map_origin,
+                map_resolution,
+                odom_map_pose[:2],
+                cluster_trashhole=self.args.cluster_trashhole,
+                num_goals=1,
+                sim=self.sim,
+                mode="geo"
+            )
+        except:
+            frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
 
         self.publish_frontiers(frontiers, goals)
 

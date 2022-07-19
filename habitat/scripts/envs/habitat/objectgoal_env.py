@@ -497,3 +497,14 @@ class ObjectGoal_Env(habitat.RLEnv):
         )
         self.last_sim_location = curr_sim_pose
         return dx, dy, do
+
+
+    def _preprocess_depth(self, obs):
+        depth = obs['depth'].squeeze()
+
+        for i in range(depth.shape[1]):
+            depth[:, i][depth[:, i] == 0.] = depth[:, i].max()
+
+        obs['depth'] = depth
+        
+        

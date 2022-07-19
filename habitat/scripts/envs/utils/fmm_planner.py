@@ -115,7 +115,8 @@ class FMMPlanner:
         subset *= mask
         subset += (1 - mask) * self.fmm_dist.shape[0] ** 2
 
-        if subset[self.du, self.du] < 0.25 * 100 / 5.0:  # 25cm
+        # if subset[self.du, self.du] < 0.25 * 100 / 5.0:  # 25cm
+        if subset[self.du, self.du] == 0:  # two grids
             stop = True
         else:
             stop = False

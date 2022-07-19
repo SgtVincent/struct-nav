@@ -331,6 +331,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             
             # 3. reset map and odom in rtabmap_ros
             safe_call_reset_service("/rtabmap/reset")  # reset map
+            # safe_call_reset_service("/rtabsem/reset") 
             if self.sub_odom:
                 safe_call_reset_service("/rtabmap/reset_odom")  # reset odometry
             time.sleep(1.0)
@@ -583,15 +584,21 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         if self.spot_goal == 0:
             ##################  generate frontiers and goals ##############
-            frontiers, goals, goal_map = frontier_goals(
-                grid_map,
-                map_origin,
-                self.map_resolution,
-                odom_map_pose[:2],
-                cluster_trashhole=self.args.cluster_trashhole,
-                num_goals=1,
-                mode=self.frontier_mode,
-            )
+            # sometimes get empty map due to synchronization problem
+            # then skip this frame  
+            try:
+                frontiers, goals, goal_map = frontier_goals(
+                    grid_map,
+                    map_origin,
+                    self.map_resolution,
+                    odom_map_pose[:2],
+                    cluster_trashhole=self.args.cluster_trashhole,
+                    num_goals=1,
+                    mode=self.frontier_mode,
+                )
+            except:
+                frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
+
             if len(frontiers) > 0:
                 publish_frontiers(frontiers, goals, self.pub_frontiers)
 
@@ -1064,24 +1071,10 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
     # TODO: add object detection / segmentation models here
     def _preprocess_obs(self, obs, info=None):
 
-        # args = self.args
-        # not using VecPyTorch to wrap environemnts
-        # obs = obs.transpose(1, 2, 0)
-        # rgb = obs[:, :, :3]
-        # depth = obs[:, :, 3:4]
-        if self.sem_model == "ground_truth":
-            # by default, semantic sensor is added to agent
-            assert 'semantic' in obs
-            
-        if self.sem_model == "detectron":
-            # overwrite semantic image with detectron prediction 
-            rgb = obs['rgb']
-            sem_seg_pred, _ = self.sem_pred.get_prediction(rgb.astype(np.uint8))
-            semantic_image = np.zeros(rgb.shape[:2])
-            for name, label in coco_categories.items():
-                # NOTE: zero for background 
-                semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
-            obs['semantic'] = semantic_image
+        # preprocess broken meshes (0-depth) in depth image 
+        self._preprocess_depth(obs)
+
+        self._preprocess_sem(obs)
 
         # add pseudo wheel odometry pose to observations 
         if self.wheel_odom or DEBUG_WHEEL_ODOM:
@@ -1122,6 +1115,22 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         # )
         # passthrough
         return obs
+
+    def _preprocess_sem(self, obs):
+        # preprocess semantic image
+        if self.sem_model == "ground_truth":
+            # by default, semantic sensor is added to agent
+            assert 'semantic' in obs
+            
+        if self.sem_model == "detectron":
+            # overwrite semantic image with detectron prediction 
+            rgb = obs['rgb']
+            sem_seg_pred, _ = self.sem_pred.get_prediction(rgb.astype(np.uint8))
+            semantic_image = np.zeros(rgb.shape[:2])
+            for name, label in coco_categories.items():
+                # NOTE: zero for background 
+                semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
+            obs['semantic'] = semantic_image
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg

@@ -118,6 +118,7 @@ def get_frontiers(
     )
     contours_negative_map[contours_positive_dilated == 1] = 0
     candidates = np.argwhere(contours_negative_map == 1)
+
     # NOTE: Do not forget to convert (row, col) to (x, y) !!!!
     candidates = candidates[:, [1, 0]]
     # NOTE: change candidates to grid arrays instead of real world coords 
@@ -166,14 +167,22 @@ def get_frontiers(
     return frontiers
 
 
-def compute_centroids(list_of_arrays, map_resolution):
+def compute_centroids(list_of_arrays, size_mode="diameter"):
 
     centroids = []
     for index, arr in enumerate(list_of_arrays):
         # compute num of elements in the array
         length = list_of_arrays[index].shape[0]
-        # compute real world length of frontier in cm
-        real_length = np.round(length * map_resolution * 100)
+        
+        if size_mode == "parameter":
+            sizes = length
+        elif size_mode == "diameter":
+            x_range = np.max(list_of_arrays[index][:, 0]) - \
+                np.min(list_of_arrays[index][:, 0])
+            y_range = np.max(list_of_arrays[index][:, 1]) - \
+                np.min(list_of_arrays[index][:, 1])
+            sizes = np.sqrt(x_range ** 2 + y_range ** 2)
+
         # compute x coordanate of centroid
         sum_x = np.sum(list_of_arrays[index][:, 0])
         x = np.round(sum_x / length, 2)
@@ -181,7 +190,7 @@ def compute_centroids(list_of_arrays, map_resolution):
         sum_y = np.sum(list_of_arrays[index][:, 1])
         y = np.round(sum_y / length, 2)
         # append coordanate in the form [x, y, real_length]
-        centroids.append([x, y, real_length])
+        centroids.append([x, y, sizes])
 
     # convert list of centroids into np array
     centroids = np.array(centroids)
@@ -190,7 +199,7 @@ def compute_centroids(list_of_arrays, map_resolution):
 
 
 def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
-    map_raw=None, map_origin=None, map_resolution=None):
+    map_raw=None, map_origin=None, map_resolution=None, min_size=5, min_dist=10):
 
     # chosen utility function : length / distance
     # pre allocate utility_array
@@ -228,7 +237,11 @@ def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist",
         # compute length / distance
         # utility = centroids[index][2] ** 2 / dist
         # utility = centroids[index][2] / dist
-        utility = np.sqrt(centroids[index][2]) / dist
+        dist = max(dist, min_dist)
+        if centroids[index][2] <= min_size:
+            utility = 0
+        else:
+            utility = centroids[index][2] / dist
 
         # substitute length attribute with utility of point
         utility_array[index][2] = utility
@@ -429,6 +442,7 @@ def frontier_goals(
     num_goals=1,
     sim=None,
     mode="geo+sem",
+    frontier_min_th=5,
 ):
     """general function to calculate frontiers and goals
 
@@ -461,11 +475,11 @@ def frontier_goals(
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
-    if len(frontiers_grid) == 0: 
-        return [], [], np.zeros_like(map_raw)
+    # if len(frontiers_grid) == 0: 
+    #     return [], [], np.zeros_like(map_raw)
     
     # NOTE: using learning to propose additional centroids?
-    centroids_grid = compute_centroids(frontiers_grid, map_resolution)
+    centroids_grid = compute_centroids(frontiers_grid)
 
     if mode == "geo":
         # no frontiers in current scene 
