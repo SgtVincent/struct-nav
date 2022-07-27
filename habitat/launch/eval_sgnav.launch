@@ -1,0 +1,95 @@
+<launch>
+    <!-- general task & model config -->
+    <arg name="agent_type" default="frontier_sgnav" />
+    <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
+    <arg name="agent_update_rate" default="2.0" />
+    <arg name="grid_normals_segmentation" default="false" />
+    <arg name="grid_global_min_size" default="10.0" />
+    <!-- flag to enable wheel odometer -->
+    <arg name="wheel_odom" default="false" />
+    <arg name="wheel_odom_frame_id" default="odom_wheel" />
+    <arg name="ground_truth_odom" default="true" />
+    <arg name="ground_truth_odom_topic" default="/true_odom" />
+
+    <!-- agent & habitat eval environment -->
+    <!-- <include file="$(find habitat_ros)/launch/eval_habitat_agent.launch">
+        <arg name="agent_type" value="$(arg agent_type)" />
+        <arg name="task_config" value="tasks/objectnav_gibson.yaml" />
+        <arg name="initial_map_size" value="$(arg grid_global_min_size)" />
+        <arg name="wheel_odom" value="$(arg wheel_odom)" />
+        <arg name="wheel_odom_frame_id" value="$(arg wheel_odom_frame_id)" />
+        <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
+        <arg name="ground_truth_odom_topic" value="$(arg ground_truth_odom_topic)" />
+    </include> -->
+
+    <!-- rtabmap -->
+    <include file="$(find habitat_ros)/launch/rtabmap.launch">
+
+        <arg name="args" value="--delete_db_on_start" />
+        <!-- frame_id: The frame attached to odometry. If empty, rtabmap will 
+            subscribe to odom topic to get odometry. If set, odometry is got 
+            from tf (in this case, the covariance value is fixed by 
+            odom_tf_angular_variance and odom_tf_linear_variance).-->
+        <arg name="frame_id" value="base_link" />
+        <arg if="$(arg ground_truth_odom)" name="visual_odometry" value="false" />
+        <arg name="wait_for_transform" value="5.0" />
+        <arg name="rviz" value="false" />
+        <arg name="rtabmapviz" value="false" />
+        <arg name="approx_sync" value="false" />
+        <arg name="approx_rgbd_sync" value="false" />
+        <arg name="grid_global_min_size" value="$(arg grid_global_min_size)" />
+        <arg if="$(arg wheel_odom)" name="odom_guess_frame_id" value="$(arg wheel_odom_frame_id)" />
+        <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
+
+        <!-- topics  -->
+        <!-- input -->
+        <arg name="rgb_topic" value="/camera/rgb/image" />
+        <arg name="depth_topic" value="/camera/depth/image" />
+        <!-- <arg name="rgb_topic" value="/camera/semantic/image" /> -->
+        <arg name="camera_info_topic" value="/camera/rgb/camera_info" />
+        <!-- <arg name="scan_topic" value="/scan" /> -->
+        <arg unless="$(arg ground_truth_odom)" name="odom_topic" value="/odom" />
+        <arg if="$(arg ground_truth_odom)" name="odom_topic" value="$(arg ground_truth_odom_topic)" />
+        <!-- output -->
+
+        <!-- map parameters-->
+        <!-- visual odometry costs large part of the computation -->
+        <arg unless="$(arg ground_truth_odom)" name="rtabmap_detection_rate" value="2" />
+        <arg if="$(arg ground_truth_odom)" name="rtabmap_detection_rate" value="$(arg agent_update_rate)" />
+
+        <arg name="grid_3d" value="true" />
+        <arg name="grid_ray_tracing" value="true" />
+        <arg name="grid_cell_size" value="0.05" />
+        <arg name="grid_depth_decimation" value="4" />
+        <!-- by default predict ground from point normals-->
+        <arg name="grid_normals_segmentation" value="$(arg grid_normals_segmentation)" />
+        <!-- disabled when grid_normals_segmentation is true -->
+        <arg name="grid_max_ground_height" value="0.40" />
+        <!-- disabled when grid_normals_segmentation is true -->
+        <arg name="grid_min_ground_height" value="-0.20" />
+
+        <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
+        <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum neighbors.] -->
+        <arg name="grid_noise_filtering_radius" value="0.5" /> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->
+
+        <arg name="rgbd_optimize_from_graph_end" value="false" />
+        <!-- interface with move_base -->
+        <!-- <arg name="use_action_for_goal" value="true" /> -->
+        <!-- <arg name="map_topic" value="/map" /> -->
+        <!-- <arg name="move_base_topic" value="/move_base" /> -->
+    </include>
+
+    <!-- rtabmap to reconstruct semantic map -->
+    <include file="$(find habitat_ros)/launch/rtabmap_semantic.launch">
+        <arg if="$(arg wheel_odom)" name="odom_guess_frame_id" value="$(arg wheel_odom_frame_id)" />
+        <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
+        <arg name="agent_update_rate" default="$(arg agent_update_rate)" />
+        <arg name="grid_global_min_size" default="$(arg grid_global_min_size)" />
+    </include>
+
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz">
+        <remap if="$(arg wheel_odom)" from="$(arg ground_truth_odom_topic)" to="/odom" />
+    </node>
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
+
+</launch>

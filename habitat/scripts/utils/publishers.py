@@ -1,5 +1,6 @@
 """Publisher helpers."""
 import struct
+from pyrsistent import s
 import quaternion as qt 
 import numpy as np
 import rospy
@@ -19,6 +20,7 @@ import sensor_msgs.point_cloud2 as pc2
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
+from envs.constants import coco_categories
 
 DEPTH_SCALE = 1
 
@@ -290,11 +292,22 @@ class HabitatObservationPublisher:
             assert np.max(semantic) < 256  # use uint8 to encode image
 
             # convert semantic image to rgb color image to publish
-            semantic_color = cv2.applyColorMap(
-                semantic.astype(np.uint8), cv2.COLORMAP_JET
-            )
+            ######### jet color map ###############
+            # semantic_color = cv2.applyColorMap(
+            #     semantic.astype(np.uint8), cv2.COLORMAP_JET
+            # )
+            # semantic_msg = self.cvbridge.cv2_to_imgmsg(semantic_color)
+            # semantic_msg.encoding = "bgr8"  # "rgb8"
+            
+            ######### autumn color map ################
+            num_class = len(coco_categories)
+            semantic_color = np.zeros((semantic.shape[0], semantic.shape[1], 3)).astype(np.uint8)
+            semantic_color[..., 0] = 255
+            # 0 for background in semantic image 
+            semantic_color[..., 1] = np.round(semantic / float(num_class + 1) * 255.0).astype(np.uint8)
+            
             semantic_msg = self.cvbridge.cv2_to_imgmsg(semantic_color)
-            semantic_msg.encoding = "bgr8"  # "rgb8"
+            semantic_msg.encoding = "rgb8"
             semantic_msg.header.stamp = cur_time
             semantic_msg.header.frame_id = "camera_link"
             self.semantic_publisher.publish(semantic_msg)

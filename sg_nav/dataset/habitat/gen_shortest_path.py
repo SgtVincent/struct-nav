@@ -165,15 +165,15 @@ def parse_args():
     # set to "17DRP5sb8fy" for testing
     parser.add_argument("--scene_names", nargs="*", default=[])
     parser.add_argument("--dataset", type=str, default="matterport")
-    parser.add_argument(
-        "--rel_dist_thresh",
-        type=float,
-        default=2.0,
-        help="threshold of max distance between two objects that could have a relationship",
-    )
+    parser.add_argument("--no_save_path", action="store_true", default=False)
+    # parser.add_argument(
+    #     "--rel_dist_thresh",
+    #     type=float,
+    #     default=2.0,
+    #     help="threshold of max distance between two objects that could have a relationship",
+    # )
 
     args = parser.parse_args()
-
     return args
 
 
@@ -181,6 +181,7 @@ if __name__ == "__main__":
 
     ############ initialize habitat simulator and ground truth scene graph ########
     args = parse_args()
+    args.no_save_path = True
     if len(args.scene_names) > 0:
         scene_names = args.scene_names
     else:

@@ -1,6 +1,7 @@
 import json
 import os
 from abc import ABC, abstractmethod, abstractproperty
+from turtle import color
 
 import numpy as np
 import open3d as o3d
@@ -86,9 +87,11 @@ class SceneGraphHabitat(SceneGraphBase):
         o3d_pcl = o3d.io.read_point_cloud(
             ply_file
         )  # open scene mesh file for segmentation and feature extraction
-        points = np.concatenate(
-            [np.asarray(o3d_pcl.points), np.asarray(o3d_pcl.colors)], axis=1
-        )
+        # points = np.concatenate(
+        #     [np.asarray(o3d_pcl.points), np.asarray(o3d_pcl.colors)], axis=1
+        # )
+        xyz = np.asarray(o3d_pcl.points)
+        colors = np.asarray(o3d_pcl.colors)
         # offline generated data
         # NOTE: need to first generate them with process_data.py
         pclseg = np.loadtxt(pclseg_file, dtype=int)
@@ -155,7 +158,8 @@ class SceneGraphHabitat(SceneGraphBase):
                 # TODO: segment point using bounding box
                 # Update: 2021/11/16 Using mesh face segmentation instead
                 object_point_mask = pclseg == object_id
-                object_points = points[object_point_mask]
+                object_vertices = xyz[object_point_mask]
+                object_colors = colors[object_point_mask]
                 object_normals = pcl_normals[object_point_mask]
                 node_size = (
                     self.meters_per_grid / self.object_grid_scale
@@ -170,7 +174,8 @@ class SceneGraphHabitat(SceneGraphBase):
                     id=object_id,
                     class_name=obj.category.name(),
                     label=obj.category.index(),
-                    pcls=object_points,
+                    vertices=object_vertices,
+                    colors=object_colors,
                     normals=object_normals,
                     bbox=node_bbox,
                 )

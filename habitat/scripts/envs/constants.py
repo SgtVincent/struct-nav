@@ -53,6 +53,24 @@ coco_categories = {
     "bottle": 14,
 }
 
+coco_label_mapping = {
+    0: 'chair',
+    1: 'couch',
+    2: 'potted plant',
+    3: 'bed',
+    4: 'toilet',
+    5: 'tv',
+    6: 'dining-table',
+    7: 'oven',
+    8: 'sink',
+    9: 'refrigerator',
+    10: 'book',
+    11: 'clock',
+    12: 'vase',
+    13: 'cup',
+    14: 'bottle'
+}
+
 coco_categories_mapping = {
     56: 0,  # chair
     57: 1,  # couch
@@ -70,6 +88,7 @@ coco_categories_mapping = {
     41: 13,  # cup
     39: 14,  # bottle
 }
+
 
 color_palette = [
     1.0,
@@ -133,3 +152,4 @@ color_palette = [
     0.66,
     0.748199999999999,
 ]
+

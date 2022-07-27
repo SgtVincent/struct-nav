@@ -50,14 +50,12 @@ class ObjectNode:
         self.vertices = vertices
         self.colors = colors
         self.normals = normals
-        # assert(self.vertices.shape[0] == self.colors.shape[0])
-        # assert(self.vertices.shape[0] == self.normals.shape[0])
 
 
 class ObjectLayer:
     def __init__(self):
 
-        self.flag_gird_map = False
+        self.flag_grid_map = False
         self.obj_ids = []
         self.obj_dict = {}
 
@@ -89,7 +87,8 @@ class ObjectLayer:
         id=None,
         class_name=None,
         label=None,
-        pcls=None,
+        vertices=None,
+        colors=None,
         normals=None,
         bbox=None,
     ):
@@ -108,15 +107,15 @@ class ObjectLayer:
             id, center, rotation, size, class_name=class_name, label=label
         )
 
-        if pcls is not None:
+        if vertices is not None:
             obj_node.add_point_clouds(
-                pcls[:, :3], pcls[:, 3:6], normals=normals
+                vertices, colors, normals
             )
 
         self.obj_dict[id] = obj_node
 
         # add object segment on layer free space grid map
-        if self.flag_grid_map:
+        if self.flag_grid_map and bbox is not None:
             if self.project_mode == "xz":
                 obj_grid_map = self.segment_object_on_grid_map_xz(id, bbox)
             else:  # TODO: if there are other datasets ...

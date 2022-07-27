@@ -12,6 +12,7 @@ from habitat.datasets.pointnav.pointnav_dataset import PointNavDatasetV1
 
 # from agents.sem_exp import Sem_Exp_Env_Agent
 from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
+from agents.frontier_sgnav_agent import FrontierSGNavAgent
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from .utils.vector_env import VectorEnv
 
@@ -24,6 +25,10 @@ def make_env_fn(args, config_env, rank):
 
     if args.agent == "frontier_2d_detection":
         env = Frontier2DDetectionAgent(
+            args=args, rank=rank, config_env=config_env, dataset=dataset
+        )
+    elif args.agent == "frontier_sgnav":
+        env = FrontierSGNavAgent(
             args=args, rank=rank, config_env=config_env, dataset=dataset
         )
     else:

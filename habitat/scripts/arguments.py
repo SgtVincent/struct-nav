@@ -281,7 +281,7 @@ def get_args(args=None, namespace=None):
     
     # Frontier Exploration
     parser.add_argument("--cluster_trashhole", type=float, default=0.2)
-    parser.add_argument("--frontier_mode", type=str, default="geo")
+    # parser.add_argument("--frontier_mode", type=str, default="geo")
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)
 

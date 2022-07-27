@@ -1,6 +1,7 @@
 <launch>
-    <arg name="agent_type" default="frontier_2d_detection" />
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
+    <!-- <arg name="agent_type" default="frontier_2d_detection" /> -->
+    <arg name="agent_type" default="frontier_sgnav" />
     <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />

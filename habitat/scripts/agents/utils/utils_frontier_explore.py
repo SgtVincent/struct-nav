@@ -5,7 +5,6 @@ import magnum as mn
 import math
 from math import dist
 import numpy as np
-import skimage
 from skimage.morphology import square, disk, binary_dilation, binary_opening
 from skimage.measure import find_contours
 from numpy import ma 
@@ -198,74 +197,6 @@ def compute_centroids(list_of_arrays, size_mode="diameter"):
     return centroids
 
 
-def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
-    map_raw=None, map_origin=None, map_resolution=None, min_size=5, min_dist=10):
-
-    # chosen utility function : length / distance
-    # pre allocate utility_array
-    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
-
-    # make a copy of centroids and use for loop to
-    # substitute length atribute with utility of point
-    utility_array = np.copy(centroids)
-
-    if dist_type == "geo_dist":
-        # compute traversible map  
-        traversible = map_raw < 1.0
-        traversible_ma = ma.masked_values(traversible * 1, 0)
-        goal_map = np.zeros_like(traversible)
-        goal_map[int(current_position[1]), int(current_position[0])] = 1
-        selem = disk(3)
-        goal_map = binary_dilation(goal_map, selem)
-        traversible_ma[(goal_map == 1)] = 0
-        fmm_dist = skfmm.distance(traversible_ma, dx=1)
-        fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
-
-
-    for index, c in enumerate(centroids):
-
-        if dist_type == "man_dist": # compute manhattan distance
-            
-            dist = abs(current_position[0] - centroids[index][0]) + abs(
-                current_position[1] - centroids[index][1]
-            )
-        elif dist_type == "geo_dist": # compute geodesic distance 
-            
-            dist = fmm_dist[int(centroids[index][1]), 
-                int(centroids[index][0])]
-
-        # compute length / distance
-        # utility = centroids[index][2] ** 2 / dist
-        # utility = centroids[index][2] / dist
-        dist = max(dist, min_dist)
-        if centroids[index][2] <= min_size:
-            utility = 0
-        else:
-            utility = centroids[index][2] / dist
-
-        # substitute length attribute with utility of point
-        utility_array[index][2] = utility
-
-    # sort utility_array based on utility
-    index = np.argsort(utility_array[:, 2])
-    utility_array[:] = utility_array[index]
-
-    # reverse utility_array to have greatest utility as index 0
-    utility_array = utility_array[::-1]
-
-    goals = []
-    num_goals = min(num_goals, utility_array.shape[0])
-    for i in range(num_goals):
-        coordanate = []
-
-        if i < len(utility_array):
-            coordanate = [utility_array[i][0], utility_array[i][1]]
-            goals.append(coordanate)
-
-    # return goal as np array
-    return np.array(goals).astype(int)
-
-
 def compute_geo_utility(centroids, current_position):
 
     # chosen utility function : length / distance for geometry utility
@@ -303,23 +234,19 @@ def compute_geo_utility(centroids, current_position):
     return utility_array
 
 
-def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
-
-    # NOTE: can use gt geodesic distance to object as oracle
-
+def compute_sem_utility(centroids, 
+                        scene_graph, 
+                        goal_name,
+                        scene_prior_c2c_dist,
+                        language_prior_c2c_dist=None,
+                        ):
+    
     # utility function for semantic utility
-
-    # pre allocate utility_array
-    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
 
     # make a copy of centroids and use for loop to
     # substitute length atribute with utility of point
     utility_array = np.copy(centroids)
-
-    # TODO: utility propagation
-
-    # NOTE: Oracle
-    # TODO: Stop
+    
     points = np.copy(centroids)
     # TODO: Rtabmap coordinate to habitat coordinate
     points[:, 2] = 0.88
@@ -336,6 +263,73 @@ def compute_sem_utility(centroids, scene_graph=None, goal_cat=None, sim=None):
     utility_array = utility_array[::-1]
 
     return utility_array
+
+
+def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
+    map_raw=None, map_origin=None, map_resolution=None, min_size=5, min_dist=10):
+
+    # chosen utility function : length / distance
+    # pre allocate utility_array
+    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
+
+    # make a copy of centroids and use for loop to
+    utility_array = np.copy(centroids)
+
+    if dist_type == "geo_dist":
+        # compute traversible map  
+        traversible = map_raw < 1.0
+        traversible_ma = ma.masked_values(traversible * 1, 0)
+        goal_map = np.zeros_like(traversible)
+        goal_map[int(current_position[1]), int(current_position[0])] = 1
+        selem = disk(3)
+        goal_map = binary_dilation(goal_map, selem)
+        traversible_ma[(goal_map == 1)] = 0
+        fmm_dist = skfmm.distance(traversible_ma, dx=1)
+        fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
+
+
+    for index, c in enumerate(centroids):
+
+        if dist_type == "man_dist": # compute manhattan distance
+            
+            dist = abs(current_position[0] - centroids[index][0]) + abs(
+                current_position[1] - centroids[index][1]
+            )
+        elif dist_type == "geo_dist": # compute geodesic distance 
+            
+            dist = fmm_dist[int(centroids[index][1]), 
+                int(centroids[index][0])]
+
+        # compute length / distance
+        # utility = centroids[index][2] ** 2 / dist
+        # utility = centroids[index][2] / dist
+        dist = max(dist, min_dist)
+        if centroids[index][2] <= min_size:
+            utility = 0
+        else:
+            utility = centroids[index][2] / dist
+
+        # substitute length attribute with utility of point
+        centroids[index][2] = utility
+
+    # sort utility_array based on utility
+    index = np.argsort(utility_array[:, 2])
+    utility_array[:] = utility_array[index]
+
+    # reverse utility_array to have greatest utility as index 0
+    utility_array = utility_array[::-1]
+
+    goals = []
+    num_goals = min(num_goals, utility_array.shape[0])
+    for i in range(num_goals):
+        coordanate = []
+
+        if i < len(utility_array):
+            coordanate = [utility_array[i][0], utility_array[i][1]]
+            goals.append(coordanate)
+
+    # return goal as np array
+    return np.array(goals).astype(int)
 
 
 def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
@@ -440,9 +434,10 @@ def frontier_goals(
     current_position,
     cluster_trashhole=0.2,
     num_goals=1,
-    sim=None,
     mode="geo+sem",
     frontier_min_th=5,
+    scene_graph=None,
+    goal_name=""
 ):
     """general function to calculate frontiers and goals
 
@@ -487,6 +482,16 @@ def frontier_goals(
             (current_position - map_origin) / map_resolution
         ).astype(int)
         
+        geo_utility_array = compute_geo_utility(
+            centroids_grid, 
+            current_position_grid, 
+            num_goals,
+            dist_type="geo_dist",
+            map_raw=map_raw, 
+            map_origin=map_origin, 
+            map_resolution=map_resolution
+        )
+        
         goals_grid = compute_goals(
             centroids_grid, 
             current_position_grid, 
@@ -496,54 +501,75 @@ def frontier_goals(
             map_origin=map_origin, 
             map_resolution=map_resolution
         )
-        centroids = np.array(centroids_grid) * map_resolution 
-        centroids[:, :2] = centroids[:, :2] + map_origin
-        goals = goals_grid * map_resolution + map_origin
 
-        # create goal map for global planner
-        goal_grid = goals_grid[0,:]
-        goal_map = np.zeros_like(map_raw)
-        occupancy_map = (map_raw == 100).astype(np.float32)
-        # NOTE: (x,y) is (col, row) in image
-        if occupancy_map[goal_grid[1], goal_grid[0]]: 
-            # if goal not reachable, then find closest pixel as new goal 
-            rs, cs = np.where(occupancy_map == 0.)
-            free_locs = np.stack([cs, rs], axis=1)
-            closest_idx = np.argmin(
-                np.linalg.norm(free_locs - goal_grid, axis=1)
-            )
-            closest_loc = free_locs[closest_idx, :]
-            goal_map[closest_loc[1], closest_loc[0]] = 1.0
-        else:
-            goal_map[goal_grid[1], goal_grid[0]] = 1.0
+        # # create goal map for global planner
+        # centroids = np.array(centroids_grid) * map_resolution 
+        # centroids[:, :2] = centroids[:, :2] + map_origin
+        # goals = goals_grid * map_resolution + map_origin
+        # goal_grid = goals_grid[0,:]
+        # goal_map = np.zeros_like(map_raw)
+        # occupancy_map = (map_raw == 100).astype(np.float32)
+        # # NOTE: (x,y) is (col, row) in image
+        # if occupancy_map[goal_grid[1], goal_grid[0]]: 
+        #     # if goal not reachable, then find closest pixel as new goal 
+        #     rs, cs = np.where(occupancy_map == 0.)
+        #     free_locs = np.stack([cs, rs], axis=1)
+        #     closest_idx = np.argmin(
+        #         np.linalg.norm(free_locs - goal_grid, axis=1)
+        #     )
+        #     closest_loc = free_locs[closest_idx, :]
+        #     goal_map[closest_loc[1], closest_loc[0]] = 1.0
+        # else:
+        #     goal_map[goal_grid[1], goal_grid[0]] = 1.0
             
     elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
+        assert (scene_graph is not None)
         geo_utility_array = compute_geo_utility(centroids_grid, current_position)
-        sem_utility_array = compute_sem_utility(
-            centroids_grid, scene_graph=None, goal_cat="shower", sim=sim
-        )
+        sem_utility_array = compute_sem_utility(centroids_grid, 
+            scene_graph=scene_graph, goal_name=goal_name)
         utility_array = combine_utilities(geo_utility_array, sem_utility_array)
         goals_grid = get_goals(utility_array, num_goals)
-        goals = goals_grid * map_resolution + map_origin
 
-        # create goal map for global planner
-        goal_grid = goals_grid[0,:]
-        goal_map = np.zeros_like(map_raw)
-        occupancy_map = (map_raw == 100).astype(np.float32)
-        # NOTE: (x,y) is (col, row) in image
-        if occupancy_map[goal_grid[1], goal_grid[0]]: 
-            # if goal not reachable, then find closest pixel as new goal 
-            rs, cs = np.where(occupancy_map == 0.)
-            free_locs = np.stack([cs, rs], axis=1)
-            closest_idx = np.argmin(
-                np.linalg.norm(free_locs - goal_grid, axis=1)
-            )
-            closest_loc = free_locs[closest_idx, :]
-            goal_map[closest_loc[1], closest_loc[0]] = 1.0
-        else:
-            goal_map[goal_grid[1], goal_grid[0]] = 1.0
-
+        # # create goal map for global planner
+        # goals = goals_grid * map_resolution + map_origin
+        # goal_grid = goals_grid[0,:]
+        # goal_map = np.zeros_like(map_raw)
+        # occupancy_map = (map_raw == 100).astype(np.float32)
+        # # NOTE: (x,y) is (col, row) in image
+        # if occupancy_map[goal_grid[1], goal_grid[0]]: 
+        #     # if goal not reachable, then find closest pixel as new goal 
+        #     rs, cs = np.where(occupancy_map == 0.)
+        #     free_locs = np.stack([cs, rs], axis=1)
+        #     closest_idx = np.argmin(
+        #         np.linalg.norm(free_locs - goal_grid, axis=1)
+        #     )
+        #     closest_loc = free_locs[closest_idx, :]
+        #     goal_map[closest_loc[1], closest_loc[0]] = 1.0
+        # else:
+        #     goal_map[goal_grid[1], goal_grid[0]] = 1.0
+    
+    # create goal map for global planner
+    centroids = np.array(centroids_grid) * map_resolution 
+    centroids[:, :2] = centroids[:, :2] + map_origin
+    goals = goals_grid * map_resolution + map_origin
+    
+    goal_grid = goals_grid[0,:]
+    goal_map = np.zeros_like(map_raw)
+    occupancy_map = (map_raw == 100).astype(np.float32)
+    # NOTE: (x,y) is (col, row) in image
+    if occupancy_map[goal_grid[1], goal_grid[0]]: 
+        # if goal not reachable, then find closest pixel as new goal 
+        rs, cs = np.where(occupancy_map == 0.)
+        free_locs = np.stack([cs, rs], axis=1)
+        closest_idx = np.argmin(
+            np.linalg.norm(free_locs - goal_grid, axis=1)
+        )
+        closest_loc = free_locs[closest_idx, :]
+        goal_map[closest_loc[1], closest_loc[0]] = 1.0
+    else:
+        goal_map[goal_grid[1], goal_grid[0]] = 1.0
+        
     # set flag to true in debug console dynamically for visualization
     if DEBUG_VIS:
         # from matplotlib import pyplot as plt
