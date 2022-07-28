@@ -5,14 +5,9 @@ from collections import deque
 from matplotlib.pyplot import grid
 import quaternion as qt
 from matplotlib.transforms import Transform
-import agents.utils.visualization as vu
 import cv2
-import envs.utils.pose as pu
+import pickle
 import numpy as np
-# from habitat_sim import Simulator
-# from matplotlib import cm
-# from matplotlib.pyplot import grid
-# from PIL import Image
 from scipy.spatial.transform import Rotation as R
 import skimage.morphology
 
@@ -33,6 +28,7 @@ from utils.transformation import (
 )
 # from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
+import agents.utils.visualization as vu
 from agents.utils.utils_frontier_explore import (
     frontier_goals, 
     dist_odom_to_goal,
@@ -50,6 +46,7 @@ from agents.utils.ros_utils import (
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.sg_utils import SceneGraphSimGT, SceneGraphRtabmap
+import envs.utils.pose as pu
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 from envs.constants import color_palette, coco_categories, coco_label_mapping
 from envs.habitat.objectgoal_env import ObjectGoal_Env
@@ -140,8 +137,19 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.info["spl"] = None
         self.info["success"] = None
 
-        ############## ROS setup #############################
+        # ROS initialization
         self.init_ros()
+
+        # load prior matrix for scene graph navigation 
+        self.scene_prior_matrix = None
+        self.language_prior_matrix = None
+        if len(self.scene_prior_matrix_file) > 0: 
+            path = os.path.join(self.prior_dir, self.scene_prior_matrix_file)
+            self.scene_prior_matrix = np.load(path)
+        self.language_prior_matrix = None
+        if len(self.language_prior_matrix_file) > 0: 
+            path = os.path.join(self.prior_dir, self.language_prior_matrix_file)
+            self.language_prior_matrix = np.load(path)
 
         if args.visualize or args.print_images:
             self.legend = cv2.imread("docs/legend.png")
@@ -160,6 +168,9 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             "~camera_calib", DEFAULT_CAMERA_CALIB
         )
         self.initial_map_size = rospy.get_param("~initial_map_size", DEFAULT_MAP_SIZE)
+        self.prior_dir = rospy.get_param("~prior_dir", "")
+        self.scene_prior_matrix_file = rospy.get_param("~scene_prior_matrix_file", "")
+        self.language_prior_matrix_file = rospy.get_param("~language_prior_matrix_file", "")
         
         # setup pseudo wheel odometry to fuse with rtabmap visual odometry 
         self.wheel_odom = rospy.get_param("~wheel_odom", False)
@@ -612,6 +623,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                     mode=self.frontier_mode,
                     scene_graph=self.scene_graph,
                     goal_name = self.goal_name,
+                    scene_prior_matrix=self.scene_prior_matrix,
+                    language_prior_matrix=self.language_prior_matrix
                 )
             except:
                 frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)

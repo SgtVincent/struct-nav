@@ -13,7 +13,10 @@
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/" />
-
+    <arg name="prior_dir" default="$(find habitat_ros)/prior_data/" />
+    <arg name="scene_prior_matrix_file" default="Darden_mean.npy" />
+    <arg name="language_prior_matrix_file" default="" />
+    <!-- <arg name="" -->
 
     <node pkg="habitat_ros" type="eval.py" name="eval_habitat_env" output="screen">
 

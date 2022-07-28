@@ -11,6 +11,7 @@ import time
 from typing import List
 import pathlib
 import numpy as np
+import pickle
 import open3d as o3d
 from scipy import stats
 from scipy.ndimage.morphology import binary_dilation
@@ -227,6 +228,13 @@ class SceneGraphSimGT(SceneGraphBase):
     def sample_graph(self, seed, sample_method, ratio, num_nodes):
         """Return the sub-sampled scene graph"""
         return None
+
+# NOTE: category index in habitat gibson is meaningless 
+# def load_scene_priors(scene_prior_file):
+#     with open(scene_prior_file, "rb") as f:
+#         data = pickle.load(f) 
+#     # TODO: load scene_prior_matrix from pickle file 
+#     return scene_prior_matrix
 
 class SceneGraphRtabmap(SceneGraphBase):
     # layers #

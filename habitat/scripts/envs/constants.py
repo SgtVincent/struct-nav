@@ -42,7 +42,7 @@ coco_categories = {
     "bed": 3,
     "toilet": 4,
     "tv": 5,
-    "dining-table": 6,
+    "dining table": 6,
     "oven": 7,
     "sink": 8,
     "refrigerator": 9,
@@ -60,7 +60,7 @@ coco_label_mapping = {
     3: 'bed',
     4: 'toilet',
     5: 'tv',
-    6: 'dining-table',
+    6: 'dining table',
     7: 'oven',
     8: 'sink',
     9: 'refrigerator',
@@ -78,7 +78,7 @@ coco_categories_mapping = {
     59: 3,  # bed
     61: 4,  # toilet
     62: 5,  # tv
-    60: 6,  # dining-table
+    60: 6,  # dining table
     69: 7,  # oven
     71: 8,  # sink
     72: 9,  # refrigerator

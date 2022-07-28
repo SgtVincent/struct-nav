@@ -145,8 +145,11 @@ data/model_dump/*
 # python build
 build/
 dist/
+tmp/
+
 ############ habitat-ros ignore #######################
 habitat/scripts/tmp
+habitat/prior_data/
 habitat_ros
 
 ############ habitat-recognition ignore ##################
