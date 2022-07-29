@@ -155,9 +155,9 @@ class ObjectLayer:
     def get_objects_by_ids(self, ids):
         return [self.obj_dict[id] for id in ids]
 
-    def get_positions(self, ids):
-        pos = [self.obj_dict[id].pos for id in ids]
-        return pos
+    def get_centers(self, ids):
+        centers = np.array([self.obj_dict[id].center for id in ids])
+        return centers
 
     def get_labels(self, ids):
         labels = [self.obj_dict[id].label for id in ids]

@@ -69,9 +69,6 @@ class GridMap:
 
 
 class SceneGraphSimGT(SceneGraphBase):
-    # layers #
-    object_layer = ObjectLayer()
-    region_layer = RegionLayer()
 
     def __init__(self, sim: Simulator) -> None:
         super().__init__()
@@ -221,13 +218,13 @@ class SceneGraphSimGT(SceneGraphBase):
         obj_observable_idx = obj_in_map_bound_idx[obj_partial_mask]
         return [obj_nodes[idx] for idx in obj_observable_idx]
 
-    def get_full_graph(self):
-        """Return the full scene graph"""
-        return None
+    # def get_full_graph(self):
+    #     """Return the full scene graph"""
+    #     return None
 
-    def sample_graph(self, seed, sample_method, ratio, num_nodes):
-        """Return the sub-sampled scene graph"""
-        return None
+    # def sample_graph(self, method, *args, **kwargs):
+    #     """Return the sub-sampled scene graph"""
+    #     return None
 
 # NOTE: category index in habitat gibson is meaningless 
 # def load_scene_priors(scene_prior_file):
@@ -243,20 +240,21 @@ class SceneGraphRtabmap(SceneGraphBase):
     
     # TODO: finetune the DBSCAN parameters
     def __init__(self, rtabmap_pcl, point_features=False, label_mapping=None, 
-            scene_bounds=None, grid_map=None, dbscan_eps=1.0, 
+            scene_bounds=None, grid_map=None, map_resolution=0.05, dbscan_eps=1.0, 
             dbscan_min_samples=5, dbscan_num_processes=4, min_points_filter=10,
             dbscan_verbose=False, dbscan_vis=False, label_scale=2):
 
         # 1. get boundary of the scene (one-layer) and initialize map
         self.scene_bounds = scene_bounds
         self.grid_map = grid_map
+        self.map_resolution = map_resolution
         self.point_features = point_features
         self.object_layer = ObjectLayer()
         self.region_layer = RegionLayer()
         
         if self.grid_map is not None:
             self.region_layer.init_map(
-                self.scene_bounds, self.meters_per_grid, self.free_space_grid
+                self.scene_bounds, self.map_resolution, self.grid_map
             )
 
         # 2. use DBSCAN with label as fourth dimension to cluster instance points
@@ -327,13 +325,14 @@ class SceneGraphRtabmap(SceneGraphBase):
                 # region_node.add_object(object_node)
         return
 
-    def get_full_graph(self):
-        """Return the full scene graph"""
-        return None
+    # def get_full_graph(self):
+    #     """Return the full scene graph"""
+    #     return None
 
-    def sample_graph(self, position, distance):
-        """Return the sub-sampled scene graph"""
-        return None
+    # def sample_graph(self, method, *args, **kwargs):
+    #     """Return the sub-sampled scene graph"""
+        
+    #     return None
 
 
 

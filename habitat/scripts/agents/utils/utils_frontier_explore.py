@@ -11,12 +11,12 @@ from numpy import ma
 import skfmm
 from sklearn.cluster import DBSCAN
 
-from utils.transformation import points_world2habitat
-
 # import matplotlib.pyplot as plt
 # import plotly
 # import plotly.express as px
+from utils.transformation import points_world2habitat
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
+from agents.utils.prior_utils import PriorBase, MatrixPrior
 
 DEBUG_VIS = False
 if DEBUG_VIS:
@@ -458,8 +458,7 @@ def frontier_goals(
     frontier_min_th=5,
     scene_graph=None,
     goal_name="",
-    scene_prior_matrix=None,
-    language_prior_matrix=None,
+    prior: PriorBase=None,
 ):
     """general function to calculate frontiers and goals
 
@@ -497,11 +496,14 @@ def frontier_goals(
     
     # NOTE: using learning to propose additional centroids?
     centroids_grid = compute_centroids(frontiers_grid)
+    centroids = np.array(centroids_grid) * map_resolution 
+    centroids[:, :2] = centroids[:, :2] + map_origin
+    
     current_position_grid = np.round(
         (current_position - map_origin) / map_resolution
     ).astype(int)
     
-    if mode == "geo":
+    if mode == "geo" or scene_graph == None:
         geo_utility_array = compute_geo_utility(
             centroids_grid, 
             current_position_grid, 
@@ -512,28 +514,26 @@ def frontier_goals(
             
     elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
-        assert (scene_graph is not None)
+        # assert (scene_graph is not None and prior is not None)
         geo_utility_array = compute_geo_utility(
             centroids_grid, 
             current_position_grid, 
             dist_type="geo_dist",
             map_raw=map_raw, 
         )
-        sem_utility_array = compute_sem_utility(
-            centroids_grid, 
-            scene_graph, 
+        sem_utility_array = prior.compute_sem_utility(
+            centroids,
+            current_position,
             goal_name,
-            scene_prior_c2c_dist=scene_prior_matrix,
-            language_prior_c2c_dist=language_prior_matrix,
+            scene_graph,
+            grid_map=map_raw,
         )
         utility_array = combine_utilities(geo_utility_array, sem_utility_array)
         goals_grid = get_goals(utility_array, centroids_grid, num_goals)
+        # print("Get goals by semantic utility.")
 
     # create goal map for global planner
-    centroids = np.array(centroids_grid) * map_resolution 
-    centroids[:, :2] = centroids[:, :2] + map_origin
     goals = goals_grid * map_resolution + map_origin
-    
     goal_grid = goals_grid[0,:]
     goal_map = np.zeros_like(map_raw)
     occupancy_map = (map_raw == 100).astype(np.float32)

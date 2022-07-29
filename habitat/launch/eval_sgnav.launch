@@ -20,6 +20,7 @@
         <arg name="wheel_odom_frame_id" value="$(arg wheel_odom_frame_id)" />
         <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
         <arg name="ground_truth_odom_topic" value="$(arg ground_truth_odom_topic)" />
+        <arg name="sem_cloud_topic" value="/rtabsem/cloud_map" />
     </include> -->
 
     <!-- rtabmap -->

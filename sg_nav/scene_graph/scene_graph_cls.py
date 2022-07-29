@@ -5,8 +5,10 @@ from turtle import color
 
 import numpy as np
 import open3d as o3d
+import regex
 import scene_graph
 import scipy
+from scipy.spatial import KDTree
 from habitat_sim import Simulator, scene
 from scene_graph.config import SceneGraphHabitatConfig
 from scene_graph.object_layer import ObjectLayer
@@ -22,43 +24,56 @@ from tqdm import tqdm
 """
 
 
-class SceneGraphBase(ABC):
+class SceneGraphBase():
 
     """Presume that the scene graph have two layers"""
-
     """ Set a layer to None if it does not exist in class instance """
 
-    @property
-    @abstractmethod
-    def object_layer(self) -> ObjectLayer:
-        pass
-
-    @property
-    @abstractmethod
-    def region_layer(self) -> RegionLayer:
-        pass
-
-    @abstractmethod
     def __init__(self) -> None:
         """Initialize scene graph on different 3D datasets"""
         """Parsing of 3D datasets should be implemented in dataset module"""
-        pass
+        self.object_layer = ObjectLayer()
+        self.region_layer = RegionLayer()
+        return 
 
-    @abstractmethod
     def get_full_graph(self):
         """Return the full scene graph"""
         pass
 
-    @abstractmethod
-    def sample_graph(self, seed, sample_method, ratio, num_nodes):
-        """Return the sub-sampled scene graph"""
-        pass
+    def sample_graph(self, method, *args, **kwargs):
+        """Return the sub-sampled scene graph
+        
+        Assume all method-dependent variables passed through kwargs 
+        
+        """
+        if method == "radius_sampling":
+            sample_centers = kwargs.get("center")
+            if len(sample_centers.shape) == 1:
+                # add dummy dim 
+                sample_centers = sample_centers[np.newaxis, :]
+            
+            sample_radius = kwargs.get("radius")
+            # by default, calculate distance on x-y plane
+            dist_dims = kwargs.get("dist_dims", [0,1])
+            
+            # build the kdtree to query objects inside the ball/circle
+            obj_ids = self.object_layer.obj_ids
+            if len(obj_ids) == 0: # empty scene graph
+                return [[] for _ in range(sample_centers.shape[0])]
+            
+            obj_centers = self.object_layer.get_centers(obj_ids)
+            kdtree = KDTree(obj_centers[:, dist_dims])
+            sample_idx_list = kdtree.query_ball_point(
+                sample_centers[:, dist_dims], sample_radius)
+            sample_obj_ids_list = [[obj_ids[idx] for idx in sample_idx] 
+                                   for sample_idx in sample_idx_list]
+            return sample_obj_ids_list
+        else:
+            raise NotImplementedError
+        return 
 
 
 class SceneGraphHabitat(SceneGraphBase):
-    # layers #
-    object_layer = None
-    region_layer = None
 
     def __init__(self, config, scene_name=None) -> None:
         super().__init__()
@@ -206,8 +221,8 @@ class SceneGraphHabitat(SceneGraphBase):
 
         return points, points_object_ids
 
-    def get_full_graph(self):
-        pass
+    # def get_full_graph(self):
+    #     pass
 
-    def sample_graph(self, seed, sample_method, ratio, num_nodes):
-        pass
+    # def sample_graph(self, method, *args, **kwargs):
+    #     pass

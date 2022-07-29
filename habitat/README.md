@@ -4,38 +4,21 @@ Integrate Habitat simulator with ROS
 
 ## Requirements
 
-- ROS noetic
-- CMake version at least 2.8.3
-- Python version at least 3.6
-- Habitat simulator
-- Rtabmap-ros
-- Python packages: numpy, gym, keyboard, cv_bridge
+-   RoboStack
+-   mini-conda, mamba
+-   Python versions 3.8, 3.9
+-   Habitat simulator
+-   Rtabmap-ros
+-   Python packages: numpy, gym, pytorch, etc.
 
 ## Installation (recommended)
 
-## Installation (deprecated)
-
-1. Install ROS noetic on your system ([https://www.ros.org/install/](https://www.ros.org/install/)).
-
-2. Install ros numpy: `sudo apt-get install ros-noetic-ros-numpy`
-
-3. Clone this repo into your ROS workspace (e.g. `~/catkin_ws/src`), and run `catkin_make`.
-
-4. Download and build [Habitat-sim](https://github.com/facebookresearch/habitat-sim) and [Habitat-lab](https://github.com/facebookresearch/habitat-lab).
-
-5. Install required Python packages: `pip install -r requirements.txt`
-
-6. In file `habitat-lab/habitat/tasks/nav/nav.py`, find method `step` in class `StopAction`, and change line `task.is_stop_called = True` to `task.is_stop_called=False` in code of this method.
-
-7. Rebuild habitat-lab.
-
-8. Install [Rtabmap-ros](https://github.com/introlab/rtabmap_ros)
-
-<!-- 9. Install [explore_lite](http://wiki.ros.org/explore_lite) with: `sudo apt install ros-${ROS_DISTRO}-explore-lite` -->
+Please refer to [Installation_py38](habitat/Installation_py38.md) or [Installtion_py39](habitat/Installation_py39.md) for detailed installation instructions. We recommend to first try install with [Installtion_py39](habitat/Installation_py39.md), which requires compiling
+habitat simulator from source, but with latest rtabmap_ros(0.20.18). If you have any installation issues, please follow [Installation_py38](habitat/Installation_py38.md) instead, which uses older version of rtabmap_ros (0.20.14) but with fewer problems.
 
 ## Data preparation
 
-### Running eval with Gibson
+### Prepare Gibson dataset
 
 You need to process semantic scene graph annotations to load gibson dataset. Refer to https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md#gibson-and-3dscenegraph-datasets for more details.
 
@@ -55,41 +38,27 @@ tools/gen_gibson_semantics.sh /path/to/3DSceneGraph_medium/automated_graph /path
 tools/gen_gibson_semantics.sh /path/to/3DSceneGraph_tiny/verified_graph /path/to/habitat_data/scene_datasets/gibson  /path/to/habitat_data/scene_datasets/gibson
 ```
 
-## Launch habitat node
+## Run evaluation
 
-Run agent in simulator via `roslaunch habitat_ros habitat_agent.launch`.
-
-## Node parameters
-
-- rgb_topic (default: None) - topic to publish RGB image from simulator
-- depth_topic (default: None) - topic to publish depth image from simulator
-- camera_info_topic (default: None) - topic to publish information about camera calibration (read from file)
-- camera_calib (default: None) - path to camera calibration file
-
-## Launch RTAB-MAP node
+We assume you follow our given installation instructions to install ROS and python dependencies over RoboStack environment. You need to activate RoboStack environment to run this repository.
 
 ```bash
-
-roslaunch rtabmap_ros rtabmap.launch \
-    rtabmap_args:="--delete_db_on_start" \
-    depth_topic:=/camera/depth/image \
-    rgb_topic:=/camera/rgb/image \
-    camera_info_topic:=/camera/rgb/camera_info \
-    approx_sync:=false
-
+# assume your environment name is ros_env and ros workspace is ~/catkin_ws
+conda activate ros_env
+cd ~/catkin_ws
+source devel.sh
 ```
 
-Get cloud map with a higher resolution
+### Evaluate frontier+2D detection baseline
 
 ```bash
+roslaunch habitat_ros eval_frontier_2d_detect.launch
+```
 
-roslaunch rtabmap_ros rtabmap.launch \
-    rtabmap_args:="--delete_db_on_start --Grid/CellSize 0.01 --Crid/DepthDecimation 1" \
-    depth_topic:=/camera/depth/image \
-    rgb_topic:=/camera/rgb/image \
-    camera_info_topic:=/camera/rgb/camera_info \
-    approx_sync:=false
+### Evaluate scene graph navigation
 
+```bash
+roslaunch habitat_ros eval_sgnav.launch
 ```
 
 ## Extra documentations
@@ -100,7 +69,7 @@ roslaunch rtabmap_ros rtabmap.launch \
 
 ### TODO LIST
 
-- [x] Load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)
-- [ ] Implement internal odometry to avoid visual odometry lost
-- [ ] Implement collision map tracking with considering map growing (controlled by rtabmap) to avoid being stuck by navmesh deficiency or map prediction error.
-- [ ] consider if we need to move agent & planning functions from habitat_ros to a new package
+-   [x] Load habitat configuration from yaml file instead of using hard-coded settings in [simulator.py](habitat/scripts/simulator.py)
+-   [ ] Implement internal odometry to avoid visual odometry lost
+-   [ ] Implement collision map tracking with considering map growing (controlled by rtabmap) to avoid being stuck by navmesh deficiency or map prediction error.
+-   [ ] consider if we need to move agent & planning functions from habitat_ros to a new package

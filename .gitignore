@@ -136,7 +136,7 @@ dmypy.json
 model/SSG/data
 *.bag
 *.npz
-*.npy
+# *.npy
 
 # model checkpoint
 model/SSG/CVPR21/*.pth
@@ -149,7 +149,7 @@ tmp/
 
 ############ habitat-ros ignore #######################
 habitat/scripts/tmp
-habitat/prior_data/
+# habitat/prior_data/
 habitat_ros
 
 ############ habitat-recognition ignore ##################

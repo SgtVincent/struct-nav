@@ -46,6 +46,7 @@ from agents.utils.ros_utils import (
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.sg_utils import SceneGraphSimGT, SceneGraphRtabmap
+from agents.utils.prior_utils import MatrixPrior
 import envs.utils.pose as pu
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 from envs.constants import color_palette, coco_categories, coco_label_mapping
@@ -83,8 +84,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.map_resolution = args.map_resolution_cm / 100.0
         self.sem_model = args.sem_model
         self.success_dist = args.success_dist
+        self.sg_point_features = False
         # self.frontier_mode = args.frontier_mode
         self.frontier_mode = "geo+sem"
+        self.prior_type = "matrix_prior"
 
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
@@ -129,7 +132,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.goal_name = None
         self.spot_goal = 0
         self.actions_queue = deque([], maxlen=4)
-        
+        self.scene_graph = None
 
         # from ObjectGoalEnv
         self.info = {}
@@ -141,15 +144,11 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.init_ros()
 
         # load prior matrix for scene graph navigation 
-        self.scene_prior_matrix = None
-        self.language_prior_matrix = None
-        if len(self.scene_prior_matrix_file) > 0: 
-            path = os.path.join(self.prior_dir, self.scene_prior_matrix_file)
-            self.scene_prior_matrix = np.load(path)
-        self.language_prior_matrix = None
-        if len(self.language_prior_matrix_file) > 0: 
-            path = os.path.join(self.prior_dir, self.language_prior_matrix_file)
-            self.language_prior_matrix = np.load(path)
+        if self.prior_type == "matrix_prior":
+            scene_prior_path = os.path.join(self.prior_dir, self.scene_prior_matrix_file)
+            language_prior_path = os.path.join(self.prior_dir, self.language_prior_matrix_file)
+            self.prior = MatrixPrior(scene_prior_path, language_prior_path)
+
 
         if args.visualize or args.print_images:
             self.legend = cv2.imread("docs/legend.png")
@@ -207,9 +206,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         #     "~wheel_odom_topic", ""
         # )
         self.true_pose_topic = rospy.get_param("~true_pose_topic", "")
-        self.cloud_topic = rospy.get_param(
-            "~cloud_topic", "/rtabmap/cloud_map"
+        self.sem_cloud_topic = rospy.get_param(
+            "~sem_cloud_topic", "/rtabsem/cloud_map"
         )
+        
         # topics for planning
         self.odom_topic = rospy.get_param("~odom_topic", "/odom")
         if self.ground_truth_odom:
@@ -263,12 +263,18 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 self.grid_map_topic, OccupancyGrid, self.callback_grid_map
             )
             rospy.loginfo(f"subscribing to {self.grid_map_topic}...")
+            
         elif self.map_update_mode == "request":
             rospy.loginfo(f"Agent running in request mode to update map")
             # skip subscriber initialization 
         else:
             raise NotImplementedError
 
+        self.sub_sem_cloud = rospy.Subscriber(
+            self.sem_cloud_topic, PointCloud2, self.callback_sem_cloud
+        )
+        rospy.loginfo(f"subscribing to {self.sem_cloud_topic}...")
+        
         # tf listener 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -612,22 +618,21 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             ##################  generate frontiers and goals ##############
             # sometimes get empty map due to synchronization problem
             # then skip this frame  
-            try:
-                frontiers, goals, goal_map = frontier_goals(
-                    grid_map,
-                    map_origin,
-                    self.map_resolution,
-                    odom_map_pose[:2],
-                    cluster_trashhole=self.args.cluster_trashhole,
-                    num_goals=1,
-                    mode=self.frontier_mode,
-                    scene_graph=self.scene_graph,
-                    goal_name = self.goal_name,
-                    scene_prior_matrix=self.scene_prior_matrix,
-                    language_prior_matrix=self.language_prior_matrix
-                )
-            except:
-                frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
+            # try:
+            frontiers, goals, goal_map = frontier_goals(
+                grid_map,
+                map_origin,
+                self.map_resolution,
+                odom_map_pose[:2],
+                cluster_trashhole=self.args.cluster_trashhole,
+                num_goals=1,
+                mode=self.frontier_mode,
+                scene_graph=self.scene_graph,
+                goal_name = self.goal_name,
+                prior=self.prior
+            )
+            # except:
+                # frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
 
             if len(frontiers) > 0:
                 publish_frontiers(frontiers, goals, self.pub_frontiers)
@@ -1139,14 +1144,14 @@ class FrontierSGNavAgent(ObjectGoal_Env):
     def callback_grid_map(self, grid_map_msg: OccupancyGrid):
         self.grid_map_msg = grid_map_msg
 
-    def callback_sem_cloud_map(self, sem_cloud_map_msg: PointCloud2):
+    def callback_sem_cloud(self, sem_cloud_map_msg: PointCloud2):
         self.sem_cloud_map_msg = sem_cloud_map_msg
         # construct scene graph in this thread 
         scene_bounds = None
         if self.grid_map is not None:
             scene_bounds = np.stack([
                 self.map_origin,
-                self.map_origin + self.map_shape * self.map_resolution
+                self.map_origin + np.array(self.map_shape) * self.map_resolution
             ], axis=0)
                 
         self.scene_graph = SceneGraphRtabmap(self.sem_cloud_map_msg, 
@@ -1154,4 +1159,6 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                           label_mapping=coco_label_mapping,
                           scene_bounds=scene_bounds,
                           grid_map=self.grid_map,
+                          map_resolution=self.map_resolution
                           )
+        # rospy.loginfo("constructed scene graph from semantic cloud map")
