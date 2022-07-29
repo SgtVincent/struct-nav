@@ -1,11 +1,38 @@
 {
-    "python.linting.pylintEnabled": true,
-    "python.linting.enabled": true,
     "[python]": {
-    
         "gitlens.codeLens.symbolScopes": [
             "!Module"
         ],
         "editor.wordBasedSuggestions": false
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/lig/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/lig/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.testing.pytestArgs": [
+        "test"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.linting.pycodestyleEnabled": false,
+    "python.linting.flake8Enabled": true,
+        "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.linting.lintOnSave": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=80",
+        "--ignore=F811,W503,W504,E731",
+        "--based_on_style=pep8",
+        "--split_before_named_assigns=False"
+    ],
+    "python.formatting.provider": "yapf",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+
     }
 }
