@@ -107,8 +107,8 @@ class MatrixPrior(PriorBase):
                     if 'lang' in self.priors:
                         lang_utility = utility_reverse_euc_dist_sum(
                             self.lang_prior_matrix, class_labels, goal_label)
-                    self.get_utility(scene_utility, lang_utility)
-                    sem_utility.append(scene_utility)
+                    utility = self.get_utility(scene_utility, lang_utility)
+                    sem_utility.append(utility)
 
         return np.array(sem_utility)
 
