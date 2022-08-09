@@ -135,7 +135,7 @@ dmypy.json
 # data
 model/SSG/data
 *.bag
-*.npz
+# *.npz
 # *.npy
 
 # model checkpoint

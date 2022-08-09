@@ -1,6 +1,7 @@
 import abc
 import os
 from abc import ABC, abstractmethod, abstractproperty
+from sys import flags
 
 import numpy as np
 from envs.constants import coco_categories, coco_label_mapping
@@ -9,15 +10,49 @@ from sentence_transformers import SentenceTransformer, util
 MAX_DIST = 1e8
 
 
-def utility_reverse_euc_dist_sum(prior_mat,
-                                 class_labels,
-                                 goal_label,
-                                 min_dist=0.5):
+def utility_reverse_euc_dist(prior_mat, class_labels, goal_label, 
+                             min_dist=0.5, mean=True):
 
     prior_dists = prior_mat[class_labels, :][:, goal_label]
     prior_dists[prior_dists > min_dist] = min_dist
-    return np.sum(1.0 / prior_dists)
+    if mean:
+        return np.average(1.0 / prior_dists)
+    else: # sum
+        return np.sum(1.0 / prior_dists)
 
+def utility_reverse_euc_dist_discount_var(prior_mat, prior_var_mat, 
+                                    class_labels, goal_label, min_dist=0.5, 
+                                    min_var=1.0, order=-0.5, mean=True):
+    
+    prior_dists = prior_mat[class_labels, :][:, goal_label]
+    prior_vars = prior_var_mat[class_labels, :][:, goal_label]
+    prior_dists[prior_dists < min_dist] = min_dist
+    prior_vars[prior_vars < min_var] = min_var
+    if mean:
+        return np.average((1.0 / prior_dists), 
+                          weights= (1 / np.float_power(prior_vars, order)))
+    else: # sum
+        return np.sum((1.0 / prior_dists) / np.float_power(prior_vars, order))
+
+def utility_cos_sim(prior_mat, class_labels, goal_label, mean=True):
+    
+    prior_dists = prior_mat[class_labels, :][:, goal_label]
+    if mean:
+        return np.average(1 - prior_dists)
+    else:
+        return np.sum(1 - prior_dists)
+
+def utility_cos_sim_discount_var(prior_mat, prior_var_mat, class_labels, 
+                                goal_label, min_var=1.0, order=-0.5, mean=True):
+    
+    prior_dists = prior_mat[class_labels, :][:, goal_label]
+    prior_vars = prior_var_mat[class_labels, :][:, goal_label]
+    prior_vars[prior_vars < min_var] = min_var
+    if mean:
+        return np.average((1 - prior_dists), 
+                          weights= (1 / np.float_power(prior_vars, order)))
+    else:
+        return np.sum((1 - prior_dists) / np.float_power(prior_vars, order))
 
 class PriorBase(ABC):
 
@@ -36,7 +71,9 @@ class MatrixPrior(PriorBase):
         scene_prior_path='',
         scene_prior_matrix=None,
         lang_prior_path='',
+        lang_piror_type='bert_cos_dist',
         lang_prior_matrix=None,
+        prior_var_matrix=None,
         combine_weight=None,
     ):
         super().__init__()
@@ -47,10 +84,17 @@ class MatrixPrior(PriorBase):
         self.priors = priors
         self.scene_prior_matrix = scene_prior_matrix
         self.lang_prior_matrix = lang_prior_matrix
+        self.prior_var_matrix = prior_var_matrix
+        
         if scene_prior_matrix is None and os.path.exists(scene_prior_path):
-            self.scene_prior_matrix = np.load(scene_prior_path)
+            scene_prior = dict(np.load(scene_prior_path))
+            self.scene_prior_matrix = scene_prior['c2c_dist_mean']
+            self.prior_var_matrix = scene_prior['c2c_dist_var']
+            
         if lang_prior_matrix is None and os.path.exists(lang_prior_path):
-            self.lang_prior_matrix = np.load(lang_prior_path)
+            lang_prior = dict(np.load(lang_prior_path))
+            self.lang_prior_matrix = lang_prior[lang_piror_type]
+            
         self.combine_weight = combine_weight
 
         if 'lang' in self.priors:
@@ -66,7 +110,7 @@ class MatrixPrior(PriorBase):
                             current_position,
                             goal_name,
                             scene_graph,
-                            method="radius_sum",
+                            method="radius_mean", # radius_sum
                             **kwargs):
         """Compute semantic utility by calculating the average distance to the target 
         of all objects within a circle around the frontier.
@@ -78,11 +122,13 @@ class MatrixPrior(PriorBase):
             method (str): method to compute semantic utility 
             grid_map (np.ndarray): grid map 
         """
-        # TODO: finish semantic utility computation function
-        sem_utility = []
+        
+        scene_utilities = []
+        lang_utilities = []
         goal_label = coco_categories[goal_name]
-
-        if method == "radius_sum":
+        graph_sample_method, obj_util_aggregate_method = method.split('_')
+        
+        if graph_sample_method == "radius":
             radius = kwargs.get("radius", 2.0)
             # for each frontier, get all objects in the ball centering the frontier
             neighbor_objects_list = scene_graph.sample_graph(
@@ -90,37 +136,70 @@ class MatrixPrior(PriorBase):
                 center=frontiers,
                 radius=radius,
                 **kwargs)
-            for i, frontier in enumerate(frontiers):
-                neighbor_obj_ids = neighbor_objects_list[i]
-                if len(neighbor_obj_ids) == 0:
-                    sem_utility.append(0)  # no semantic utility value
-                else:
-                    class_names = scene_graph.object_layer.get_class_names(
-                        neighbor_obj_ids)
-                    class_labels = [
-                        coco_categories[name] for name in class_names
-                        if name in coco_categories
-                    ]
-                    if 'scene' in self.priors:
-                        scene_utility = utility_reverse_euc_dist_sum(
-                            self.scene_prior_matrix, class_labels, goal_label)
-                    if 'lang' in self.priors:
-                        lang_utility = utility_reverse_euc_dist_sum(
-                            self.lang_prior_matrix, class_labels, goal_label)
-                    utility = self.get_utility(scene_utility, lang_utility)
-                    sem_utility.append(utility)
+        else: 
+            raise NotImplementedError
+        
+        flag_mean = False
+        if obj_util_aggregate_method == "mean":
+            flag_mean = True
+            
+        for i, frontier in enumerate(frontiers):
+            
+            neighbor_obj_ids = neighbor_objects_list[i]
+            class_names = scene_graph.object_layer.get_class_names(
+                    neighbor_obj_ids)
+            class_labels = [
+                coco_categories[name] for name in class_names
+                if name in coco_categories
+            ]
+            
+            if len(class_labels) == 0: # no valid object found in neighborhood
+                scene_utilities.append(0)  
+                lang_utilities.append(0)
+            else:
+                scene_utility = 0
+                if 'scene' in self.priors:
+                    scene_utility = utility_reverse_euc_dist_discount_var(
+                        self.scene_prior_matrix, self.prior_var_matrix, 
+                        class_labels, goal_label, mean=flag_mean)
+                    scene_utilities.append(scene_utility)
+                    
+                lang_utility = 0
+                if 'lang' in self.priors:
+                    lang_utility = utility_cos_sim_discount_var(
+                        self.lang_prior_matrix, self.prior_var_matrix, 
+                        class_labels, goal_label, mean=flag_mean)
+                    lang_utilities.append(lang_utility)
+                    
+        sem_utilities = self.get_utility(scene_utilities, lang_utilities)
 
-        return np.array(sem_utility)
+        return sem_utilities
 
-    def get_utility(self, scene_utility, lang_utility):
-        if self.priors == 'scene':
-            return scene_utility
-        if self.priors == 'lang':
-            return lang_utility
-        if self.priors == {'scene', 'lang'}:
-            return self.combine_weight * scene_utility + (
-                1 - self.combine_weight) * lang_utility
-
+    def get_utility(self, scene_utilities, lang_utilities):
+    
+        if self.priors == {'scene'}:
+            scene_utilities = np.array(scene_utilities)
+            if np.any(scene_utilities != 0):
+                scene_utilities /= np.linalg.norm(scene_utilities)
+            return scene_utilities
+    
+        elif self.priors == {'lang'}:
+            lang_utilities = np.array(lang_utilities)
+            if np.any(lang_utilities != 0):
+                lang_utilities /= np.linalg.norm(lang_utilities)
+            return lang_utilities
+        
+        elif self.priors == {'scene', 'lang'}:
+            scene_utilities = np.array(scene_utilities)
+            lang_utilities = np.array(lang_utilities)
+            if np.sum(scene_utilities) > 0:
+                scene_utilities /= np.sum(scene_utilities)
+            if np.sum(lang_utilities) > 0:
+                lang_utilities /= np.sum(lang_utilities)
+            return self.combine_weight * scene_utilities + (
+                1 - self.combine_weight) * lang_utilities
+        else:
+            raise NotImplementedError
 
 model_zoo = {
     'bert': 'sentence-transformers/bert-base-nli-mean-tokens',
@@ -167,13 +246,18 @@ class LangPrior:
 
 
 if __name__ == "__main__":
-    sem_prior = MatrixPrior({'lang'},
+    bert_sem_prior = MatrixPrior({'lang'},
                             lang_prior_matrix=LangPrior(
                                 coco_categories, mode='bert').dist_matrix)
-    print(sem_prior.lang_prior_matrix)
-    print(sem_prior.lang_prior_matrix.shape)
-    sem_prior = MatrixPrior({'lang'},
+    # print(sem_prior.lang_prior_matrix)
+    print("Generated bert language prior matrix of shape ", bert_sem_prior.lang_prior_matrix.shape)
+    clip_sem_prior = MatrixPrior({'lang'},
                             lang_prior_matrix=LangPrior(
                                 coco_categories, mode='clip').dist_matrix)
-    print(sem_prior.lang_prior_matrix)
-    print(sem_prior.lang_prior_matrix.shape)
+    # print(sem_prior.lang_prior_matrix)
+    print("Generated clip language prior matrix of shape ", clip_sem_prior.lang_prior_matrix.shape)
+    
+    # save language prior matrices to npz file 
+    np.savez("language_prior.npz",
+             bert_cos_dist=bert_sem_prior.lang_prior_matrix,
+             clip_cos_dist=clip_sem_prior.lang_prior_matrix)

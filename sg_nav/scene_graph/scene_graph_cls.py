@@ -2,7 +2,7 @@ import json
 import os
 from abc import ABC, abstractmethod, abstractproperty
 from turtle import color
-
+from typing import List
 import numpy as np
 import open3d as o3d
 import regex
@@ -10,11 +10,13 @@ import scene_graph
 import scipy
 from scipy.spatial import KDTree
 from habitat_sim import Simulator, scene
-from scene_graph.config import SceneGraphHabitatConfig
-from scene_graph.object_layer import ObjectLayer
+from scipy.ndimage.morphology import binary_dilation
+from nav_msgs.msg import OccupancyGrid
 
 # local import
-from scene_graph.region_layer import RegionLayer
+from scene_graph.config import SceneGraphHabitatConfig
+from scene_graph.object_layer import ObjectLayer, ObjectNode
+from scene_graph.region_layer import RegionLayer, RegionNode
 from scene_graph.utils import get_corners
 from tqdm import tqdm
 
@@ -226,3 +228,139 @@ class SceneGraphHabitat(SceneGraphBase):
 
     # def sample_graph(self, method, *args, **kwargs):
     #     pass
+
+class GridMap:
+    def __init__(self, time, resolution, width, height, pos, quat, grid):
+        self.time = time
+        self.resolution = resolution
+        self.width = width
+        self.height = height
+        # the real-world pose of the cell (0,0) in the map.
+        self.origin_pos = pos  # (x, y, z)
+        self.origin_quat = quat  # quaternion
+
+        self.grid = grid  # numpy array
+
+    @classmethod
+    def from_msg(cls, occ_msg: OccupancyGrid):
+
+        grid = np.asarray(occ_msg.data, dtype=np.int8).reshape(
+            occ_msg.info.height, occ_msg.info.width
+        )
+        grid[grid == 100] = 1
+        ros_p = occ_msg.info.origin.position
+        ros_q = occ_msg.info.origin.orientation
+        return cls(
+            occ_msg.header.stamp.to_sec(),
+            occ_msg.info.resolution,
+            occ_msg.info.width,
+            occ_msg.info.height,
+            np.array([ros_p.x, ros_p.y, ros_p.z]),
+            np.quaternion(ros_q.w, ros_q.x, ros_q.y, ros_q.z),
+            grid,
+        )
+
+
+class SceneGraphGibson(SceneGraphBase):
+
+    def __init__(self, sim: Simulator) -> None:
+        super().__init__()
+        self.sim = sim
+        # self.scene_name = scene_name
+
+        # scene parameters
+        # self.floor_heights = [0]
+        self.height = sim.get_agent(0).state.position[1]
+        self.meters_per_grid = 0.05
+        self.object_grid_scale = 1
+        self.aligned_bbox = True
+
+        # parse habitat.sim.SemanticScene
+        self.load_gt_scene_graph()
+
+    def load_gt_scene_graph(self):
+        # 1. get boundary of the scene (one-layer) and initialize map
+        self.scene_bounds = self.sim.pathfinder.get_bounds()
+        # NOTE: bottom of bounding box could NOT be the floor
+        # self.height = self.scene_bounds[0][1] # y-axis points upwards
+        # self.height = self.floor_heights[0]  # assume one-layer scene
+        self.free_space_grid = self.sim.pathfinder.get_topdown_view(
+            self.meters_per_grid, self.height
+        )  # binary matrix
+        self.region_layer.init_map(
+            self.scene_bounds, self.meters_per_grid, self.free_space_grid
+        )
+
+        self.dumy_space_grid = self.sim.pathfinder.get_topdown_view(
+            self.meters_per_grid / self.object_grid_scale, self.height
+        )  # binary matrix
+        self.object_layer.init_map(
+            self.scene_bounds,
+            self.meters_per_grid / self.object_grid_scale,
+            self.dumy_space_grid,
+        )
+
+        # 2. load region layer from habitat simulator
+        semantic_scene = self.sim.semantic_scene
+        for region in semantic_scene.regions:
+            # add region node to region layer
+            gt_region_id = int(region.id.split("_")[-1])
+            sg_region_id = gt_region_id  # counting from 0, -1 for background
+            region_bbox = np.stack(
+                [
+                    region.aabb.center - region.aabb.sizes / 2,
+                    region.aabb.center + region.aabb.sizes / 2,
+                ],
+                axis=0,
+            )
+            region_node = self.region_layer.add_region(
+                region_bbox,
+                id=sg_region_id,
+                class_name=region.category.name(),
+                label=region.category.index(),
+            )
+
+            # 3. load object layer from habitat simulator
+            for obj in region.objects:
+                # print(
+                #     f"Object id:{obj.id}, category:{obj.category.name()},"
+                #     f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
+                # )
+                object_id = int(obj.id.split("_")[-1])  # counting from 0
+                if self.aligned_bbox:
+                    center = obj.aabb.center
+                    rot_quat = np.array([0, 0, 0, 1])  # identity transform
+                    size = obj.aabb.sizes
+                else:  # Use obb, NOTE: quaternion is [w,x,y,z] from habitat, need to convert to [x,y,z,w]
+                    center = obj.obb.center
+                    rot_quat = obj.obb.rotation[1, 2, 3, 0]
+                    size = obj.obb.sizes
+                    size = obj.aabb.sizes
+
+                node_size = (
+                    self.meters_per_grid / self.object_grid_scale
+                )  # treat object as a point
+                node_bbox = np.stack(
+                    [center - node_size / 2, center + node_size / 2], axis=0
+                )
+                object_node = self.object_layer.add_object(
+                    center,
+                    rot_quat,
+                    size,
+                    id=object_id,
+                    class_name=obj.category.name(),
+                    label=obj.category.index(),
+                    bbox=node_bbox,
+                )
+
+                # connect object to region
+                region_node.add_object(object_node)
+        return
+
+    # def get_full_graph(self):
+    #     """Return the full scene graph"""
+    #     return None
+
+    # def sample_graph(self, method, *args, **kwargs):
+    #     """Return the sub-sampled scene graph"""
+    #     return None

@@ -937,7 +937,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             # overwrite local planner if agent is stuck locally
             # current policy: last 4 actions are lrlr or rlrl
             # TODO: investigate why it get stuck and solve the problem
-            if self.actions_queue.count(3)==2 and self.actions_queue.count(2)==2:
+            last_actions = list(self.actions_queue)
+            if last_actions==[2,3,2,3] or last_actions==[3,2,3,2]:
                 action = 1 # Execute forward to get away from left-right swing cycle
 
         return action

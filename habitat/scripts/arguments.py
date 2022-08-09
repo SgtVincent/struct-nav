@@ -105,67 +105,6 @@ def get_args(args=None, namespace=None):
         help="1: save visualization as images",
     )
 
-    # Environment, dataset and episode specifications
-    # NOTE: Disable setting env params in argparse 
-    # Use yaml config instead! 
-    # parser.add_argument(
-    #     "-efw",
-    #     "--env_frame_width",
-    #     type=int,
-    #     default=640,
-    #     help="Frame width (default:640)",
-    # )
-    # parser.add_argument(
-    #     "-efh",
-    #     "--env_frame_height",
-    #     type=int,
-    #     default=480,
-    #     help="Frame height (default:480)",
-    # )
-    # parser.add_argument(
-    #     "-fw",
-    #     "--frame_width",
-    #     type=int,
-    #     default=160,
-    #     help="Frame width (default:160)",
-    # )
-    # parser.add_argument(
-    #     "-fh",
-    #     "--frame_height",
-    #     type=int,
-    #     default=120,
-    #     help="Frame height (default:120)",
-    # )
-    # parser.add_argument(
-    #     "--camera_height",
-    #     type=float,
-    #     default=0.88,
-    #     help="agent camera height in metres",
-    # )
-    # parser.add_argument(
-    #     "--hfov",
-    #     type=float,
-    #     default=79.0,
-    #     help="horizontal field of view in degrees",
-    # )
-    # parser.add_argument(
-    #     "--turn_angle",
-    #     type=float,
-    #     default=30,
-    #     help="Agent turn angle in degrees",
-    # )
-    # parser.add_argument(
-    #     "--min_depth",
-    #     type=float,
-    #     default=0.5,
-    #     help="Minimum depth for depth sensor in meters",
-    # )
-    # parser.add_argument(
-    #     "--max_depth",
-    #     type=float,
-    #     default=5.0,
-    #     help="Maximum depth for depth sensor in meters",
-    # )
     # TODO: parse task parameters also from task yaml config 
     parser.add_argument(
         "-el",
@@ -218,6 +157,7 @@ def get_args(args=None, namespace=None):
     )
 
     # Model Hyperparameters
+    # TODO: clean these parameters since RL model is not used 
     parser.add_argument('--agent', type=str, default="sem_exp")
     parser.add_argument('--lr', type=float, default=2.5e-5,
                         help='learning rate (default: 2.5e-5)')
@@ -264,8 +204,8 @@ def get_args(args=None, namespace=None):
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
     parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
-    parser.add_argument('--sem_device', type=str, default="cpu")
-    parser.add_argument('--sem_dbscan_eps', type=float, default=0.1, 
+    parser.add_argument('--sem_device', type=str, default="gpu")
+    parser.add_argument('--sem_dbscan_eps', type=float, default=1.0, 
         help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
 
     # Mapping
@@ -282,6 +222,15 @@ def get_args(args=None, namespace=None):
     # Frontier Exploration
     parser.add_argument("--cluster_trashhole", type=float, default=0.2)
     # parser.add_argument("--frontier_mode", type=str, default="geo")
+    # Utility function argumetns 
+    parser.add_argument("--util_prior_combine_weight", type=float, default=1.0,
+                        help="combine weight for semantic utility, utility=weight * scene_util + (1.0-weight)*lang_util") 
+    parser.add_argument("--util_max_geo_weight", type=float, default=1.0, 
+                        help="maximum weight for geometric utility")
+    parser.add_argument("--util_min_geo_weight", type=float, default=0.2, 
+                        help="maximum weight for geometric utility")
+    parser.add_argument("--util_weight_dec_step", type=int, default=100, 
+                        help="maximum steps to decrease geo weight linearly")
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)
 

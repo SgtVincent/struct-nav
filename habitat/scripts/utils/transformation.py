@@ -90,6 +90,34 @@ def pose_habitat2world(position, rotation: np.quaternion):
     rotation_world = h2r_quat * rotation
     return position_world, rotation_world
 
+def get_tf_habitat2rtabmap(init_pos, init_rot: np.quaternion):
+    """Get 4x4 tf matrix to transform points from habitat frame to rtabmap frame
+
+    NOTE: In the function name, the tf is the tf for points, while in function body,
+    the tf follows the ROS convention, which is the tf between frames, so that it has 
+    reverse direction with function name.
+
+    Args:
+        init_pos (np.ndarray): initial position in habitat coordinate frame
+        init_rot (np.quaternion): initial rotation in habitat coordinate frame
+
+    Returns:
+        np.ndarray: (4,4) numpy matrix 
+    """
+    tf_hab2init_mat = homo_matrix_from_quat(init_rot, init_pos)
+    tf_world2hab_r = quat_from_two_vectors(np.array([0,-1,0]), np.array([0,0,-1]))
+    tf_world2hab_mat = homo_matrix_from_quat(tf_world2hab_r)
+    
+    # constraint is that transform from odometry (rtabmap) to initial frame should be 
+    # the same with transform from world to habitat
+    # i.e. tracking the relative pose change 
+    tf_world2init_mat = tf_world2hab_mat @ tf_hab2init_mat
+    tf_odom2world_mat = tf_world2hab_mat @ np.linalg.inv(tf_world2init_mat)
+    
+    tf_odom2hab_mat = tf_odom2world_mat @ tf_world2hab_mat
+    
+    return tf_odom2hab_mat
+
 def pose_habitat2rtabmap(position, rotation: np.quaternion, init_pos, init_rot: np.quaternion):
     """transform pose from habitat frame to rtabmap frame
     

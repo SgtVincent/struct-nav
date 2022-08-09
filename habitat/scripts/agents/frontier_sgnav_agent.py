@@ -24,7 +24,8 @@ from utils.publishers import HabitatObservationPublisher, PointCloudPublisher
 from utils.transformation import (
     publish_agent_init_tf,
     publish_static_base_to_cam,
-    pose_habitat2rtabmap
+    pose_habitat2rtabmap,
+    get_tf_habitat2rtabmap
 )
 # from utils.cam_utils import get_point_from_pixel
 from arguments import get_args
@@ -42,10 +43,12 @@ from agents.utils.ros_utils import (
     safe_get_map_service,
     publish_frontiers,
     publish_targets,
-    publish_pose
+    publish_pose,
+    publish_scene_graph,
+    publish_target_name
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
-from agents.utils.sg_utils import SceneGraphSimGT, SceneGraphRtabmap
+from agents.utils.sg_utils import SceneGraphGTGibson, SceneGraphRtabmap
 from agents.utils.prior_utils import MatrixPrior
 import envs.utils.pose as pu
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
@@ -87,8 +90,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.sg_point_features = False
         # self.frontier_mode = args.frontier_mode
         self.frontier_mode = "geo+sem"
-        self.prior_type = "matrix_prior"
-
+        self.prior_class = "matrix_prior"
+        self.prior_types = {'scene', 'lang'} # {'scene', 'lang'}
+        self.vis_scene_graph = True # by default visualize scene graph 
+        
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
         self.obs_height = config_env.SIMULATOR.RGB_SENSOR.HEIGHT
@@ -144,10 +149,15 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.init_ros()
 
         # load prior matrix for scene graph navigation 
-        if self.prior_type == "matrix_prior":
+        if self.prior_class == "matrix_prior":
             scene_prior_path = os.path.join(self.prior_dir, self.scene_prior_matrix_file)
             language_prior_path = os.path.join(self.prior_dir, self.language_prior_matrix_file)
-            self.prior = MatrixPrior(scene_prior_path, language_prior_path)
+            self.prior = MatrixPrior(
+                priors=self.prior_types,
+                scene_prior_path=scene_prior_path,
+                lang_prior_path=language_prior_path, 
+                combine_weight=self.args.util_prior_combine_weight,
+            )
 
 
         if args.visualize or args.print_images:
@@ -168,8 +178,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         )
         self.initial_map_size = rospy.get_param("~initial_map_size", DEFAULT_MAP_SIZE)
         self.prior_dir = rospy.get_param("~prior_dir", "")
-        self.scene_prior_matrix_file = rospy.get_param("~scene_prior_matrix_file", "")
-        self.language_prior_matrix_file = rospy.get_param("~language_prior_matrix_file", "")
+        self.scene_prior_matrix_file = rospy.get_param("~scene_prior_matrix_file", "dummy.npz")
+        self.language_prior_matrix_file = rospy.get_param("~language_prior_matrix_file", "dummpy.npz")
         
         # setup pseudo wheel odometry to fuse with rtabmap visual odometry 
         self.wheel_odom = rospy.get_param("~wheel_odom", False)
@@ -183,6 +193,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         if self.ground_truth_odom:
             self.ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
         
+        # setup ground truth scene grpah 
+        self.ground_truth_scene_graph = rospy.get_param("~ground_truth_scene_graph", False)
         
         self.map_update_mode = rospy.get_param("~map_update_mode", "listen")
 
@@ -220,6 +232,14 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         )
         self.frontiers_topic = rospy.get_param(
             "~frontiers_topic", "/frontiers"
+        )
+        
+        # visualize topics 
+        self.object_nodes_topic = rospy.get_param(
+            "~object_nodes_topic", "~object_nodes"
+        )
+        self.object_names_topic = rospy.get_param(
+            "~object_names_topic", "~object_names"
         )
         # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
 
@@ -270,10 +290,11 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         else:
             raise NotImplementedError
 
-        self.sub_sem_cloud = rospy.Subscriber(
-            self.sem_cloud_topic, PointCloud2, self.callback_sem_cloud
-        )
-        rospy.loginfo(f"subscribing to {self.sem_cloud_topic}...")
+        if not self.ground_truth_scene_graph:
+            self.sub_sem_cloud = rospy.Subscriber(
+                self.sem_cloud_topic, PointCloud2, self.callback_sem_cloud
+            )
+            rospy.loginfo(f"subscribing to {self.sem_cloud_topic}...")
         
         # tf listener 
         self.tf_buffer = tf2_ros.Buffer()
@@ -282,6 +303,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.pub_frontiers = rospy.Publisher(
             self.frontiers_topic, MarkerArray, queue_size=1
         )
+        self.pub_target_name = rospy.Publisher(
+            "~target_name", Marker, queue_size=10
+        )
+
 
         if DEBUG_WHEEL_ODOM:
             self.pub_wheel_odom_pose = rospy.Publisher(
@@ -292,6 +317,14 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         if DEBUG_DETECT:
             self.pub_detected_goal_pts = PointCloudPublisher(
                 "~detected_goal_pts"
+            )
+
+        if self.vis_scene_graph:
+            self.pub_object_nodes = rospy.Publisher(
+                self.object_nodes_topic, MarkerArray, queue_size=1
+            )
+            self.pub_object_names = rospy.Publisher(
+                self.object_names_topic, MarkerArray, queue_size=1
             )
 
         # cached messages
@@ -346,6 +379,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 # this "normalization" avoids a lot of configurations in rtabmap
                 self.init_pos = info['agent_pose'].position
                 self.init_rot = info['agent_pose'].rotation
+            else:
+                self.init_pos = np.array([0, 0, 0])
+                self.init_rot = np.quaternion(1, 0, 0, 0)
+
 
             if args.visualize or args.print_images:
                 self.legend = cv2.imread("docs/legend.png")
@@ -369,6 +406,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 self.pub_obs.publish(obs)
                 self.cnt_pub += 1
                 # self.rate.sleep()
+                # visualize navigation goal 
+                publish_target_name(self.pub_target_name, self.goal_name, np.array([0,0,0]))
                 time.sleep(1/self.rate_value)
                 # if DEBUG:
                 #     print(f"[DEBUG] Published {self.cnt_pub} observations.")
@@ -401,7 +440,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                     self.pub_obs.publish(obs)
                     # self.rate.sleep()
                     time.sleep(1/self.rate_value)
-                    
+        
         self.obs = obs 
         self.info = info
         return obs, info
@@ -606,10 +645,12 @@ class FrontierSGNavAgent(ObjectGoal_Env):
 
         """
         ############ process ros messages ################
-
         grid_map, map_origin, odom_map_pose, odom_pose_mat = self.process_ros_messages()
         # map_resolution = self.map_resolution
-
+        
+        # visualize navigation goal 
+        # publish_target_name(self.pub_target_name, self.goal_name, odom_pose_mat[:3, 3])
+        
         ################## check if target object already known ############
         if (self.goal_idx + 1) in self.obs['semantic']: # zero for background
             self.spot_goal = 1
@@ -624,12 +665,16 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 map_origin,
                 self.map_resolution,
                 odom_map_pose[:2],
+                step=self.timestep,
                 cluster_trashhole=self.args.cluster_trashhole,
                 num_goals=1,
                 mode=self.frontier_mode,
                 scene_graph=self.scene_graph,
                 goal_name = self.goal_name,
-                prior=self.prior
+                prior=self.prior,
+                util_max_geo_weight=self.args.util_max_geo_weight,
+                util_min_geo_weight=self.args.util_min_geo_weight,
+                util_weight_dec_step=self.args.util_weight_dec_step,
             )
             # except:
                 # frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
@@ -738,6 +783,17 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             # preprocess obs and publish it 
             obs = self._preprocess_obs(obs, info)
             self.pub_obs.publish(obs)
+            
+            if self.ground_truth_scene_graph:
+                tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
+                self.scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
+                
+            if self.vis_scene_graph:
+                publish_scene_graph(self.scene_graph, 
+                                    self.pub_object_nodes,
+                                    vis_name=True,
+                                    name_publisher=self.pub_object_names)
+            
             self.obs = obs
             self.info = info
             # self.rate.sleep()
@@ -938,7 +994,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             # overwrite local planner if agent is stuck locally
             # current policy: last 4 actions are lrlr or rlrl
             # TODO: investigate why it get stuck and solve the problem
-            if self.actions_queue.count(3)==2 and self.actions_queue.count(2)==2:
+            last_actions = list(self.actions_queue)
+            if last_actions==[2,3,2,3] or last_actions==[3,2,3,2]:
                 action = 1 # Execute forward to get away from left-right swing cycle
 
         return action
@@ -966,7 +1023,9 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             != True
         )
         traversible[
-            self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1
+            skimage.morphology.binary_dilation(
+                self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2], self.selem)
+            == 1
         ] = 0
         traversible[self.visited[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 1
 
@@ -1159,6 +1218,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                           label_mapping=coco_label_mapping,
                           scene_bounds=scene_bounds,
                           grid_map=self.grid_map,
-                          map_resolution=self.map_resolution
+                          map_resolution=self.map_resolution,
+                          dbscan_eps=self.args.sem_dbscan_eps,
                           )
         # rospy.loginfo("constructed scene graph from semantic cloud map")

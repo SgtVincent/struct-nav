@@ -68,16 +68,27 @@ class GridMap:
         )
 
 
-class SceneGraphSimGT(SceneGraphBase):
+class SceneGraphGTGibson(SceneGraphBase):
+    """class to load ground truth scene graph from habitat simulator
 
-    def __init__(self, sim: Simulator) -> None:
+    Gibson scenes: gibson scenes load layer of height 0.0 by default
+    """
+    def __init__(self, sim: Simulator, tf_habitat2rtabmap=None, height_filter=True) -> None:
         super().__init__()
         self.sim = sim
-        # self.scene_name = scene_name
-
+        if tf_habitat2rtabmap is None:
+            self.rot = np.eye(3)
+            self.trans = np.zeros([0,0,0], dtype=float)
+        else:
+            self.rot = tf_habitat2rtabmap[:3, :3]
+            self.trans = tf_habitat2rtabmap[:3, 3]
+        self.height_filter = height_filter
+            
         # scene parameters
         # self.floor_heights = [0]
         self.height = sim.get_agent(0).state.position[1]
+        self.max_height = self.height + 2.5
+        self.min_height = self.height - 0.5
         self.meters_per_grid = 0.05
         self.object_grid_scale = 1
         self.aligned_bbox = True
@@ -87,7 +98,9 @@ class SceneGraphSimGT(SceneGraphBase):
 
     def load_gt_scene_graph(self):
         # 1. get boundary of the scene (one-layer) and initialize map
-        self.scene_bounds = self.sim.pathfinder.get_bounds()
+        self.scene_bounds = np.stack(self.sim.pathfinder.get_bounds(), axis=0)
+        self.scene_bounds = (self.rot @ self.scene_bounds.T).T + self.trans 
+        
         # NOTE: bottom of bounding box could NOT be the floor
         # self.height = self.scene_bounds[0][1] # y-axis points upwards
         # self.height = self.floor_heights[0]  # assume one-layer scene
@@ -97,71 +110,50 @@ class SceneGraphSimGT(SceneGraphBase):
         self.region_layer.init_map(
             self.scene_bounds, self.meters_per_grid, self.free_space_grid
         )
+        
+        # Object sementation on grid map is not needed, disable object layer grid map 
+        # self.dumy_space_grid = self.sim.pathfinder.get_topdown_view(
+        #     self.meters_per_grid / self.object_grid_scale, self.height
+        # )  # binary matrix
+        # self.object_layer.init_map(
+        #     self.scene_bounds,
+        #     self.meters_per_grid / self.object_grid_scale,
+        #     self.dumy_space_grid,
+        # )
 
-        self.dumy_space_grid = self.sim.pathfinder.get_topdown_view(
-            self.meters_per_grid / self.object_grid_scale, self.height
-        )  # binary matrix
-        self.object_layer.init_map(
-            self.scene_bounds,
-            self.meters_per_grid / self.object_grid_scale,
-            self.dumy_space_grid,
-        )
 
-        # 2. load region layer from habitat simulator
+        # 2. load object layer from habitat simulator
         semantic_scene = self.sim.semantic_scene
-        for region in semantic_scene.regions:
-            # add region node to region layer
-            gt_region_id = int(region.id.split("_")[-1])
-            sg_region_id = gt_region_id  # counting from 0, -1 for background
-            region_bbox = np.stack(
-                [
-                    region.aabb.center - region.aabb.sizes / 2,
-                    region.aabb.center + region.aabb.sizes / 2,
-                ],
-                axis=0,
-            )
-            region_node = self.region_layer.add_region(
-                region_bbox,
-                id=sg_region_id,
-                class_name=region.category.name(),
-                label=region.category.index(),
-            )
-
-            # 3. load object layer from habitat simulator
-            for obj in region.objects:
-                # print(
-                #     f"Object id:{obj.id}, category:{obj.category.name()},"
-                #     f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
-                # )
-                object_id = int(obj.id.split("_")[-1])  # counting from 0
+        for obj_id, obj in enumerate(semantic_scene.objects):
+            if obj is not None:
+                
+                obj_height = obj.obb.center[1] # y-axis for height in habitat coords
+                if obj_height > self.max_height or obj_height < self.min_height:
+                    continue
+                
                 if self.aligned_bbox:
-                    center = obj.aabb.center
+                    center = self.rot @ obj.aabb.center + self.trans
                     rot_quat = np.array([0, 0, 0, 1])  # identity transform
                     size = obj.aabb.sizes
+                    size = size[[0,2,1]] # flip y-z sizes
                 else:  # Use obb, NOTE: quaternion is [w,x,y,z] from habitat, need to convert to [x,y,z,w]
-                    center = obj.obb.center
+                    center = self.rot @ obj.obb.center + self.trans
                     rot_quat = obj.obb.rotation[1, 2, 3, 0]
-                    size = obj.obb.sizes
-                    size = obj.aabb.sizes
+                    size = obj.obb.sizes # flip y-z sizes
 
-                node_size = (
-                    self.meters_per_grid / self.object_grid_scale
-                )  # treat object as a point
-                node_bbox = np.stack(
-                    [center - node_size / 2, center + node_size / 2], axis=0
-                )
+                class_name = obj.category.name()
+                label = -1 
+                if class_name in coco_categories:
+                    label = coco_categories[class_name]
                 object_node = self.object_layer.add_object(
                     center,
                     rot_quat,
                     size,
-                    id=object_id,
-                    class_name=obj.category.name(),
-                    label=obj.category.index(),
-                    bbox=node_bbox,
+                    id=obj_id,
+                    class_name=class_name,
+                    label=label,
                 )
 
-                # connect object to region
-                region_node.add_object(object_node)
         return
 
     def get_partial_scene_graph(
@@ -179,7 +171,7 @@ class SceneGraphSimGT(SceneGraphBase):
         obj_centers = np.stack(
             [obj_node.center for obj_node in obj_nodes], axis=0
         )
-        obj_centers_rtab = points_habitat2world(obj_centers)
+        # obj_centers_rtab = points_habitat2world(obj_centers)
 
         # transform points from rtabmap to gridmap local frame
         r_mat = qt.as_rotation_matrix(grid_map.origin_quat)
@@ -189,7 +181,7 @@ class SceneGraphSimGT(SceneGraphBase):
         homo_tf[3, 3] = 1.0
         homo_tf = np.linalg.inv(homo_tf)  # from rtabmap to grid_map frame
         homo_centers = np.concatenate(
-            [obj_centers_rtab, np.ones((obj_centers_rtab.shape[0], 1))], axis=1
+            [obj_centers, np.ones((obj_centers.shape[0], 1))], axis=1
         )
         homo_centers_local = (homo_tf @ homo_centers.T).T  # (N,4)
         centers_local = homo_centers_local[:, :3] / homo_centers_local[:, 3:]
@@ -218,13 +210,6 @@ class SceneGraphSimGT(SceneGraphBase):
         obj_observable_idx = obj_in_map_bound_idx[obj_partial_mask]
         return [obj_nodes[idx] for idx in obj_observable_idx]
 
-    # def get_full_graph(self):
-    #     """Return the full scene graph"""
-    #     return None
-
-    # def sample_graph(self, method, *args, **kwargs):
-    #     """Return the sub-sampled scene graph"""
-    #     return None
 
 # NOTE: category index in habitat gibson is meaningless 
 # def load_scene_priors(scene_prior_file):
@@ -352,7 +337,7 @@ if __name__ == "__main__":
     if TEST_SCENEGRAPH_SIMGT:
         test_scene = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
         sim = sim, action_names = init_sim(test_scene)
-        gt_scenegraph = SceneGraphSimGT(sim)
+        gt_scenegraph = SceneGraphGTGibson(sim)
         bag = rosbag.Bag(
             "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/2022-06-05-11-53-35_0.bag",
             "r",

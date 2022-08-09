@@ -1,3 +1,5 @@
+from ctypes import util
+from operator import ge
 import matplotlib.pyplot as plt
 from habitat.utils.visualizations import maps
 from habitat_sim import PathFinder, Simulator
@@ -408,20 +410,25 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
     return np.array(point2goal_dists)
 
 
-def combine_utilities(geo_utility_array, sem_utility_array):
-    # TODO:
-    # NOTE: Can be tuned manually or learned by RL
-    # utility_array = np.copy(sem_utility_array)
-    # print("geo utility", utility_array[:, 2])
-    # # utility_array[:, 2] += sem_utility_array[:, 2]
-    # utility_array[:, 2] = sem_utility_array[:, 2]
-    # print("sem utility", utility_array[:, 2])
-
-    return sem_utility_array
+def combine_utilities(geo_utilities, sem_utilities, method="linear_geo_dec", 
+                      max_geo_weight=1.0, min_geo_weight=0.2, step_th=100, step=0):
+    ########### method one, linear decreasing geometric utility ###################
+    # Trade-off between "exploration" and "exploitation"
+    # In early steps, the scene is not fully explored, put more weights on geometric utility
+    # While exploring the scene, weights on geometric utility should decrease and 
+    # weights on semantics should increase, then the weight of semantic utility 
+    # plateaus after a fixed number of steps. 
+    if method == "linear_geo_dec":
+        step_ratio = min(step, step_th) / step_th
+        weight = (1 - step_ratio) * max_geo_weight + min_geo_weight * step_ratio
+        utilities = weight * geo_utilities + (1 - weight) * sem_utilities
+        return utilities
+    else:
+        raise NotImplementedError
 
 
 def get_goals(utility_array, centroids, num_goals=3):
-    """_summary_
+    """_summary_    
 
     Args:
         utility_array (np.ndarray): (N,) utility value for each centroid
@@ -452,6 +459,7 @@ def frontier_goals(
     map_origin,
     map_resolution,
     current_position,
+    step=0,
     cluster_trashhole=0.2,
     num_goals=1,
     mode="geo+sem",
@@ -459,6 +467,7 @@ def frontier_goals(
     scene_graph=None,
     goal_name="",
     prior: PriorBase=None,
+    **kwargs
 ):
     """general function to calculate frontiers and goals
 
@@ -488,11 +497,13 @@ def frontier_goals(
     # occupancy_dilated = binary_dilation(occupancy_map, selem)
     # map_dilated[occupancy_dilated == 1] = 100.0
 
+    util_max_geo_weight = kwargs.get("util_max_geo_weight", 1.0)
+    util_min_geo_weight = kwargs.get("util_min_geo_weight", 0.2)
+    util_weight_dec_step = kwargs.get("util_weight_dec_step", 100)
+
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
-    # if len(frontiers_grid) == 0: 
-    #     return [], [], np.zeros_like(map_raw)
     
     # NOTE: using learning to propose additional centroids?
     centroids_grid = compute_centroids(frontiers_grid)
@@ -504,31 +515,35 @@ def frontier_goals(
     ).astype(int)
     
     if mode == "geo" or scene_graph == None:
-        geo_utility_array = compute_geo_utility(
+        geo_utilities = compute_geo_utility(
             centroids_grid, 
             current_position_grid, 
             dist_type="geo_dist",
             map_raw=map_raw, 
         )
-        goals_grid = get_goals(geo_utility_array, centroids_grid, num_goals)
+        goals_grid = get_goals(geo_utilities, centroids_grid, num_goals)
             
     elif mode == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
         # assert (scene_graph is not None and prior is not None)
-        geo_utility_array = compute_geo_utility(
+        geo_utilities = compute_geo_utility(
             centroids_grid, 
             current_position_grid, 
             dist_type="geo_dist",
             map_raw=map_raw, 
         )
-        sem_utility_array = prior.compute_sem_utility(
+        sem_utilities = prior.compute_sem_utility(
             centroids,
             current_position,
             goal_name,
             scene_graph,
             grid_map=map_raw,
         )
-        utility_array = combine_utilities(geo_utility_array, sem_utility_array)
+        utility_array = combine_utilities(geo_utilities, sem_utilities, step=step,
+                                          max_geo_weight=util_max_geo_weight,
+                                          min_geo_weight=util_min_geo_weight,
+                                          step_th=util_weight_dec_step,
+                                          )
         goals_grid = get_goals(utility_array, centroids_grid, num_goals)
         # print("Get goals by semantic utility.")
 

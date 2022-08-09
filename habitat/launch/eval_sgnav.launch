@@ -10,6 +10,7 @@
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
     <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
+    <arg name="ground_truth_scene_graph" default="false" />
 
     <!-- agent & habitat eval environment -->
     <!-- <include file="$(find habitat_ros)/launch/eval_habitat_agent.launch">
@@ -21,6 +22,7 @@
         <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
         <arg name="ground_truth_odom_topic" value="$(arg ground_truth_odom_topic)" />
         <arg name="sem_cloud_topic" value="/rtabsem/cloud_map" />
+        <arg name="ground_truth_scene_graph" value="$(arg ground_truth_scene_graph)" />
     </include> -->
 
     <!-- rtabmap -->
