@@ -49,7 +49,7 @@ TASK:
 DATASET:
     TYPE: PointNav-v1
     SPLIT: train
-    CONTENT_SCENES: ["Darden.glb"]
+    CONTENT_SCENES: ["Wiconisco.glb"]
     # DATA_PATH: "data/datasets/objectnav/gibson/v1/{split}/{split}.json.gz"
     # EPISODES_DIR: "data/datasets/objectnav/gibson/v1/{split}/"
     # SCENES_DIR: "data/scene_datasets/"

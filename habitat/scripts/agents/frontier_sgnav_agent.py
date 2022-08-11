@@ -28,7 +28,6 @@ from utils.transformation import (
     get_tf_habitat2rtabmap
 )
 # from utils.cam_utils import get_point_from_pixel
-from arguments import get_args
 import agents.utils.visualization as vu
 from agents.utils.utils_frontier_explore import (
     frontier_goals, 
@@ -52,7 +51,7 @@ from agents.utils.sg_utils import SceneGraphGTGibson, SceneGraphRtabmap
 from agents.utils.prior_utils import MatrixPrior
 import envs.utils.pose as pu
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
-from envs.constants import color_palette, coco_categories, coco_label_mapping
+from envs.constants import coco_categories, coco_label_mapping
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
 
@@ -89,9 +88,9 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.success_dist = args.success_dist
         self.sg_point_features = False
         # self.frontier_mode = args.frontier_mode
-        self.frontier_mode = "geo+sem"
+        self.goal_policy = self.args.goal_policy
         self.prior_class = "matrix_prior"
-        self.prior_types = {'scene', 'lang'} # {'scene', 'lang'}
+        self.prior_types = {'scene'} # {'scene', 'lang'}
         self.vis_scene_graph = True # by default visualize scene graph 
         
         # args from config 
@@ -253,7 +252,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             semantic_topic=self.semantic_topic,
             camera_info_topic=self.camera_info_topic,
             ground_truth_odom_topic=self.ground_truth_odom_topic,
-            true_pose_topic=self.true_pose_topic,
+            # true_pose_topic=self.true_pose_topic,
             camera_info_file=self.camera_info_file,
             wheel_odom_frame_id=self.whee_odom_frame_id,
             sim_config=self.habitat_env.sim.sim_config
@@ -668,13 +667,14 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 step=self.timestep,
                 cluster_trashhole=self.args.cluster_trashhole,
                 num_goals=1,
-                mode=self.frontier_mode,
+                goal_policy=self.goal_policy,
                 scene_graph=self.scene_graph,
                 goal_name = self.goal_name,
                 prior=self.prior,
                 util_max_geo_weight=self.args.util_max_geo_weight,
                 util_min_geo_weight=self.args.util_min_geo_weight,
-                util_weight_dec_step=self.args.util_weight_dec_step,
+                util_explore_step=self.args.util_explore_step,
+                util_exploit_step=self.args.util_exploit_step,
             )
             # except:
                 # frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
@@ -999,139 +999,6 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 action = 1 # Execute forward to get away from left-right swing cycle
 
         return action
-
-    def _get_stg(self, grid, start, goal, planning_window):
-        """Get short-term goal"""
-
-        [gx1, gx2, gy1, gy2] = planning_window
-
-        x1, y1, = (
-            0,
-            0,
-        )
-        x2, y2 = grid.shape
-
-        def add_boundary(mat, value=1):
-            h, w = mat.shape
-            new_mat = np.zeros((h + 2, w + 2)) + value
-            new_mat[1 : h + 1, 1 : w + 1] = mat
-            return new_mat
-
-        # FIXME: collision_map and visited_map not functioning now
-        traversible = (
-            skimage.morphology.binary_dilation(grid[x1:x2, y1:y2], self.selem)
-            != True
-        )
-        traversible[
-            skimage.morphology.binary_dilation(
-                self.collision_map[gx1:gx2, gy1:gy2][x1:x2, y1:y2], self.selem)
-            == 1
-        ] = 0
-        traversible[self.visited[gx1:gx2, gy1:gy2][x1:x2, y1:y2] == 1] = 1
-
-        traversible[
-            int(start[0] - x1) - 1 : int(start[0] - x1) + 2,
-            int(start[1] - y1) - 1 : int(start[1] - y1) + 2,
-        ] = 1
-
-        traversible = add_boundary(traversible)
-        goal = add_boundary(goal, value=0)
-
-        planner = FMMPlanner(traversible)
-        selem = skimage.morphology.disk(10)
-        goal = skimage.morphology.binary_dilation(goal, selem) != True
-        goal = 1 - goal * 1.0
-        
-        try: 
-            planner.set_multi_goal(goal)
-
-            state = [start[0] - x1, start[1] - y1]
-            stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
-            stg_x, stg_y = stg_x + x1, stg_y + y1
-            # original code here: 
-            # state = [start[0] - x1 + 1, start[1] - y1 + 1]
-            # stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
-            # stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
-            return (stg_x, stg_y), stop
-        except Exception as e:
-            rospy.logwarn(f"Planner failed, with error {e}, reset found_goal state...")
-            self.spot_goal = 0
-            return (-1, -1), 0
-
-    def _visualize(self, inputs):
-        args = self.args
-        dump_dir = f"{args.dump_location}/dump/{args.exp_name}/"
-        ep_dir = f"{dump_dir}/episodes/"
-        if not os.path.exists(ep_dir):
-            os.makedirs(ep_dir)
-
-        occupancy_map = inputs["map_pred"]
-        explore_map = inputs["exp_pred"]
-        map_pred = np.zeros_like(occupancy_map)
-
-        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = inputs["pose_pred"]
-        goal = inputs["goal"]
-        gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
-
-        occpancy_mask = occupancy_map == 1
-        # unknown_mask = explore_map == 0
-        free_mask = (explore_map == 1) & (occupancy_map != 1)
-        # vis_mask = self.visited_vis[gx1:gx2, gy1:gy2] == 1
-
-        # map_pred[unknown_mask] = 0 # default is 0
-        map_pred[free_mask] = 1
-        map_pred[occpancy_mask] = 3
-
-        selem = skimage.morphology.disk(4)
-        goal_mat = 1 - skimage.morphology.binary_dilation(goal, selem) != True
-        goal_mask = goal_mat == 1
-        map_pred[goal_mask] = 2
-
-        # convert heat map to rgb image
-        map_pred_vis = (map_pred / 3.0 * 255).astype(
-            np.uint8
-        )  # convert to CV_8UC1 format
-        map_pred_vis = np.flipud(map_pred_vis)  # flip y axis
-        map_pred_vis = cv2.applyColorMap(map_pred_vis, cv2.COLORMAP_VIRIDIS)
-        # color_pal = [int(x * 255.0) for x in color_palette]
-        # sem_map_vis = Image.new("P", (sem_map.shape[1], sem_map.shape[0]))
-        # sem_map_vis.putpalette(color_pal)
-        # sem_map_vis.putdata(sem_map.flatten().astype(np.uint8))
-        # sem_map_vis = sem_map_vis.convert("RGB")
-        # sem_map_vis = np.flipud(sem_map_vis)
-
-        # map_pred_vis = map_pred_vis[:, [2, 1, 0]]
-        map_pred_vis = cv2.resize(
-            map_pred_vis, (480, 480), interpolation=cv2.INTER_NEAREST
-        )
-        # self.vis_image[50:530, 15:655] = self.rgb_vis
-        self.vis_image[50:530, 670:1150, :] = map_pred_vis
-
-        pos = (
-            (start_x / self.map_resolution - gy1) * 480 / map_pred.shape[0],
-            (map_pred.shape[1] - start_y / self.map_resolution + gx1)
-            * 480
-            / map_pred.shape[1],
-            np.deg2rad(-start_o),
-        )
-
-        agent_arrow = vu.get_contour_points(pos, origin=(670, 50))
-        color = (
-            int(color_palette[11] * 255),
-            int(color_palette[10] * 255),
-            int(color_palette[9] * 255),
-        )
-        cv2.drawContours(self.vis_image, [agent_arrow], 0, color, -1)
-
-        if args.visualize:
-            # Displaying the image
-            cv2.imshow("Thread 0", self.vis_image)
-            cv2.waitKey(1)
-
-        if args.print_images:
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            fn = f"{ep_dir}/Vis-{timestamp}.png"
-            cv2.imwrite(fn, self.vis_image)
 
     # TODO: add object detection / segmentation models here
     def _preprocess_obs(self, obs, info=None):

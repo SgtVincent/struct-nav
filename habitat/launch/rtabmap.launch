@@ -162,6 +162,8 @@
     <arg name="map_topic" default="grid_map" />
     <arg name="move_base_topic" default="move_base" />
     <arg name="rtabmap_detection_rate" default="1" />
+    <arg name="min_depth" default="0.0" />
+    <arg name="max_depth" default="0.0" /> <!-- (0 means no limit)-->
 
     <!-- map parameters -->
     <arg name="grid_global_min_size" default="10.0" /> <!-- min map size (meter) -->
@@ -188,7 +190,6 @@
         By optimizing from the last, the last pose keeps its value and all the previous poses are corrected 
         according to it (so /odom and /map will always match together).-->
     <arg name="rgbd_optimize_from_graph_end" default="false" />
-
     <arg name="ground_truth_odom" default="false" /> <!-- if set to true, use ground truth external odometry instead of visual odometry-->
     <!-- custom arguments END -->
 
@@ -418,6 +419,10 @@
 
             <param name="RGBD/OptimizeFromGraphEnd" type="bool" value="$(arg rgbd_optimize_from_graph_end)" />
 
+            <param name="Kp/MinDepth" type="double" value="$(arg min_depth)" />
+            <param name="Kp/MaxDepth" type="double" value="$(arg max_depth)" />
+            <param name="Vis/MinDepth" type="double" value="$(arg min_depth)" />
+            <param name="Vis/MaxDepth" type="double" value="$(arg max_depth)" />
             <!-- use actionlib to send goals to move_base -->
             <param name="use_action_for_goal" type="bool" value="$(arg use_action_for_goal)" />
 

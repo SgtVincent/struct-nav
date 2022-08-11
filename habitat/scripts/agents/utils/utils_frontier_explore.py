@@ -198,16 +198,14 @@ def compute_centroids(list_of_arrays, size_mode="diameter"):
     # return centroids as np array
     return centroids
 
-
-def compute_geo_utility(centroids, current_position, dist_type="geo_dist", 
-                        map_raw=None, min_size=5, min_dist=10):
-
-    utility_array = np.zeros(centroids.shape[0])
-
-    # compute current position on the map
-    # current_position, current_quaternion = get_current_pose('/map', '/odom')
-
-    if dist_type == "geo_dist":
+def compute_frontiers_dist(frontiers, current_position, 
+                           dist_type="geo_dist", map_raw=None):
+    if dist_type == "man_dist": # compute manhattan distance
+        
+        dists = abs(current_position[0] - frontiers[:, 0]) + abs(
+            current_position[1] - frontiers[:, 1]
+        )
+    elif dist_type == "geo_dist": # compute geodesic distance 
         # compute traversible map  
         traversible = map_raw < 1.0
         traversible_ma = ma.masked_values(traversible * 1, 0)
@@ -218,62 +216,31 @@ def compute_geo_utility(centroids, current_position, dist_type="geo_dist",
         traversible_ma[(goal_map == 1)] = 0
         fmm_dist = skfmm.distance(traversible_ma, dx=1)
         fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
-
-
-    for index, c in enumerate(centroids):
-
-        if dist_type == "man_dist": # compute manhattan distance
-            
-            dist = abs(current_position[0] - centroids[index][0]) + abs(
-                current_position[1] - centroids[index][1]
-            )
-        elif dist_type == "geo_dist": # compute geodesic distance 
-            
-            dist = fmm_dist[int(centroids[index][1]), 
-                int(centroids[index][0])]
-
-        # compute length / distance
-        # utility = centroids[index][2] ** 2 / dist
-        # utility = centroids[index][2] / dist
-        dist = max(dist, min_dist)
-        if centroids[index][2] <= min_size:
-            utility = 0
-        else:
-            # chosen utility function : length / distance for geometry utility  
-            utility = centroids[index][2] / dist
-            
-        utility_array[index] = utility
-
-    return utility_array
-
-
-def compute_sem_utility(centroids, 
-                        scene_graph, 
-                        goal_name,
-                        scene_prior_c2c_dist,
-                        language_prior_c2c_dist=None,
-                        ):
+        
+        dists = fmm_dist[frontiers[:, 1].astype(int), 
+            frontiers[:, 0].astype(int)].reshape(-1) # keep dim when only one frontier 
     
-    # utility function for semantic utility
-    utility_array = np.zeros(centroids.shape[0])
+    return dists
+        
+def compute_geo_utility(frontier_sizes, frontier_dists, min_size=5, min_dist=10):
+
+    frontier_sizes = np.copy(frontier_sizes)
+    frontier_dists = np.copy(frontier_dists)
+    frontier_sizes[frontier_sizes < min_size] = 0 # filter out small frontiers 
+    frontier_dists[frontier_dists < min_dist] = min_dist
+    utilities = frontier_sizes / frontier_dists
     
-    points = np.copy(centroids)
-    # TODO: Rtabmap coordinate to habitat coordinate
-    points[:, 2] = 0.88
-    points_hab = points_world2habitat(points)
-    # distances = dist2obj_goal(sim, points_hab, goal_cat)
-    utility = 1 / distances
-    utility_array[:, 2] = utility
+    return utilities
 
-    # sort utility_array based on utility
-    index = np.argsort(utility_array[:, 2])
-    utility_array = utility_array[index]
-
-    # reverse utility_array to have greatest utility as index 0
-    utility_array = utility_array[::-1]
-
-    return utility_array
-
+def compute_hdist_utility(frontier_sizes, hdists, min_size=0.5, min_dist=1.0):
+    
+    frontier_sizes = np.copy(frontier_sizes)
+    hdists = np.copy(hdists)
+    frontier_sizes[frontier_sizes < min_size] = 0 # filter out small frontiers 
+    hdists[hdists < min_dist] = min_dist
+    utilities = np.sqrt(frontier_sizes) / hdists
+    
+    return utilities
 
 def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
     map_raw=None, map_origin=None, map_resolution=None, min_size=5, min_dist=10):
@@ -411,21 +378,27 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
 
 
 def combine_utilities(geo_utilities, sem_utilities, method="linear_geo_dec", 
-                      max_geo_weight=1.0, min_geo_weight=0.2, step_th=100, step=0):
+                      max_geo_weight=1.0, min_geo_weight=0.2, normalize=True,
+                      min_step=0, max_step=100, step=0):
     ########### method one, linear decreasing geometric utility ###################
     # Trade-off between "exploration" and "exploitation"
     # In early steps, the scene is not fully explored, put more weights on geometric utility
     # While exploring the scene, weights on geometric utility should decrease and 
     # weights on semantics should increase, then the weight of semantic utility 
     # plateaus after a fixed number of steps. 
+    if normalize:
+        geo_utilities = geo_utilities / np.sum(geo_utilities)
+        sem_utilities = sem_utilities / np.sum(sem_utilities)
+        
     if method == "linear_geo_dec":
-        step_ratio = min(step, step_th) / step_th
-        weight = (1 - step_ratio) * max_geo_weight + min_geo_weight * step_ratio
+        clip = lambda x: max(min(x, max_step), min_step)
+        step_ratio = clip(step) - min_step / (max_step - min_step)
+        weight = (1 - step_ratio) * max_geo_weight + step_ratio * min_geo_weight
         utilities = weight * geo_utilities + (1 - weight) * sem_utilities
-        return utilities
     else:
         raise NotImplementedError
-
+    
+    return utilities
 
 def get_goals(utility_array, centroids, num_goals=3):
     """_summary_    
@@ -462,10 +435,10 @@ def frontier_goals(
     step=0,
     cluster_trashhole=0.2,
     num_goals=1,
-    mode="geo+sem",
+    goal_name="",
+    goal_policy="geo+sem",
     frontier_min_th=5,
     scene_graph=None,
-    goal_name="",
     prior: PriorBase=None,
     **kwargs
 ):
@@ -486,26 +459,18 @@ def frontier_goals(
         goal_map (numpy.ndarray): (M,N) map, 
 
     """
-    ###################### Improvement Trial 1 #########################
-    # NOTE: small free space grids near obstacle & unknown grids lead to undesired
-    # frontier grids, which leads to bad frontier center, first filter out those
-    # small area by dilation of obstacle map
-    # Result: not working well
-    # selem = disk(3)  # make sure be consistent with planner
-    # occupancy_map = (map_raw == 100).astype(int)
-    # map_dilated = np.copy(map_raw)
-    # occupancy_dilated = binary_dilation(occupancy_map, selem)
-    # map_dilated[occupancy_dilated == 1] = 100.0
-
     util_max_geo_weight = kwargs.get("util_max_geo_weight", 1.0)
     util_min_geo_weight = kwargs.get("util_min_geo_weight", 0.2)
-    util_weight_dec_step = kwargs.get("util_weight_dec_step", 100)
+    util_explore_step = kwargs.get("util_explore_step", 50)
+    util_exploit_step = kwargs.get("util_exploit_step", 100)
 
+    # compute frontier pixels on grid map
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
     
     # NOTE: using learning to propose additional centroids?
+    # cluster frontier pixels to frontier centroids 
     centroids_grid = compute_centroids(frontiers_grid)
     centroids = np.array(centroids_grid) * map_resolution 
     centroids[:, :2] = centroids[:, :2] + map_origin
@@ -514,24 +479,21 @@ def frontier_goals(
         (current_position - map_origin) / map_resolution
     ).astype(int)
     
-    if mode == "geo" or scene_graph == None:
-        geo_utilities = compute_geo_utility(
-            centroids_grid, 
-            current_position_grid, 
-            dist_type="geo_dist",
-            map_raw=map_raw, 
-        )
+    # compute frontier centroids distance to current position 
+    grid_dists = compute_frontiers_dist(centroids_grid[:, :2], 
+        current_position_grid, dist_type="geo_dist", map_raw=map_raw)
+    
+    # compute current goal from frontiers, following certain algorithm
+    if goal_policy == "geo" or scene_graph == None:
+        geo_utilities = compute_geo_utility(centroids_grid[:, 2], grid_dists)
         goals_grid = get_goals(geo_utilities, centroids_grid, num_goals)
-            
-    elif mode == "geo+sem":
+        
+    elif goal_policy == "geo+sem":
         # NOTE: Combine pure geometry-based method with semantic method
         # assert (scene_graph is not None and prior is not None)
-        geo_utilities = compute_geo_utility(
-            centroids_grid, 
-            current_position_grid, 
-            dist_type="geo_dist",
-            map_raw=map_raw, 
-        )
+        # TODO: considering if to discount sem_utility with distance to frontier
+        
+        geo_utilities = compute_geo_utility(centroids_grid[:, 2], grid_dists)
         sem_utilities = prior.compute_sem_utility(
             centroids,
             current_position,
@@ -539,13 +501,36 @@ def frontier_goals(
             scene_graph,
             grid_map=map_raw,
         )
-        utility_array = combine_utilities(geo_utilities, sem_utilities, step=step,
+        utilities = combine_utilities(geo_utilities, sem_utilities, step=step,
                                           max_geo_weight=util_max_geo_weight,
                                           min_geo_weight=util_min_geo_weight,
-                                          step_th=util_weight_dec_step,
+                                          normalize=True,
+                                          min_step=util_explore_step,
+                                          max_step=util_exploit_step,
                                           )
-        goals_grid = get_goals(utility_array, centroids_grid, num_goals)
+        goals_grid = get_goals(utilities, centroids_grid, num_goals)
         # print("Get goals by semantic utility.")
+        
+    elif goal_policy == "heuristic_dist":
+        geo_utilities = compute_geo_utility(centroids_grid[:, 2], grid_dists)
+        if step > util_explore_step:
+            # compute the heuristic distance from current position to target object 
+            # when passing a specific frontier 
+            dists_p2f = grid_dists * map_resolution
+            hdists_f2o = prior.compute_heuristic_dist(centroids, goal_name, scene_graph)
+            hdists = dists_p2f + hdists_f2o
+            hdist_utilities = compute_hdist_utility(centroids[:, 2], hdists)
+            utilities = combine_utilities(geo_utilities, hdist_utilities, step=step,
+                                        max_geo_weight=util_max_geo_weight,
+                                        min_geo_weight=util_min_geo_weight,
+                                        normalize=True,
+                                        min_step=util_explore_step,
+                                        max_step=util_exploit_step,
+                                        )
+            
+            goals_grid = get_goals(utilities, centroids_grid, num_goals)
+        else:
+            goals_grid = get_goals(geo_utilities, centroids_grid, num_goals)
 
     # create goal map for global planner
     goals = goals_grid * map_resolution + map_origin
@@ -588,7 +573,7 @@ def frontier_goals(
         # visualize centroids
         # centroids_vis = (centroids[:, :2] - map_origin) / map_resolution
         
-        if mode == "geo":
+        if goal_policy == "geo":
             centroids_vis = centroids_grid[:, :2]
             sizes = centroids_grid[:, 2] * 2
             N = centroids_vis.shape[0]
@@ -601,7 +586,7 @@ def frontier_goals(
                 alpha=0.6,
             )
 
-        elif mode == "geo+sem":
+        elif goal_policy == "geo+sem":
             # visualize utility
             utility_vis = (utility_array[:, :2] - map_origin) / map_resolution
             sizes = utility_array[:, 2] / utility_array[:, 2].min() * 1000

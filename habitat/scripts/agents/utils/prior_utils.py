@@ -54,6 +54,17 @@ def utility_cos_sim_discount_var(prior_mat, prior_var_mat, class_labels,
     else:
         return np.sum((1 - prior_dists) / np.float_power(prior_vars, order))
 
+def hdist_std_weighted_diff_to_default(prior_mat, prior_var_mat, class_labels,
+        goal_label, default_dist, min_var=1.0, order=-0.5):
+    
+    prior_dists = prior_mat[class_labels, :][:, goal_label]
+    prior_vars = prior_var_mat[class_labels, :][:, goal_label]
+    prior_vars[prior_vars < min_var] = min_var
+    diff = prior_dists - default_dist
+    hdist = np.average(diff, weights=(1 / np.float_power(prior_vars, order))) \
+        + default_dist
+    return hdist
+
 class PriorBase(ABC):
 
     @abstractmethod
@@ -62,7 +73,12 @@ class PriorBase(ABC):
         """
         pass
 
-
+    @abstractmethod
+    def compute_heuristic_dist(self):
+        """Heuristic function to compute predicted distances from frontiers to target object
+        """        
+        pass
+        
 class MatrixPrior(PriorBase):
 
     def __init__(
@@ -104,6 +120,32 @@ class MatrixPrior(PriorBase):
         if self.priors == {'scene', 'lang'}:
             assert isinstance(self.combine_weight, float)
             assert self.combine_weight >= 0.0 and self.combine_weight <= 1.0
+
+    def combine_utility(self, scene_utilities, lang_utilities):
+    
+        if self.priors == {'scene'}:
+            scene_utilities = np.array(scene_utilities)
+            if np.any(scene_utilities != 0):
+                scene_utilities /= np.linalg.norm(scene_utilities)
+            return scene_utilities
+    
+        elif self.priors == {'lang'}:
+            lang_utilities = np.array(lang_utilities)
+            if np.any(lang_utilities != 0):
+                lang_utilities /= np.linalg.norm(lang_utilities)
+            return lang_utilities
+        
+        elif self.priors == {'scene', 'lang'}:
+            scene_utilities = np.array(scene_utilities)
+            lang_utilities = np.array(lang_utilities)
+            if np.sum(scene_utilities) > 0:
+                scene_utilities /= np.sum(scene_utilities)
+            if np.sum(lang_utilities) > 0:
+                lang_utilities /= np.sum(lang_utilities)
+            return self.combine_weight * scene_utilities + (
+                1 - self.combine_weight) * lang_utilities
+        else:
+            raise NotImplementedError
 
     def compute_sem_utility(self,
                             frontiers,
@@ -171,35 +213,61 @@ class MatrixPrior(PriorBase):
                         class_labels, goal_label, mean=flag_mean)
                     lang_utilities.append(lang_utility)
                     
-        sem_utilities = self.get_utility(scene_utilities, lang_utilities)
+        sem_utilities = self.combine_utility(scene_utilities, lang_utilities)
 
         return sem_utilities
 
-    def get_utility(self, scene_utilities, lang_utilities):
-    
-        if self.priors == {'scene'}:
-            scene_utilities = np.array(scene_utilities)
-            if np.any(scene_utilities != 0):
-                scene_utilities /= np.linalg.norm(scene_utilities)
-            return scene_utilities
-    
-        elif self.priors == {'lang'}:
-            lang_utilities = np.array(lang_utilities)
-            if np.any(lang_utilities != 0):
-                lang_utilities /= np.linalg.norm(lang_utilities)
-            return lang_utilities
+    def compute_heuristic_dist(self,
+                            frontiers,
+                            goal_name,
+                            scene_graph,
+                            method="radius_mean",
+                            default_dist=6.0, # mean of scene prior c2c matrix
+                            **kwargs):
         
-        elif self.priors == {'scene', 'lang'}:
-            scene_utilities = np.array(scene_utilities)
-            lang_utilities = np.array(lang_utilities)
-            if np.sum(scene_utilities) > 0:
-                scene_utilities /= np.sum(scene_utilities)
-            if np.sum(lang_utilities) > 0:
-                lang_utilities /= np.sum(lang_utilities)
-            return self.combine_weight * scene_utilities + (
-                1 - self.combine_weight) * lang_utilities
-        else:
+        hdists = []
+        goal_label = coco_categories[goal_name]
+        
+        if method == "radius_mean":
+            radius = kwargs.get("radius", 2.0)
+            # for each frontier, get all objects in the ball centering the frontier
+            neighbor_objects_list = scene_graph.sample_graph(
+                method="radius_sampling",
+                center=frontiers,
+                radius=radius,
+                **kwargs)
+        else: 
             raise NotImplementedError
+            
+        for i, frontier in enumerate(frontiers):
+            
+            neighbor_obj_ids = neighbor_objects_list[i]
+            class_names = scene_graph.object_layer.get_class_names(
+                    neighbor_obj_ids)
+            class_labels = [
+                coco_categories[name] for name in class_names
+                if name in coco_categories
+            ]
+            
+            if len(class_labels) == 0: # no valid object found in neighborhood
+                hdists.append(default_dist) 
+            else:
+                # objects in sampled subgraph should +/- estimated distance 
+                # depending on the class labels and priors 
+                if 'scene' in self.priors:
+                    hdist = hdist_std_weighted_diff_to_default(
+                        self.scene_prior_matrix, self.prior_var_matrix, 
+                        class_labels, goal_label, default_dist)
+                    hdists.append(hdist)
+                    
+                lang_utility = 0
+                if 'lang' in self.priors:
+                    # TODO: consider how semantic cos distance could help get
+                    # heuristic distance to target object
+                    raise NotImplementedError
+                    
+        
+        return np.array(hdists)
 
 model_zoo = {
     'bert': 'sentence-transformers/bert-base-nli-mean-tokens',

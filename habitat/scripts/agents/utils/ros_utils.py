@@ -18,7 +18,8 @@ def safe_call_reset_service(service_name, timeout=5.):
         rospy.wait_for_service(service_name, timeout=timeout)
         rospy.ServiceProxy(service_name, Empty)()
         return True 
-    except rospy.ServiceException as e:
+    # except rospy.ServiceException as e:
+    except Exception as e:
         rospy.logwarn(f"Service call failed: {e}")
         return False
 

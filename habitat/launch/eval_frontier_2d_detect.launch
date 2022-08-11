@@ -10,6 +10,8 @@
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
     <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
+    <arg name="min_depth" default="0.0" />
+    <arg name="max_depth" default="4.9" />
 
     <!-- agent & habitat eval environment -->
     <!-- <include file="$(find habitat_ros)/launch/eval_habitat_agent.launch">
@@ -33,6 +35,8 @@
         <arg name="frame_id" value="base_link" />
         <arg if="$(arg ground_truth_odom)" name="visual_odometry" value="false" />
         <arg name="wait_for_transform" value="5.0" />
+        <arg name="min_depth" value="$(arg min_depth)" />
+        <arg name="max_depth" value="$(arg max_depth)" />
         <arg name="rviz" value="false" />
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />

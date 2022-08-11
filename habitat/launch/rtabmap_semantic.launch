@@ -3,6 +3,8 @@
     <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="agent_update_rate" default="2.0" />
     <arg name="grid_global_min_size" default="10.0" />
+    <arg name="min_depth" default="0.0" />
+    <arg name="max_depth" default="9.9" />
 
     <include file="$(find habitat_ros)/launch/rtabmap.launch">
         <arg name="namespace" value="rtabsem" />
@@ -14,6 +16,8 @@
         <arg name="frame_id" value="base_link" />
         <arg name="visual_odometry" value="false" />
         <arg name="wait_for_transform" value="5.0" />
+        <arg name="min_depth" value="$(arg min_depth)" />
+        <arg name="max_depth" value="$(arg max_depth)" />
         <arg name="rviz" value="false" />
         <arg name="rtabmapviz" value="false" />
         <arg name="approx_sync" value="false" />

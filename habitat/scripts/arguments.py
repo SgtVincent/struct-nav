@@ -221,6 +221,9 @@ def get_args(args=None, namespace=None):
     
     # Frontier Exploration
     parser.add_argument("--cluster_trashhole", type=float, default=0.2)
+    parser.add_argument("--goal_policy", type=str, default="heuristic_dist", 
+        choices=["geo", "geo+sem", "heuristic_dist"], 
+        help="policy to select current goal from frontiers")
     # parser.add_argument("--frontier_mode", type=str, default="geo")
     # Utility function argumetns 
     parser.add_argument("--util_prior_combine_weight", type=float, default=1.0,
@@ -229,7 +232,9 @@ def get_args(args=None, namespace=None):
                         help="maximum weight for geometric utility")
     parser.add_argument("--util_min_geo_weight", type=float, default=0.2, 
                         help="maximum weight for geometric utility")
-    parser.add_argument("--util_weight_dec_step", type=int, default=100, 
+    parser.add_argument("--util_explore_step", type=int, default=40, 
+                        help="maximum steps to decrease geo weight linearly")
+    parser.add_argument("--util_exploit_step", type=int, default=120, 
                         help="maximum steps to decrease geo weight linearly")
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)

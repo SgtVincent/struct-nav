@@ -11,11 +11,7 @@ Panels:
         - /Image1
         - /Info1
         - /Map1
-        - /Map2
         - /DepthCloud1/Auto Size1
-        - /frontiers1
-        - /Pose1
-        - /Pose2
       Splitter Ratio: 0.4110580086708069
     Tree Height: 616
   - Class: rviz/Selection
@@ -210,16 +206,6 @@ Visualization Manager:
       Voxel Alpha: 0.5
       Voxel Coloring: Z-Axis
       Voxel Rendering: Occupied Voxels
-    - Alpha: 0.699999988079071
-      Class: rviz/Map
-      Color Scheme: map
-      Draw Behind: false
-      Enabled: true
-      Name: Map
-      Topic: /rtabmap/grid_map
-      Unreliable: false
-      Use Timestamp: false
-      Value: true
     - Alpha: 1
       Auto Size:
         Auto Size Factor: 1
@@ -265,22 +251,6 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Alpha: 1
-      Axes Length: 1
-      Axes Radius: 0.10000000149011612
-      Class: rviz/Pose
-      Color: 255; 25; 0
-      Enabled: false
-      Head Length: 0.30000001192092896
-      Head Radius: 0.10000000149011612
-      Name: Pose
-      Queue Size: 10
-      Shaft Length: 1
-      Shaft Radius: 0.05000000074505806
-      Shape: Axes
-      Topic: /eval_habitat_env/wheel_odom
-      Unreliable: false
-      Value: false
-    - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
@@ -307,22 +277,6 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
-    - Alpha: 1
-      Axes Length: 1
-      Axes Radius: 0.10000000149011612
-      Class: rviz/Pose
-      Color: 255; 25; 0
-      Enabled: true
-      Head Length: 0.30000001192092896
-      Head Radius: 0.10000000149011612
-      Name: Pose
-      Queue Size: 10
-      Shaft Length: 1
-      Shaft Radius: 0.05000000074505806
-      Shape: Axes
-      Topic: /debug/gt_pose
-      Unreliable: false
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -416,9 +370,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9197966456413269
+      Pitch: 1.3797965049743652
       Target Frame: base_link
-      Yaw: 0.9529376029968262
+      Yaw: 1.022937536239624
     Saved: ~
 Window Geometry:
   Displays:
