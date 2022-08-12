@@ -7,6 +7,7 @@ import json
 import torch.nn as nn
 import torch
 import numpy as np
+import csv 
 
 # from model import RL_Policy, Semantic_Mapping
 # from utils.storage import GlobalRolloutStorage
@@ -44,21 +45,6 @@ def main():
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
 
-    # region: Setup Logging
-    log_dir = "{}/models/{}/".format(args.dump_location, args.exp_name)
-    dump_dir = "{}/dump/{}/".format(args.dump_location, args.exp_name)
-
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    if not os.path.exists(dump_dir):
-        os.makedirs(dump_dir)
-
-    logging.basicConfig(filename=log_dir + "train.log", level=logging.INFO)
-    print("Dumping at {}".format(log_dir))
-    print(args)
-    logging.info(args)
-    # endregion
-
     # region: Logging and Initialize loss variables
     num_scenes = args.num_processes
     num_episodes = int(args.num_eval_episodes)
@@ -74,27 +60,33 @@ def main():
     wait_env = 0
 
     g_episode_rewards = deque(maxlen=1000)
-
-    g_value_losses = deque(maxlen=1000)
-    g_action_losses = deque(maxlen=1000)
-    g_dist_entropies = deque(maxlen=1000)
-
     per_step_g_rewards = deque(maxlen=1000)
-
     g_process_rewards = np.zeros((num_scenes))
     # endregion
 
     # initialize agent and envrionment
-    # TODO: Decouple ObjectGoal_Env class and Agent class
-    # envs = make_vec_envs(args)
     env = construct_single_env(args)
     # also wait for rtabmap_ros initialization in env.reset()
     obs, infos = env.reset()
-
     torch.set_grad_enabled(False)
     
     # obs, _, done, infos = envs.plan_act_and_preprocess(planner_inputs)
     # endregion
+
+    # region: Setup Logging
+    scene_name = env.scene_name.split('/')[-1].split('.')[0]
+    args.exp_name = f"{args.agent}_{env.goal_policy}_{scene_name}_{args.num_eval_episodes}"
+    dump_dir = os.path.join(args.dump_location, args.exp_name)
+
+    if not os.path.exists(dump_dir):
+        os.makedirs(dump_dir)
+
+    logging.basicConfig(filename=os.path.join(dump_dir, "eval.log"), level=logging.INFO)
+    print("Dumping at {}".format(dump_dir))
+    print(args)
+    logging.info(args)
+    # endregion
+
 
     # region: Run steps
     start = time.time()
@@ -204,19 +196,6 @@ def main():
                         len(episode_spl),
                     )
 
-            log += "\n\tLosses:"
-            if len(g_value_losses) > 0 and not args.eval:
-                log += " ".join(
-                    [
-                        " Policy Loss value/action/dist:",
-                        "{:.3f}/{:.3f}/{:.3f},".format(
-                            np.mean(g_value_losses),
-                            np.mean(g_action_losses),
-                            np.mean(g_dist_entropies),
-                        ),
-                    ]
-                )
-
             print(log)
             logging.info(log)
         # endregion
@@ -226,6 +205,8 @@ def main():
     if args.eval:
         print("Dumping eval details...")
 
+        csv_header = ['cat', 'succ', 'spl', 'dtg']
+        csv_data = []
         total_success = []
         total_spl = []
         total_dist = []
@@ -244,6 +225,13 @@ def main():
                 np.mean(total_dist),
                 len(total_spl),
             )
+            csv_data.append([     
+                'total',           
+                np.mean(total_success),
+                np.mean(total_spl),
+                np.mean(total_dist)
+            ])
+
 
         print(log)
         logging.info(log)
@@ -257,9 +245,23 @@ def main():
                 / len(success_per_category[key]),
                 sum(spl_per_category[key]) / len(spl_per_category[key]),
             )
+            csv_data.append([          
+                key,
+                sum(success_per_category[key])
+                / len(success_per_category[key]),
+                sum(spl_per_category[key]) / len(spl_per_category[key]),
+                0
+            ])
 
         print(log)
         logging.info(log)
+
+        with open(
+            f"{dump_dir}/result.csv", "w"
+        ) as f:
+            writer = csv.writer(f)
+            writer.writerow(csv_header)
+            writer.writerows(csv_data)
 
         with open(
             "{}/{}_spl_per_cat_pred_thr.json".format(dump_dir, args.split), "w"

@@ -65,7 +65,7 @@ def get_args(args=None, namespace=None):
         "-d",
         "--dump_location",
         type=str,
-        default="./tmp/",
+        default="./tmp",
         help="path to dump models and log (default: ./tmp/)",
     )
     parser.add_argument(

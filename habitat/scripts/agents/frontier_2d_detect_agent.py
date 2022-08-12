@@ -83,8 +83,9 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.map_resolution = args.map_resolution_cm / 100.0
         self.sem_model = args.sem_model
         self.success_dist = args.success_dist
-        # self.frontier_mode = args.frontier_mode
-        self.frontier_mode = "geo"
+        # self.goal_policy = args.goal_policy
+        # only geo acceptable for this baseline 
+        self.goal_policy = "geo"
 
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
@@ -599,7 +600,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     odom_map_pose[:2],
                     cluster_trashhole=self.args.cluster_trashhole,
                     num_goals=1,
-                    mode=self.frontier_mode,
+                    goal_policy=self.goal_policy,
                 )
             except:
                 frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
