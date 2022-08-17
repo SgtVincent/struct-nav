@@ -38,6 +38,7 @@ def main():
     args.config_dir = rospy.get_param("~config_dir", args.config_dir)
     args.task_config = rospy.get_param("~task_config", args.task_config)
     args.sem_config_dir = rospy.get_param("~sem_config_dir", args.sem_config_dir)
+    args.dump_dir = rospy.get_param("~dump_dir", args.dump_location)
 
     # set random seed
     np.random.seed(args.seed)
@@ -76,14 +77,15 @@ def main():
     # region: Setup Logging
     scene_name = env.scene_name.split('/')[-1].split('.')[0]
     args.exp_name = f"{args.agent}_{env.goal_policy}_{scene_name}_{args.num_eval_episodes}"
-    dump_dir = os.path.join(args.dump_location, args.exp_name)
+    dump_dir = os.path.join(args.dump_dir, args.exp_name)
 
     if not os.path.exists(dump_dir):
         os.makedirs(dump_dir)
 
-    logging.basicConfig(filename=os.path.join(dump_dir, "eval.log"), level=logging.INFO)
-    print("Dumping at {}".format(dump_dir))
-    print(args)
+    logging.basicConfig(
+        filename=os.path.join(dump_dir, "eval.log"), level=logging.INFO, force=True)
+    rospy.logwarn("Dumping at {}".format(dump_dir))
+    rospy.loginfo(args)
     logging.info(args)
     # endregion
 

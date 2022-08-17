@@ -5,13 +5,14 @@
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/" />
+    <arg name="dump_dir" default="$(find habitat_ros)/../tmp" />
     <arg name="prior_dir" default="$(find habitat_ros)/prior_data/" />
     <arg name="scene_prior_matrix_file" default="train_scene_prior.npz" />
     <arg name="language_prior_matrix_file" default="language_prior.npz" />
 
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
-    <!-- <arg name="agent_type" default="frontier_2d_detection" /> -->
-    <arg name="agent_type" default="frontier_sgnav" />
+    <arg name="agent_type" default="frontier_2d_detection" />
+    <!-- <arg name="agent_type" default="frontier_sgnav" /> -->
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
     <arg name="ground_truth_odom" default="true" />
@@ -28,6 +29,7 @@
         <param name="config_dir" value="$(arg config_dir)" />
         <param name="task_config" value="$(arg task_config)" />
         <param name="sem_config_dir" value="$(arg sem_config_dir)" />
+        <param name="dump_dir" value="$(arg dump_dir)" />
         <param name="prior_dir" value="$(arg prior_dir)" />
         <param name="scene_prior_matrix_file" value="$(arg scene_prior_matrix_file)" />
         <param name="language_prior_matrix_file" value="$(arg language_prior_matrix_file)" />

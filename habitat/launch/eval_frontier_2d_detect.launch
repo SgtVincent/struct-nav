@@ -2,7 +2,7 @@
     <!-- general task & model config -->
     <arg name="agent_type" default="frontier_2d_detection" />
     <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
-    <arg name="agent_update_rate" default="2.0" />
+    <arg name="agent_update_rate" default="4.0" />
     <arg name="grid_normals_segmentation" default="false" />
     <arg name="grid_global_min_size" default="10.0" />
     <!-- flag to enable wheel odometer -->
@@ -22,6 +22,7 @@
         <arg name="wheel_odom_frame_id" value="$(arg wheel_odom_frame_id)" />
         <arg name="ground_truth_odom" value="$(arg ground_truth_odom)" />
         <arg name="ground_truth_odom_topic" value="$(arg ground_truth_odom_topic)" />
+        <arg name="agent_update_rate" value="$(arg agent_update_rate)" />
     </include> -->
 
     <!-- rtabmap -->
