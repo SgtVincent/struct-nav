@@ -13,6 +13,7 @@ import pathlib
 import numpy as np
 import pickle
 import open3d as o3d
+import open3d.ml.tf as ml3d
 from scipy import stats
 from scipy.ndimage.morphology import binary_dilation
 import quaternion as qt
@@ -24,8 +25,10 @@ from habitat_sim import Simulator
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point, Quaternion
 from utils.transformation import points_habitat2world, points_world2habitat
+from agents.utils.nms_utils import NMS
 from envs.constants import coco_categories, coco_label_mapping
 
+##### FIXME: re-implement scene graph agent to sg_nav package #####
 UTILS_DIR = pathlib.Path(__file__).resolve().parent
 SG_DIR = os.path.join(UTILS_DIR.parent.parent.parent.parent, "sg_nav")
 sys.path.append(SG_DIR)
@@ -226,8 +229,9 @@ class SceneGraphRtabmap(SceneGraphBase):
     # TODO: finetune the DBSCAN parameters
     def __init__(self, rtabmap_pcl, point_features=False, label_mapping=None, 
             scene_bounds=None, grid_map=None, map_resolution=0.05, dbscan_eps=1.0, 
-            dbscan_min_samples=5, dbscan_num_processes=4, min_points_filter=10,
-            dbscan_verbose=False, dbscan_vis=False, label_scale=2):
+            dbscan_min_samples=5, dbscan_num_processes=4, min_points_filter=5,
+            dbscan_verbose=False, dbscan_vis=False, label_scale=2, 
+            nms=True, nms_th=0.4):
 
         # 1. get boundary of the scene (one-layer) and initialize map
         self.scene_bounds = scene_bounds
@@ -253,8 +257,14 @@ class SceneGraphRtabmap(SceneGraphBase):
         num_class = len(coco_categories)
         # cvrt from 0 for background to -1 for background
         class_label = np.round(g * float(num_class + 1) / 255.0).astype(int) - 1
-        sem_points = np.concatenate((xyz, label_scale * class_label.reshape(-1, 1)), axis=1)
-        
+        # filter out background points 
+        objects_mask = (class_label >= 0)
+        objects_xyz = xyz[objects_mask]
+        objects_label = class_label[objects_mask]
+        sem_points = np.concatenate(
+            (objects_xyz, label_scale * objects_label.reshape(-1, 1)), axis=1)
+
+        # cluster semantic point clouds to object clusters 
         db = DBSCAN(eps=dbscan_eps, min_samples=dbscan_min_samples, 
                     n_jobs=dbscan_num_processes).fit(sem_points)
         core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
@@ -269,45 +279,76 @@ class SceneGraphRtabmap(SceneGraphBase):
         if dbscan_vis:
             pass
         
-        # 3. create object nodes in scene graph 
+        # 3. non-maximum suppression: filter out noisy detection result 
+
+        if nms == True:
+            valid_object_ids = []
+            valid_object_score_bboxes = [] # [p, x, y, z, l,w,h]
+            for obj_id in object_ids:
+                if obj_id == -1: # outliers
+                    continue
+                obj_xyz = objects_xyz[inst_labels == obj_id]
+                if obj_xyz.shape[0] > min_points_filter:
+                    label_modes, _ = stats.mode(objects_label[inst_labels == obj_id], nan_policy="omit")
+                    # select mode label as object label
+                    obj_label = label_modes[0]
+                    obj_cls_name = label_mapping[obj_label]
+                    center = np.mean(obj_xyz, axis=0)
+                    size = np.max(obj_xyz, axis=0) - np.min(obj_xyz, axis=0)
+                    score_bbox = np.array([obj_xyz.shape[0], # num of points  
+                                           center[0], center[1], center[2],
+                                           size[0], size[1], size[2],
+                                           ])
+                    valid_object_ids.append(obj_id)
+                    valid_object_score_bboxes.append(score_bbox)
+            
+            object_ids = valid_object_ids
+            # there could be no valid objects founded 
+            if len(valid_object_ids) > 0:
+                valid_object_score_bboxes = np.stack(valid_object_score_bboxes, axis=0)
+                selected_indices, _ = NMS(valid_object_score_bboxes, nms_th)
+                object_ids = [valid_object_ids[idx] for idx in selected_indices]
+                
+        # 4. create object nodes in scene graph 
+        
         for obj_id in object_ids:
             
             if obj_id == -1: # outliers
                 continue
             
-            obj_xyz = xyz[inst_labels == obj_id]
+            obj_xyz = objects_xyz[inst_labels == obj_id]
             if obj_xyz.shape[0] > min_points_filter:
-                label_modes, _ = stats.mode(class_label[inst_labels == obj_id], nan_policy="omit")
+                label_modes, _ = stats.mode(objects_label[inst_labels == obj_id], nan_policy="omit")
                 # select mode label as object label
                 obj_label = label_modes[0]
                 obj_cls_name = ""
-                if label_mapping is not None:
-                    if obj_label >= 0:
-                        obj_cls_name = label_mapping[obj_label]
+                if obj_label >= 0:
+                    obj_cls_name = label_mapping[obj_label]
+                # else:
+                #     obj_cls_name = "background"
+                    # use axis-aligned bounding box for now 
+                    center = np.mean(obj_xyz, axis=0)
+                    rot_quat = np.array([0, 0, 0, 1])  # identity transform
+                    size = np.max(obj_xyz, axis=0) - np.min(obj_xyz, axis=0)
+                    if not self.point_features:
+                        object_vertices = None
                     else:
-                        obj_cls_name = "background"
-                # use axis-aligned bounding box for now 
-                center = np.mean(obj_xyz, axis=0)
-                rot_quat = np.array([0, 0, 0, 1])  # identity transform
-                size = np.max(obj_xyz, axis=0) - np.min(obj_xyz, axis=0)
-                if not self.point_features:
-                    object_vertices = None
-                else:
-                    object_vertices = obj_xyz
-                    
-                object_node = self.object_layer.add_object(
-                    center,
-                    rot_quat,
-                    size,
-                    id=obj_id,
-                    class_name=obj_cls_name,
-                    label=obj_label,
-                    vertices=object_vertices   
-                )
+                        object_vertices = obj_xyz
+                        
+                    object_node = self.object_layer.add_object(
+                        center,
+                        rot_quat,
+                        size,
+                        id=obj_id,
+                        class_name=obj_cls_name,
+                        label=obj_label,
+                        vertices=object_vertices   
+                    )
 
                 # no region prediction module implemented 
                 # connect object to region
                 # region_node.add_object(object_node)
+
         return
 
     # def get_full_graph(self):

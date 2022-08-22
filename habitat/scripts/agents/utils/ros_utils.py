@@ -191,7 +191,7 @@ def publish_pose(pose_mat, publisher, stamp=None, frame_id="odom"):
 def publish_scene_graph(scene_graph, publisher, 
                         vis_mode="elavated", vis_name=True, name_publisher=None, 
                         rot=None, trans=None, frame_id="map", namespace="scene_graph",
-                        lifetime=2.0):
+                        lifetime=2.0, node_color=[0.0, 0.0, 1.0, 0.5]):
     
     assert vis_mode in ["elavated", "inplace"]
     if rot is None:
@@ -218,7 +218,7 @@ def publish_scene_graph(scene_graph, publisher,
         #     color = ColorRGBA(1.0, 0.5, 0.0, 0.5)
         # else: #  map_rawlabel2panoptic_id[obj.label] == 1
         scale = Vector3(0.2, 0.2, 0.2)
-        color = ColorRGBA(0.0, 0.0, 1.0, 0.5)
+        color = ColorRGBA(*node_color)
 
         marker = Marker(
             type=Marker.CUBE,
@@ -256,17 +256,7 @@ def publish_scene_graph(scene_graph, publisher,
     
     if vis_name:
         name_publisher.publish(name_marker_arr)
-
-def delete_all_markers(publisher, ns):
-    marker_array_msg = MarkerArray()
-    marker = Marker()
-    marker.id = 0
-    marker.ns = ns
-    marker.action = Marker.DELETEALL
-    marker_array_msg.markers.append(marker)
-    publisher.publish(marker_array_msg)
-
-
+        
 def publish_target_name(publisher, target_name, agent_pos, 
                         text_up_dist=1.5, lifetime=2.0):
     text_pos = agent_pos + np.array(
@@ -285,3 +275,14 @@ def publish_target_name(publisher, target_name, agent_pos,
     )
     publisher.publish(target_name_marker)
     return 
+
+def delete_all_markers(publisher, ns):
+    marker_array_msg = MarkerArray()
+    marker = Marker()
+    marker.id = 0
+    marker.ns = ns
+    marker.action = Marker.DELETEALL
+    marker_array_msg.markers.append(marker)
+    publisher.publish(marker_array_msg)
+
+

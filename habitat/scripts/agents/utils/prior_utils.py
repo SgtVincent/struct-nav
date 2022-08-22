@@ -20,19 +20,21 @@ def utility_reverse_euc_dist(prior_mat, class_labels, goal_label,
     else: # sum
         return np.sum(1.0 / prior_dists)
 
-def utility_reverse_euc_dist_discount_var(prior_mat, prior_var_mat, 
-                                    class_labels, goal_label, min_dist=0.5, 
-                                    min_var=1.0, order=-0.5, mean=True):
+def utility_reverse_euc_dist_discount_var(prior_mat, prior_var_mat, class_labels, 
+                                          goal_label, min_dist=0.5, min_var=1.0, 
+                                          order=-0.5, mean=True, weights=None):
     
     prior_dists = prior_mat[class_labels, :][:, goal_label]
     prior_vars = prior_var_mat[class_labels, :][:, goal_label]
     prior_dists[prior_dists < min_dist] = min_dist
     prior_vars[prior_vars < min_var] = min_var
+    if weights is None:
+        weights = np.ones(len(class_labels))
+    weights = weights / np.float_power(prior_vars, order)
     if mean:
-        return np.average((1.0 / prior_dists), 
-                          weights= (1 / np.float_power(prior_vars, order)))
+        return np.average((1.0 / prior_dists), weights=weights )
     else: # sum
-        return np.sum((1.0 / prior_dists) / np.float_power(prior_vars, order))
+        return np.sum((1.0 / prior_dists) * weights)
 
 def utility_cos_sim(prior_mat, class_labels, goal_label, mean=True):
     
@@ -43,26 +45,31 @@ def utility_cos_sim(prior_mat, class_labels, goal_label, mean=True):
         return np.sum(1 - prior_dists)
 
 def utility_cos_sim_discount_var(prior_mat, prior_var_mat, class_labels, 
-                                goal_label, min_var=1.0, order=-0.5, mean=True):
+                                goal_label, min_var=1.0, order=-0.5, 
+                                mean=True, weights=None):
     
     prior_dists = prior_mat[class_labels, :][:, goal_label]
     prior_vars = prior_var_mat[class_labels, :][:, goal_label]
     prior_vars[prior_vars < min_var] = min_var
+    if weights is None:
+        weights = np.ones(len(class_labels))
+    weights = weights / np.float_power(prior_vars, order)
     if mean:
-        return np.average((1 - prior_dists), 
-                          weights= (1 / np.float_power(prior_vars, order)))
+        return np.average((1 - prior_dists), weights=weights)
     else:
-        return np.sum((1 - prior_dists) / np.float_power(prior_vars, order))
+        return np.sum((1 - prior_dists) * weights)
 
 def hdist_std_weighted_diff_to_default(prior_mat, prior_var_mat, class_labels,
-        goal_label, default_dist, min_var=1.0, order=-0.5):
+        goal_label, default_dist, min_var=1.0, order=-0.5, weights=None):
     
     prior_dists = prior_mat[class_labels, :][:, goal_label]
     prior_vars = prior_var_mat[class_labels, :][:, goal_label]
     prior_vars[prior_vars < min_var] = min_var
     diff = prior_dists - default_dist
-    hdist = np.average(diff, weights=(1 / np.float_power(prior_vars, order))) \
-        + default_dist
+    if weights is None:
+        weights = np.ones(len(class_labels))
+    weights = weights / np.float_power(prior_vars, order)
+    hdist = np.average(diff, weights=weights) + default_dist
     return hdist
 
 class PriorBase(ABC):
@@ -83,7 +90,7 @@ class MatrixPrior(PriorBase):
 
     def __init__(
         self,
-        priors={'lang'},
+        priors={'scene', 'lang'},
         scene_prior_path='',
         scene_prior_matrix=None,
         lang_prior_path='',
@@ -152,7 +159,7 @@ class MatrixPrior(PriorBase):
                             current_position,
                             goal_name,
                             scene_graph,
-                            method="radius_mean", # radius_sum
+                            method="radius_mean", # softr_mean
                             **kwargs):
         """Compute semantic utility by calculating the average distance to the target 
         of all objects within a circle around the frontier.
@@ -178,6 +185,20 @@ class MatrixPrior(PriorBase):
                 center=frontiers,
                 radius=radius,
                 **kwargs)
+            neighbor_objects_weight_list = [
+                np.ones(len(n_objs))
+                for n_objs in neighbor_objects_list
+            ]
+        elif graph_sample_method == "softr":
+            # soft radius sampling returns all objects along with their distance to frontiers
+            neighbor_objects_list, neighbor_objects_dist_list = scene_graph.sample_graph(
+                method="soft_radius_sampling",
+                center=frontiers,
+                **kwargs)
+            neighbor_objects_weight_list = [
+                1.0 / n_objs_dist
+                for n_objs_dist in neighbor_objects_dist_list
+            ]
         else: 
             raise NotImplementedError
         
@@ -188,6 +209,7 @@ class MatrixPrior(PriorBase):
         for i, frontier in enumerate(frontiers):
             
             neighbor_obj_ids = neighbor_objects_list[i]
+            obj_weights = neighbor_objects_weight_list[i]
             class_names = scene_graph.object_layer.get_class_names(
                     neighbor_obj_ids)
             class_labels = [
@@ -203,14 +225,14 @@ class MatrixPrior(PriorBase):
                 if 'scene' in self.priors:
                     scene_utility = utility_reverse_euc_dist_discount_var(
                         self.scene_prior_matrix, self.prior_var_matrix, 
-                        class_labels, goal_label, mean=flag_mean)
+                        class_labels, goal_label, mean=flag_mean, weights=obj_weights)
                     scene_utilities.append(scene_utility)
                     
                 lang_utility = 0
                 if 'lang' in self.priors:
                     lang_utility = utility_cos_sim_discount_var(
                         self.lang_prior_matrix, self.prior_var_matrix, 
-                        class_labels, goal_label, mean=flag_mean)
+                        class_labels, goal_label, mean=flag_mean, weights=obj_weights)
                     lang_utilities.append(lang_utility)
                     
         sem_utilities = self.combine_utility(scene_utilities, lang_utilities)

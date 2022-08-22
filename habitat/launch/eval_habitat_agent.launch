@@ -11,14 +11,14 @@
     <arg name="language_prior_matrix_file" default="language_prior.npz" />
 
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
-    <arg name="agent_type" default="frontier_2d_detection" />
-    <!-- <arg name="agent_type" default="frontier_sgnav" /> -->
+    <!-- <arg name="agent_type" default="frontier_2d_detection" /> -->
+    <arg name="agent_type" default="frontier_sgnav" />
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
     <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="sem_cloud_topic" default="/rtabsem/cloud_map" />
-    <arg name="ground_truth_scene_graph" default="true" />
+    <arg name="ground_truth_scene_graph" default="false" />
     <arg name="agent_update_rate" default="4.0" />
     <arg name="initial_map_size" default="10.0" />
     <arg name="map_update_mode" default="request" />

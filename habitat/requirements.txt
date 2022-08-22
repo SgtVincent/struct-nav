@@ -5,6 +5,7 @@ scikit-image
 scikit-fmm
 scikit-learn
 open3d
+bbox
 # PyQt5
 # PyQt5-sip==4.19.18
 # cv_bridge

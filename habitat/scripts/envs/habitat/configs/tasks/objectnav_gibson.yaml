@@ -5,18 +5,13 @@ SIMULATOR:
     TILT_ANGLE: 30
     ACTION_SPACE_CONFIG: "v1"
     AGENT_0:
-        # SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR", "SEMANTIC_SENSOR"]
-        SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
+        SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR", "SEMANTIC_SENSOR"]
+        # SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR"]
         HEIGHT: 0.88
         RADIUS: 0.18
     HABITAT_SIM_V0:
         GPU_DEVICE_ID: 0
         ALLOW_SLIDING: True
-    SEMANTIC_SENSOR:
-        WIDTH: 640
-        HEIGHT: 480
-        HFOV: 79
-        POSITION: [0, 0.88, 0]
     RGB_SENSOR:
         WIDTH: 640
         HEIGHT: 480
@@ -29,6 +24,11 @@ SIMULATOR:
         MIN_DEPTH: 0.0
         MAX_DEPTH: 5.0
         NORMALIZE_DEPTH: False
+        POSITION: [0, 0.88, 0]
+    SEMANTIC_SENSOR:
+        WIDTH: 640
+        HEIGHT: 480
+        HFOV: 79
         POSITION: [0, 0.88, 0]
 TASK:
     TYPE: ObjectNav-v1

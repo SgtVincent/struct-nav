@@ -143,7 +143,7 @@ Visualization Manager:
       Download graph: false
       Download map: false
       Download namespace: rtabmap
-      Enabled: true
+      Enabled: false
       Filter ceiling (m): 0
       Filter floor (m): 0
       Invert Rainbow: false
@@ -161,7 +161,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rtabmap_ros/Info
       Enabled: true
       Name: Info
@@ -330,6 +330,22 @@ Visualization Manager:
         target: true
       Queue Size: 100
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /eval_habitat_env/gt_object_names
+      Name: gt_obj_names
+      Namespaces:
+        scene_graph: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /eval_habitat_env/gt_object_nodes
+      Name: gt_obj_nodes
+      Namespaces:
+        scene_graph: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -354,7 +370,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 9.087566375732422
+      Distance: 11.096927642822266
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -362,17 +378,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.5424572229385376
-        Y: -0.3878253102302551
-        Z: 0.5028355717658997
+        X: 0.5610588788986206
+        Y: -1.5007020235061646
+        Z: 1.351140022277832
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3797965049743652
+      Pitch: 0.2297976315021515
       Target Frame: base_link
-      Yaw: 1.022937536239624
+      Yaw: 2.1479332447052
     Saved: ~
 Window Geometry:
   Displays:

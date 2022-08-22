@@ -1,3 +1,4 @@
+from curses import noecho
 import math
 import os
 import time
@@ -70,6 +71,7 @@ DEBUG = False
 DEBUG_VIS = False
 DEBUG_WHEEL_ODOM = False
 DEBUG_DETECT = False
+DEBUG_SG = False
 
 class FrontierSGNavAgent(ObjectGoal_Env):
     def __init__(self, args, rank, config_env, dataset):
@@ -88,9 +90,10 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.success_dist = args.success_dist
         self.sg_point_features = False
         # self.frontier_mode = args.frontier_mode
-        self.goal_policy = self.args.goal_policy
+        self.goal_policy = args.goal_policy
         self.prior_class = "matrix_prior"
-        self.prior_types = {'scene'} # {'scene', 'lang'}
+        # self.prior_types = {'scene'} # {'scene', 'lang'}
+        self.prior_types = set(args.prior_types)
         self.vis_scene_graph = True # by default visualize scene graph 
         
         # args from config 
@@ -325,6 +328,15 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             self.pub_object_names = rospy.Publisher(
                 self.object_names_topic, MarkerArray, queue_size=1
             )
+        
+        if DEBUG_SG:
+            self.pub_gt_object_nodes = rospy.Publisher(
+                "~gt_object_nodes", MarkerArray, queue_size=1
+            )
+            self.pub_gt_object_names = rospy.Publisher(
+                "~gt_object_names", MarkerArray, queue_size=1
+            )
+
 
         # cached messages
         self.odom_msg = None
@@ -671,6 +683,8 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 scene_graph=self.scene_graph,
                 goal_name = self.goal_name,
                 prior=self.prior,
+                util_combine_method=self.args.util_combine_method,
+                util_sem_method=self.args.util_sem_method,
                 util_max_geo_weight=self.args.util_max_geo_weight,
                 util_min_geo_weight=self.args.util_min_geo_weight,
                 util_explore_step=self.args.util_explore_step,
@@ -788,12 +802,21 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
                 self.scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
                 
-            if self.vis_scene_graph:
+            if self.vis_scene_graph and self.scene_graph:
                 publish_scene_graph(self.scene_graph, 
                                     self.pub_object_nodes,
                                     vis_name=True,
                                     name_publisher=self.pub_object_names)
-            
+                if DEBUG_SG:
+                    assert self.ground_truth_scene_graph == False
+                    tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
+                    gt_scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
+                    publish_scene_graph(gt_scene_graph,
+                                        self.pub_gt_object_nodes,
+                                        vis_name=True,
+                                        name_publisher=self.pub_gt_object_names,
+                                        node_color=[1,0.5,0,0.5])
+                    
             self.obs = obs
             self.info = info
             # self.rate.sleep()
@@ -1063,6 +1086,18 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 # NOTE: zero for background 
                 semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
             obs['semantic'] = semantic_image
+
+        if DEBUG_VIS:
+            import matplotlib.pyplot as plt 
+            # import numpy as np
+            fig = plt.figure(figsize=(12,4))
+            fig.add_subplot(131)   #top left
+            plt.imshow(obs['rgb'])
+            fig.add_subplot(132)   #top left
+            plt.imshow(obs['depth'].squeeze())
+            fig.add_subplot(133)   #top left
+            plt.imshow(obs['semantic'])
+            plt.show()
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg

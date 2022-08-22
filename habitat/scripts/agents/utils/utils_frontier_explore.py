@@ -377,9 +377,9 @@ def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
     return np.array(point2goal_dists)
 
 
-def combine_utilities(geo_utilities, sem_utilities, method="linear_geo_dec", 
+def combine_utilities(geo_utilities, sem_utilities, method="discrete", 
                       max_geo_weight=1.0, min_geo_weight=0.2, normalize=True,
-                      min_step=0, max_step=100, step=0):
+                      min_step=0, max_step=100, step=0, reg_val=1e-8):
     ########### method one, linear decreasing geometric utility ###################
     # Trade-off between "exploration" and "exploitation"
     # In early steps, the scene is not fully explored, put more weights on geometric utility
@@ -387,16 +387,22 @@ def combine_utilities(geo_utilities, sem_utilities, method="linear_geo_dec",
     # weights on semantics should increase, then the weight of semantic utility 
     # plateaus after a fixed number of steps. 
     if normalize:
-        geo_utilities = geo_utilities / np.sum(geo_utilities)
-        sem_utilities = sem_utilities / np.sum(sem_utilities)
-        
-    if method == "linear_geo_dec":
-        clip = lambda x: max(min(x, max_step), min_step)
-        step_ratio = clip(step) - min_step / (max_step - min_step)
-        weight = (1 - step_ratio) * max_geo_weight + step_ratio * min_geo_weight
-        utilities = weight * geo_utilities + (1 - weight) * sem_utilities
+        geo_utilities = geo_utilities / np.sum(geo_utilities + reg_val)
+        sem_utilities = sem_utilities / np.sum(sem_utilities + reg_val)
+      
+    if method == "discrete":
+        if step >= max_step:
+            step_ratio = 1 # full semantic utility 
+        else: 
+            step_ratio = 0 # full geometric utility 
+    elif method == "linear":
+            clip = lambda x: max(min(x, max_step), min_step)
+            step_ratio = clip(step) - min_step / (max_step - min_step)
     else:
         raise NotImplementedError
+    
+    weight = (1 - step_ratio) * max_geo_weight + step_ratio * min_geo_weight
+    utilities = weight * geo_utilities + (1 - weight) * sem_utilities
     
     return utilities
 
@@ -463,7 +469,9 @@ def frontier_goals(
     util_min_geo_weight = kwargs.get("util_min_geo_weight", 0.2)
     util_explore_step = kwargs.get("util_explore_step", 50)
     util_exploit_step = kwargs.get("util_exploit_step", 100)
-
+    util_combine_method = kwargs.get("util_combine_method", "discrete")
+    util_sem_method = kwargs.get("util_sem_method", "radius_mean")
+    
     # compute frontier pixels on grid map
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
@@ -500,14 +508,17 @@ def frontier_goals(
             goal_name,
             scene_graph,
             grid_map=map_raw,
+            method=util_sem_method,
         )
-        utilities = combine_utilities(geo_utilities, sem_utilities, step=step,
-                                          max_geo_weight=util_max_geo_weight,
-                                          min_geo_weight=util_min_geo_weight,
-                                          normalize=True,
-                                          min_step=util_explore_step,
-                                          max_step=util_exploit_step,
-                                          )
+        utilities = combine_utilities(geo_utilities, sem_utilities, 
+                                        method=util_combine_method,
+                                        step=step,
+                                        max_geo_weight=util_max_geo_weight,
+                                        min_geo_weight=util_min_geo_weight,
+                                        normalize=True,
+                                        min_step=util_explore_step,
+                                        max_step=util_exploit_step,
+                                        )
         goals_grid = get_goals(utilities, centroids_grid, num_goals)
         # print("Get goals by semantic utility.")
         
@@ -520,12 +531,14 @@ def frontier_goals(
             hdists_f2o = prior.compute_heuristic_dist(centroids, goal_name, scene_graph)
             hdists = dists_p2f + hdists_f2o
             hdist_utilities = compute_hdist_utility(centroids[:, 2], hdists)
-            utilities = combine_utilities(geo_utilities, hdist_utilities, step=step,
-                                        max_geo_weight=util_max_geo_weight,
-                                        min_geo_weight=util_min_geo_weight,
-                                        normalize=True,
-                                        min_step=util_explore_step,
-                                        max_step=util_exploit_step,
+            utilities = combine_utilities(geo_utilities, hdist_utilities, 
+                                            method=util_combine_method,
+                                            step=step,
+                                            max_geo_weight=util_max_geo_weight,
+                                            min_geo_weight=util_min_geo_weight,
+                                            normalize=True,
+                                            min_step=util_explore_step,
+                                            max_step=util_exploit_step,
                                         )
             
             goals_grid = get_goals(utilities, centroids_grid, num_goals)

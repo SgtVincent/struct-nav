@@ -110,7 +110,7 @@ def get_args(args=None, namespace=None):
         "-el",
         "--max_episode_length",
         type=int,
-        default=200, # 500
+        default=500, # 500
         help="""Maximum episode length""",
     )
     parser.add_argument(
@@ -221,21 +221,29 @@ def get_args(args=None, namespace=None):
     
     # Frontier Exploration
     parser.add_argument("--cluster_trashhole", type=float, default=0.2)
-    parser.add_argument("--goal_policy", type=str, default="heuristic_dist", 
+    # Goal selection policy & priors 
+    parser.add_argument("--goal_policy", type=str, default="geo+sem", 
         choices=["geo", "geo+sem", "heuristic_dist"], 
         help="policy to select current goal from frontiers")
-    # parser.add_argument("--frontier_mode", type=str, default="geo")
+    parser.add_argument("--prior_types", nargs="*", default=["scene", "lang"])
     # Utility function argumetns 
+    parser.add_argument("--util_combine_method", type=str, default="discrete", 
+                        choices=["discrete", "linear"],
+                        help="method to combine geometric utility and semantic utility")
+    parser.add_argument("--util_sem_method", type=str, default="softr_mean",
+                        choices=["radius_mean", "softr_mean"], 
+                        help="method to compute semantic utility")
     parser.add_argument("--util_prior_combine_weight", type=float, default=1.0,
                         help="combine weight for semantic utility, utility=weight * scene_util + (1.0-weight)*lang_util") 
     parser.add_argument("--util_max_geo_weight", type=float, default=1.0, 
                         help="maximum weight for geometric utility")
-    parser.add_argument("--util_min_geo_weight", type=float, default=0.2, 
+    parser.add_argument("--util_min_geo_weight", type=float, default=0.01, 
                         help="maximum weight for geometric utility")
-    parser.add_argument("--util_explore_step", type=int, default=40, 
+    parser.add_argument("--util_explore_step", type=int, default=0, 
                         help="maximum steps to decrease geo weight linearly")
-    parser.add_argument("--util_exploit_step", type=int, default=120, 
+    parser.add_argument("--util_exploit_step", type=int, default=50, 
                         help="maximum steps to decrease geo weight linearly")
+    
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)
 

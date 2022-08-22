@@ -151,6 +151,7 @@ tmp/
 habitat/scripts/tmp
 # habitat/prior_data/
 habitat_ros
+habitat/scripts/agents/utils/test_3d_iou.py
 
 ############ habitat-recognition ignore ##################
 habitat_recognition/tb_logs/
