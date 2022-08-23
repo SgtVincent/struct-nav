@@ -237,7 +237,7 @@ def get_args(args=None, namespace=None):
                         help="combine weight for semantic utility, utility=weight * scene_util + (1.0-weight)*lang_util") 
     parser.add_argument("--util_max_geo_weight", type=float, default=1.0, 
                         help="maximum weight for geometric utility")
-    parser.add_argument("--util_min_geo_weight", type=float, default=0.01, 
+    parser.add_argument("--util_min_geo_weight", type=float, default=0.1, 
                         help="maximum weight for geometric utility")
     parser.add_argument("--util_explore_step", type=int, default=0, 
                         help="maximum steps to decrease geo weight linearly")

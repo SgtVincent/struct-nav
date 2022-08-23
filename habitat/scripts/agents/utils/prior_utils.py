@@ -171,7 +171,8 @@ class MatrixPrior(PriorBase):
             method (str): method to compute semantic utility 
             grid_map (np.ndarray): grid map 
         """
-        
+        if len(scene_graph.object_layer.obj_ids) == 0:
+            return np.zeros(len(frontiers))
         scene_utilities = []
         lang_utilities = []
         goal_label = coco_categories[goal_name]

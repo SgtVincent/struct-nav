@@ -128,7 +128,7 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.map_reset = False
         self.goal_name = None
         self.spot_goal = 0
-        self.actions_queue = deque([], maxlen=4)
+        
         
 
         # from ObjectGoalEnv
@@ -318,7 +318,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             self.spot_goal = 0
             self.last_action = None
             self.last_odom_mat = np.eye(4)
-            self.actions_queue = deque([], maxlen=4)
             
             if self.ground_truth_odom:
                 # always publish current pose in initial pose frame 
@@ -601,6 +600,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
                     cluster_trashhole=self.args.cluster_trashhole,
                     num_goals=1,
                     goal_policy=self.goal_policy,
+                    collision_map=self.collision_map,
+                    visited_map=self.visited,
                 )
             except:
                 frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)
@@ -692,7 +693,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         action = self.plan(p_input)
         self.last_action = action  # needed for collision check
-        self.actions_queue.append(action) # needed for stucking check 
 
         if self.args.visualize or self.args.print_images:
             self._visualize(p_input)
@@ -900,48 +900,8 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
             plt.imshow(vis_map, origin="lower")
 
         # Deterministic Local Policy
-        if stop and planner_inputs["found_goal"] == 1:
-            action = 0  # Stop
-        else:
-            (stg_x, stg_y) = stg
-            
-            if stg_x < 0: # planner failed due to synchronization problem of rtabmap
-                # by default, move forward 
-                action = 1
-
-            angle_st_goal = math.degrees(
-                math.atan2(stg_x - start[0], stg_y - start[1])
-            )
-            angle_agent = (start_o) % 360.0
-            if angle_agent > 180:
-                angle_agent -= 360
-
-            relative_angle = (angle_agent - angle_st_goal) % 360.0
-            if relative_angle > 180:
-                relative_angle -= 360
-
-            # if relative_angle > self.turn_angle / 2.0:
-            #     action = 3  # Right
-            # elif relative_angle < -self.turn_angle / 2.0:
-            #     action = 2  # Left
-            # else:
-            #     action = 1  # Forward
-            # NOTE: give local controller more tolerance in face of odometry noise
-            # TODO: tune the factor for relative angle to turn 
-            if relative_angle > 0.7 * self.turn_angle:
-                action = 3  # Right
-            elif relative_angle < -0.7 * self.turn_angle:
-                action = 2  # Left
-            else:
-                action = 1  # Forward
-
-            # overwrite local planner if agent is stuck locally
-            # current policy: last 4 actions are lrlr or rlrl
-            # TODO: investigate why it get stuck and solve the problem
-            last_actions = list(self.actions_queue)
-            if last_actions==[2,3,2,3] or last_actions==[3,2,3,2]:
-                action = 1 # Execute forward to get away from left-right swing cycle
-
+        action = self._get_action(start, start_o, stg, stop, planner_inputs)
+        
         return action
 
     # TODO: add object detection / segmentation models here

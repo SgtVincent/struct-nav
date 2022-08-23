@@ -532,7 +532,8 @@ class FrontierExploreAgent:
         planner.set_multi_goal(goal)
 
         state = [start[0] - x1 + 1, start[1] - y1 + 1]
-        stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+        # stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+        stg_x, stg_y, stop = planner.get_short_term_goal(state)
 
         stg_x, stg_y = stg_x + x1 - 1, stg_y + y1 - 1
 

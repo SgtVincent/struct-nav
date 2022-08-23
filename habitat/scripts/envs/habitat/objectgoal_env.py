@@ -3,6 +3,8 @@ import os
 import bz2
 import gzip
 import time
+import math 
+from collections import deque
 import _pickle as cPickle
 import cv2
 import numpy as np
@@ -76,6 +78,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.path_length = None
         self.last_sim_location = None
         self.trajectory_states = []
+        self.actions_queue = deque([], maxlen=4)
         self.info = {}
         self.info["distance_to_goal"] = None
         self.info["spl"] = None
@@ -346,7 +349,8 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.stopped = False
         self.path_length = 1e-5
         self.trajectory_states = []
-
+        self.actions_queue = deque([], maxlen=4)
+        
         if new_scene:
             obs = super().reset()
             self.scene_name = self.habitat_env.sim.config.sim_cfg.scene_id
@@ -412,7 +416,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         rgb = obs["rgb"].astype(np.uint8)
         depth = obs["depth"]
         state = np.concatenate((rgb, depth), axis=2).transpose(2, 0, 1)
-
+        self.actions_queue.append(action)
         self.timestep += 1
         self.info["time"] = self.timestep
 
@@ -560,7 +564,7 @@ class ObjectGoal_Env(habitat.RLEnv):
             planner.set_multi_goal(goal)
 
             state = [start[0] - x1, start[1] - y1]
-            stg_x, stg_y, _, stop = planner.get_short_term_goal(state)
+            stg_x, stg_y, stop = planner.get_short_term_goal(state)
             stg_x, stg_y = stg_x + x1, stg_y + y1
             # original code here: 
             # state = [start[0] - x1 + 1, start[1] - y1 + 1]
@@ -571,6 +575,80 @@ class ObjectGoal_Env(habitat.RLEnv):
             rospy.logwarn(f"Planner failed, with error {e}, reset found_goal state...")
             self.spot_goal = 0
             return (-1, -1), 0
+
+    def _get_action(self, start, start_o, stg, stop, planner_inputs):
+        if stop and planner_inputs["found_goal"] == 1:
+            # goal object found and local planner stopped
+            action = 0  # Stop
+        elif stop and planner_inputs["found_goal"] == 0:
+            # goal object not found and local planner stopped (stg reached by frontier still exists)
+            # NOTE: need to turn to face the goal center for more observation
+            goal_map = planner_inputs["goal"]
+            
+            # Find the center of goal map 
+            idx_x, idx_y = np.where(goal_map > 0)
+            goal_x = np.average(idx_x)
+            goal_y = np.average(idx_y)
+            
+            angle_st_goal = math.degrees(
+                math.atan2(goal_x - start[0], goal_y - start[1])
+            )
+            angle_agent = (start_o) % 360.0
+            if angle_agent > 180:
+                angle_agent -= 360
+
+            relative_angle = (angle_agent - angle_st_goal) % 360.0
+            if relative_angle > 180:
+                relative_angle -= 360
+
+            if relative_angle > 0.7 * self.turn_angle:
+                action = 3  # Right
+            elif relative_angle < -0.7 * self.turn_angle:
+                action = 2  # Left
+            else:
+                action = 1  # Forward
+                
+        else:
+            (stg_x, stg_y) = stg
+            
+            if stg_x < 0: # planner failed due to synchronization problem of rtabmap
+                # by default, move forward 
+                action = 1
+
+            angle_st_goal = math.degrees(
+                math.atan2(stg_x - start[0], stg_y - start[1])
+            )
+            angle_agent = (start_o) % 360.0
+            if angle_agent > 180:
+                angle_agent -= 360
+
+            relative_angle = (angle_agent - angle_st_goal) % 360.0
+            if relative_angle > 180:
+                relative_angle -= 360
+
+            # if relative_angle > self.turn_angle / 2.0:
+            #     action = 3  # Right
+            # elif relative_angle < -self.turn_angle / 2.0:
+            #     action = 2  # Left
+            # else:
+            #     action = 1  # Forward
+            # NOTE: give local controller more tolerance in face of odometry noise
+            # TODO: tune the factor for relative angle to turn 
+            if relative_angle > 0.7 * self.turn_angle:
+                action = 3  # Right
+            elif relative_angle < -0.7 * self.turn_angle:
+                action = 2  # Left
+            else:
+                action = 1  # Forward
+
+            # overwrite local planner if agent is stuck locally
+            # current policy: last 4 actions are lrlr or rlrl
+            # TODO: investigate why it get stuck and solve the problem
+            last_actions = list(self.actions_queue)
+            if last_actions==[2,3,2,3] or last_actions==[3,2,3,2]:
+                action = 1 # Execute forward to get away from left-right swing cycle
+        
+        return action 
 
     def _visualize(self, inputs):
         args = self.args

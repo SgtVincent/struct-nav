@@ -259,6 +259,9 @@ class SceneGraphRtabmap(SceneGraphBase):
         class_label = np.round(g * float(num_class + 1) / 255.0).astype(int) - 1
         # filter out background points 
         objects_mask = (class_label >= 0)
+        if not np.any(objects_mask): # no object points in semantic mesh 
+            # stop initialization with empty scene graph
+            return 
         objects_xyz = xyz[objects_mask]
         objects_label = class_label[objects_mask]
         sem_points = np.concatenate(

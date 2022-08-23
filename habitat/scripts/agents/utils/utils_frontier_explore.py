@@ -198,22 +198,30 @@ def compute_centroids(list_of_arrays, size_mode="diameter"):
     # return centroids as np array
     return centroids
 
-def compute_frontiers_dist(frontiers, current_position, 
-                           dist_type="geo_dist", map_raw=None):
+def compute_frontiers_dist(frontiers, current_position, dist_type="geo_dist", 
+        map_raw=None, collision_map=None, visited_map=None):
     if dist_type == "man_dist": # compute manhattan distance
         
         dists = abs(current_position[0] - frontiers[:, 0]) + abs(
             current_position[1] - frontiers[:, 1]
         )
+    
     elif dist_type == "geo_dist": # compute geodesic distance 
         # compute traversible map  
         traversible = map_raw < 1.0
+        
+        if collision_map is not None:
+            traversible[collision_map== 1] = False
+        if visited_map is not None:
+            traversible[visited_map == 1] = True
+            
         traversible_ma = ma.masked_values(traversible * 1, 0)
         goal_map = np.zeros_like(traversible)
         goal_map[int(current_position[1]), int(current_position[0])] = 1
         selem = disk(3)
         goal_map = binary_dilation(goal_map, selem)
-        traversible_ma[(goal_map == 1)] = 0
+        # traversible_ma[(goal_map == 1)] = 0
+        traversible_ma[(goal_map == 1)&(traversible_ma.mask == False)] = 0
         fmm_dist = skfmm.distance(traversible_ma, dx=1)
         fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
         
@@ -241,72 +249,6 @@ def compute_hdist_utility(frontier_sizes, hdists, min_size=0.5, min_dist=1.0):
     utilities = np.sqrt(frontier_sizes) / hdists
     
     return utilities
-
-def compute_goals(centroids, current_position, num_goals, dist_type="geo_dist", 
-    map_raw=None, map_origin=None, map_resolution=None, min_size=5, min_dist=10):
-
-    # chosen utility function : length / distance
-    # pre allocate utility_array
-    utility_array = np.zeros((centroids.shape[0], centroids.shape[1]))
-
-    # make a copy of centroids and use for loop to
-    utility_array = np.copy(centroids)
-
-    if dist_type == "geo_dist":
-        # compute traversible map  
-        traversible = map_raw < 1.0
-        traversible_ma = ma.masked_values(traversible * 1, 0)
-        goal_map = np.zeros_like(traversible)
-        goal_map[int(current_position[1]), int(current_position[0])] = 1
-        selem = disk(3)
-        goal_map = binary_dilation(goal_map, selem)
-        traversible_ma[(goal_map == 1)] = 0
-        fmm_dist = skfmm.distance(traversible_ma, dx=1)
-        fmm_dist = ma.filled(fmm_dist, np.finfo('float').max)
-
-
-    for index, c in enumerate(centroids):
-
-        if dist_type == "man_dist": # compute manhattan distance
-            
-            dist = abs(current_position[0] - centroids[index][0]) + abs(
-                current_position[1] - centroids[index][1]
-            )
-        elif dist_type == "geo_dist": # compute geodesic distance 
-            
-            dist = fmm_dist[int(centroids[index][1]), 
-                int(centroids[index][0])]
-
-        # compute length / distance
-        # utility = centroids[index][2] ** 2 / dist
-        # utility = centroids[index][2] / dist
-        dist = max(dist, min_dist)
-        if centroids[index][2] <= min_size:
-            utility = 0
-        else:
-            utility = centroids[index][2] / dist
-
-        # substitute length attribute with utility of point
-        centroids[index][2] = utility
-
-    # sort utility_array based on utility
-    index = np.argsort(utility_array[:, 2])
-    utility_array[:] = utility_array[index]
-
-    # reverse utility_array to have greatest utility as index 0
-    utility_array = utility_array[::-1]
-
-    goals = []
-    num_goals = min(num_goals, utility_array.shape[0])
-    for i in range(num_goals):
-        coordanate = []
-
-        if i < len(utility_array):
-            coordanate = [utility_array[i][0], utility_array[i][1]]
-            goals.append(coordanate)
-
-    # return goal as np array
-    return np.array(goals).astype(int)
 
 
 def dist2obj_goal(sim, points, goal_cat, verbose=False, display=False):
@@ -465,6 +407,9 @@ def frontier_goals(
         goal_map (numpy.ndarray): (M,N) map, 
 
     """
+    collision_map=kwargs.get("collision_map", None)
+    visited_map=kwargs.get("visited_map", None)
+    
     util_max_geo_weight = kwargs.get("util_max_geo_weight", 1.0)
     util_min_geo_weight = kwargs.get("util_min_geo_weight", 0.2)
     util_explore_step = kwargs.get("util_explore_step", 50)
@@ -472,14 +417,16 @@ def frontier_goals(
     util_combine_method = kwargs.get("util_combine_method", "discrete")
     util_sem_method = kwargs.get("util_sem_method", "radius_mean")
     
+    
     # compute frontier pixels on grid map
     frontiers_grid = get_frontiers(
         map_raw, map_origin, map_resolution, cluster_trashhole
     )
-    
-    # NOTE: using learning to propose additional centroids?
-    # cluster frontier pixels to frontier centroids 
     centroids_grid = compute_centroids(frontiers_grid)
+    # episode could continue when no frontiers found in the map 
+    if len(centroids_grid) == 0:
+        return [], [], np.zeros_like(map_raw)
+    
     centroids = np.array(centroids_grid) * map_resolution 
     centroids[:, :2] = centroids[:, :2] + map_origin
     
@@ -489,7 +436,8 @@ def frontier_goals(
     
     # compute frontier centroids distance to current position 
     grid_dists = compute_frontiers_dist(centroids_grid[:, :2], 
-        current_position_grid, dist_type="geo_dist", map_raw=map_raw)
+        current_position_grid, dist_type="geo_dist", 
+        map_raw=map_raw, collision_map=collision_map, visited_map=visited_map)
     
     # compute current goal from frontiers, following certain algorithm
     if goal_policy == "geo" or scene_graph == None:

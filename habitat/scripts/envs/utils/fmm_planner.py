@@ -127,15 +127,15 @@ class FMMPlanner:
 
         (stg_x, stg_y) = np.unravel_index(np.argmin(subset), subset.shape)
 
-        if subset[stg_x, stg_y] > -0.0001:
-            replan = True
-        else:
-            replan = False
+        # if subset[stg_x, stg_y] > -0.0001:
+        #     replan = True
+        # else:
+        #     replan = False
 
         return (
             (stg_x + state[0] - self.du) * scale,
             (stg_y + state[1] - self.du) * scale,
-            replan,
+            # replan,
             stop,
         )
 
