@@ -128,20 +128,26 @@ class SceneGraphHabitat(SceneGraphBase):
     def load_gt_scene_graph(
         self, ply_file, pclseg_file, pcl_normals_file, sim: Simulator
     ):
-
+        
         # 0. load groun truth 3D point clouds and class-agnostic instance segmentation
-        o3d_pcl = o3d.io.read_point_cloud(
-            ply_file
-        )  # open scene mesh file for segmentation and feature extraction
-        # points = np.concatenate(
-        #     [np.asarray(o3d_pcl.points), np.asarray(o3d_pcl.colors)], axis=1
-        # )
-        xyz = np.asarray(o3d_pcl.points)
-        colors = np.asarray(o3d_pcl.colors)
-        # offline generated data
-        # NOTE: need to first generate them with process_data.py
-        pclseg = np.loadtxt(pclseg_file, dtype=int)
-        pcl_normals = np.load(pcl_normals_file)
+        xyz = None
+        colors = None
+        pclseg = None
+        pcl_normals = None
+        
+        if os.path.exists(ply_file) and os.path.exists(pclseg_file):
+            o3d_pcl = o3d.io.read_point_cloud(ply_file)  
+            # points = np.concatenate(
+            #     [np.asarray(o3d_pcl.points), np.asarray(o3d_pcl.colors)], axis=1
+            # )
+            xyz = np.asarray(o3d_pcl.points)
+            colors = np.asarray(o3d_pcl.colors)
+            # offline generated data
+            # NOTE: need to first generate them with process_data.py
+            pclseg = np.loadtxt(pclseg_file, dtype=int)
+            
+            if os.path.exists(pcl_normals_file):
+                pcl_normals = np.load(pcl_normals_file)
 
         # 1. get boundary of the scene (one-layer) and initialize map
         self.scene_bounds = sim.pathfinder.get_bounds()
@@ -203,10 +209,15 @@ class SceneGraphHabitat(SceneGraphBase):
 
                 # TODO: segment point using bounding box
                 # Update: 2021/11/16 Using mesh face segmentation instead
-                object_point_mask = pclseg == object_id
-                object_vertices = xyz[object_point_mask]
-                object_colors = colors[object_point_mask]
-                object_normals = pcl_normals[object_point_mask]
+                object_vertices = None
+                object_colors = None
+                object_normals = None
+                if xyz is not None:
+                    object_point_mask = pclseg == object_id
+                    object_vertices = xyz[object_point_mask]
+                    object_colors = colors[object_point_mask]
+                    if pcl_normals is not None:
+                        object_normals = pcl_normals[object_point_mask]
                 node_size = (
                     self.meters_per_grid / self.object_grid_scale
                 )  # treat object as a point
@@ -292,7 +303,7 @@ class GridMap:
 
 class SceneGraphGibson(SceneGraphBase):
 
-    def __init__(self, sim: Simulator) -> None:
+    def __init__(self, sim: Simulator, enable_region_layer=True) -> None:
         super().__init__()
         self.sim = sim
         # self.scene_name = scene_name
@@ -303,7 +314,8 @@ class SceneGraphGibson(SceneGraphBase):
         self.meters_per_grid = 0.05
         self.object_grid_scale = 1
         self.aligned_bbox = True
-
+        self.enable_region_layer = enable_region_layer
+        
         # parse habitat.sim.SemanticScene
         self.load_gt_scene_graph()
 
@@ -328,68 +340,88 @@ class SceneGraphGibson(SceneGraphBase):
             self.meters_per_grid / self.object_grid_scale,
             self.dumy_space_grid,
         )
-
-        # 2. load region layer from habitat simulator
+        
         semantic_scene = self.sim.semantic_scene
-        for region in semantic_scene.regions:
+        # 2. load region layer from habitat simulator
+        if self.enable_region_layer: # matterport 3D has region annotations 
+            for region in semantic_scene.regions:
             # add region node to region layer
-            gt_region_id = int(region.id.split("_")[-1])
-            sg_region_id = gt_region_id  # counting from 0, -1 for background
-            region_bbox = np.stack(
-                [
-                    region.aabb.center - region.aabb.sizes / 2,
-                    region.aabb.center + region.aabb.sizes / 2,
-                ],
-                axis=0,
-            )
-            region_node = self.region_layer.add_region(
-                region_bbox,
-                id=sg_region_id,
-                class_name=region.category.name(),
-                label=region.category.index(),
-            )
+                gt_region_id = int(region.id.split("_")[-1])
+                sg_region_id = gt_region_id  # counting from 0, -1 for background
+                region_bbox = np.stack(
+                    [
+                        region.aabb.center - region.aabb.sizes / 2,
+                        region.aabb.center + region.aabb.sizes / 2,
+                    ],
+                    axis=0,
+                )
+                region_node = self.region_layer.add_region(
+                    region_bbox,
+                    id=sg_region_id,
+                    class_name=region.category.name(),
+                    label=region.category.index(),
+                )
 
+                # 3. load object layer from habitat simulator
+                for obj in region.objects:
+                    if obj is not None:
+                        object_id = int(obj.id)  
+                        if self.aligned_bbox:
+                            center = obj.aabb.center
+                            rot_quat = np.array([0, 0, 0, 1])  # identity transform
+                            size = obj.aabb.sizes
+                        else:  # Use obb, NOTE: quaternion is [w,x,y,z] from habitat, need to convert to [x,y,z,w]
+                            center = obj.obb.center
+                            rot_quat = obj.obb.rotation[1, 2, 3, 0]
+                            size = obj.obb.sizes
+                            size = obj.aabb.sizes
+
+                        node_size = (
+                            self.meters_per_grid / self.object_grid_scale
+                        )  # treat object as a point
+                        node_bbox = np.stack(
+                            [center - node_size / 2, center + node_size / 2], axis=0
+                        )
+                        object_node = self.object_layer.add_object(
+                            center,
+                            rot_quat,
+                            size,
+                            id=object_id,
+                            class_name=obj.category.name(),
+                            label=obj.category.index(),
+                            bbox=node_bbox,
+                        )
+
+                        # connect object to region
+                        region_node.add_object(object_node)
+                    
+        else: # Gibson (original ver.) does not have region annotations 
             # 3. load object layer from habitat simulator
-            for obj in region.objects:
-                # print(
-                #     f"Object id:{obj.id}, category:{obj.category.name()},"
-                #     f" center:{obj.aabb.center}, dims:{obj.aabb.sizes}"
-                # )
-                object_id = int(obj.id.split("_")[-1])  # counting from 0
-                if self.aligned_bbox:
-                    center = obj.aabb.center
-                    rot_quat = np.array([0, 0, 0, 1])  # identity transform
-                    size = obj.aabb.sizes
-                else:  # Use obb, NOTE: quaternion is [w,x,y,z] from habitat, need to convert to [x,y,z,w]
-                    center = obj.obb.center
-                    rot_quat = obj.obb.rotation[1, 2, 3, 0]
-                    size = obj.obb.sizes
-                    size = obj.aabb.sizes
+            for object_id, obj in enumerate(semantic_scene.objects):
+                if obj is not None:
+                    if self.aligned_bbox:
+                        center = obj.aabb.center
+                        rot_quat = np.array([0, 0, 0, 1])  # identity transform
+                        size = obj.aabb.sizes
+                    else:  # Use obb, NOTE: quaternion is [w,x,y,z] from habitat, need to convert to [x,y,z,w]
+                        center = obj.obb.center
+                        rot_quat = obj.obb.rotation[1, 2, 3, 0]
+                        size = obj.obb.sizes
+                        size = obj.aabb.sizes
 
-                node_size = (
-                    self.meters_per_grid / self.object_grid_scale
-                )  # treat object as a point
-                node_bbox = np.stack(
-                    [center - node_size / 2, center + node_size / 2], axis=0
-                )
-                object_node = self.object_layer.add_object(
-                    center,
-                    rot_quat,
-                    size,
-                    id=object_id,
-                    class_name=obj.category.name(),
-                    label=obj.category.index(),
-                    bbox=node_bbox,
-                )
-
-                # connect object to region
-                region_node.add_object(object_node)
+                    node_size = (
+                        self.meters_per_grid / self.object_grid_scale
+                    )  # treat object as a point
+                    node_bbox = np.stack(
+                        [center - node_size / 2, center + node_size / 2], axis=0
+                    )
+                    object_node = self.object_layer.add_object(
+                        center,
+                        rot_quat,
+                        size,
+                        id=object_id,
+                        class_name=obj.category.name(),
+                        label=obj.category.index(),
+                        bbox=node_bbox,
+                    )                
         return
-
-    # def get_full_graph(self):
-    #     """Return the full scene graph"""
-    #     return None
-
-    # def sample_graph(self, method, *args, **kwargs):
-    #     """Return the sub-sampled scene graph"""
-    #     return None

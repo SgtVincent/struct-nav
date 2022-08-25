@@ -76,7 +76,7 @@ def main():
 
     # region: Setup Logging
     scene_name = env.scene_name.split('/')[-1].split('.')[0]
-    args.exp_name = f"{args.agent}_{env.goal_policy}_{args.util_sem_method}_{scene_name}_{args.num_eval_episodes}"
+    args.exp_name = f"{args.agent}_{env.goal_policy}_geow_{args.util_prior_combine_weight}_{args.util_sem_method}_{scene_name}_{args.num_eval_episodes}"
     dump_dir = os.path.join(args.dump_dir, args.exp_name)
 
     if not os.path.exists(dump_dir):

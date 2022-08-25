@@ -496,17 +496,19 @@ class FrontierSGNavAgent(ObjectGoal_Env):
 
         elif self.map_update_mode == "request":
             grid_map_msg: OccupancyGrid = safe_get_map_service()
-            # odom_msg: TransformStamped = self.tf_buffer.lookup_transform(
-            #     "base_link", "map", rospy.Time(0))
 
         # get scene_graph update 
-
         self.last_update_time = rospy.Time().now().to_sec()
 
         ##################### process update message #################
         # process grid_map udpate 
         grid_map, map_origin = self.process_map_msg(grid_map_msg)
-
+        # FIXME: sometimes map requested before constructed, or frame lost with error 
+        # "rtabmap: The map is empty!"
+        # reset the map and return None 
+        if grid_map is None:
+            return None, None, None, None 
+        
         # process odometry update 
         if self.ground_truth_odom:
             odom_pose_mat = self.obs['true_odom_mat']
@@ -521,6 +523,13 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         return grid_map, map_origin, odom_map_pose, odom_pose_mat
 
     def process_map_msg(self, grid_map_msg: OccupancyGrid):
+        
+        # FIXME: sometimes map requested before constructed, or frame lost with error 
+        # "rtabmap: The map is empty!"
+        # reset the map and return None 
+        if grid_map_msg is None:
+            self.map_reset = True
+            return None, None 
         
         grid_map = np.array(grid_map_msg.data, dtype=np.int8).reshape(
             grid_map_msg.info.height, grid_map_msg.info.width
@@ -655,6 +664,9 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         """
         ############ process ros messages ################
         grid_map, map_origin, odom_map_pose, odom_pose_mat = self.process_ros_messages()
+        # if observation is null (broken mesh), turn left to other directions
+        if grid_map is None:
+            return 2 # turn_left
         # map_resolution = self.map_resolution
         
         # visualize navigation goal 

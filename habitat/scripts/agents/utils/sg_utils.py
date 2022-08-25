@@ -295,15 +295,16 @@ class SceneGraphRtabmap(SceneGraphBase):
                     label_modes, _ = stats.mode(objects_label[inst_labels == obj_id], nan_policy="omit")
                     # select mode label as object label
                     obj_label = label_modes[0]
-                    obj_cls_name = label_mapping[obj_label]
-                    center = np.mean(obj_xyz, axis=0)
-                    size = np.max(obj_xyz, axis=0) - np.min(obj_xyz, axis=0)
-                    score_bbox = np.array([obj_xyz.shape[0], # num of points  
-                                           center[0], center[1], center[2],
-                                           size[0], size[1], size[2],
-                                           ])
-                    valid_object_ids.append(obj_id)
-                    valid_object_score_bboxes.append(score_bbox)
+                    if obj_label < len(label_mapping):
+                        obj_cls_name = label_mapping[obj_label]
+                        center = np.mean(obj_xyz, axis=0)
+                        size = np.max(obj_xyz, axis=0) - np.min(obj_xyz, axis=0)
+                        score_bbox = np.array([obj_xyz.shape[0], # num of points  
+                                            center[0], center[1], center[2],
+                                            size[0], size[1], size[2],
+                                            ])
+                        valid_object_ids.append(obj_id)
+                        valid_object_score_bboxes.append(score_bbox)
             
             object_ids = valid_object_ids
             # there could be no valid objects founded 

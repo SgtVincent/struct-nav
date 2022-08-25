@@ -11,7 +11,7 @@ from nav_msgs.msg import Odometry
 from nav_msgs.srv import GetMap
 
 
-def safe_call_reset_service(service_name, timeout=5.):
+def safe_call_reset_service(service_name, timeout=5., retry=3):
 
     
     try:
@@ -23,18 +23,22 @@ def safe_call_reset_service(service_name, timeout=5.):
         rospy.logwarn(f"Service call failed: {e}")
         return False
 
-def safe_get_map_service(service_name="/rtabmap/get_map", timeout=5.):
+def safe_get_map_service(service_name="/rtabmap/get_map", timeout=5., retry=3):
     
     success = False
-    while(not success):
+    count = 0
+    map = None
+    while(not success and count < retry):
         try:
             rospy.wait_for_service(service_name, timeout=timeout)
             response = rospy.ServiceProxy(service_name, GetMap)()
             success = True
+            map = response.map
         except rospy.ServiceException as e:
             rospy.logwarn(f"Service {service_name} call failed: {e}")
+            count += 1
             time.sleep(0.5)
-    return response.map 
+    return map
 
 def publish_frontiers(frontiers, goals, publisher, 
     f_c=(0., 1.0, 0., 0.5), g_c=(1.0, 0., 0., 0.5),
