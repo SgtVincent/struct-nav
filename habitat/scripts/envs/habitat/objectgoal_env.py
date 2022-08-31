@@ -8,16 +8,22 @@ from collections import deque
 import _pickle as cPickle
 import cv2
 import numpy as np
-import quaternion
+import quaternion as qt 
 import skimage.morphology
 import habitat
 import rospy 
 
 from envs.utils.fmm_planner import FMMPlanner
-from envs.constants import coco_categories
 import envs.utils.pose as pu
-import agents.utils.visualization as vu
+from envs.constants import coco_categories
 from envs.constants import color_palette, coco_categories, coco_label_mapping
+import agents.utils.visualization as vu
+
+from agents.utils.utils_frontier_explore import update_odom_by_action
+from utils.transformation import pose_habitat2rtabmap
+
+
+DEBUG_VIS = False
 
 class ObjectGoal_Env(habitat.RLEnv):
     """The Object Goal Navigation environment class. The class is responsible
@@ -28,6 +34,11 @@ class ObjectGoal_Env(habitat.RLEnv):
     def __init__(self, args, rank, config_env, dataset):
         self.args = args
         self.rank = rank
+
+        # arguments 
+        self.map_resolution = args.map_resolution_cm / 100.0
+        self.sem_model = args.sem_model
+        self.success_dist = args.success_dist
 
         super().__init__(config_env, dataset)
 
@@ -43,13 +54,17 @@ class ObjectGoal_Env(habitat.RLEnv):
         with bz2.BZ2File(dataset_info_file, "rb") as f:
             self.dataset_info = cPickle.load(f)
 
-        # Specifying action and observation space
-        # not used, also raise error 
-        # self.action_space = gym.spaces.Discrete(3)
-
-        # self.observation_space = gym.spaces.Box(
-        #     0, 255, (3, args.frame_height, args.frame_width), dtype="uint8"
-        # )
+        # load label from instance id to class label 
+        if args.sem_model == "ground_truth":
+            self.map_id2label = {}
+            for obj in self._env.sim.semantic_scene.objects:
+                if obj is not None:
+                    obj_id = int(obj.id.split('_')[-1])
+                    obj_cls_name = obj.category.name()
+                    if obj_cls_name in coco_categories:
+                        self.map_id2label[obj_id] = coco_categories[obj_cls_name]
+                    else:
+                        self.map_id2label[obj_id] = -1
 
         # Initializations
         self.episode_no = 0
@@ -84,6 +99,70 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.info["spl"] = None
         self.info["success"] = None
 
+    def init_ros(self, default_rate=4.0, default_map_size=10.0):
+
+        """initialize ros related publishers and subscribers for agent"""
+        # only read parameters from ROS, leave class initialization for each 
+        # agent class 
+        self.rate_value = rospy.get_param("~rate", default_rate)
+        rospy.loginfo(f"agent update state from ros at rate {self.rate_value} hz")
+        self.camera_info_file = rospy.get_param("~camera_calib", "")
+        self.initial_map_size = rospy.get_param("~initial_map_size", default_map_size)
+        
+        # setup pseudo wheel odometry to fuse with rtabmap visual odometry 
+        self.wheel_odom = rospy.get_param("~wheel_odom", False)
+        self.whee_odom_frame_id = ""
+        if self.wheel_odom:
+            self.whee_odom_frame_id = rospy.get_param("~wheel_odom_frame_id", "")
+        
+        # setup ground truth odometry 
+        self.ground_truth_odom = rospy.get_param("~ground_truth_odom", False)
+        self.ground_truth_odom_topic = ""
+        if self.ground_truth_odom:
+            self.ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
+        
+        # setup ground truth scene grpah 
+        self.ground_truth_scene_graph = rospy.get_param("~ground_truth_scene_graph", False)
+        
+        self.map_update_mode = rospy.get_param("~map_update_mode", "listen")
+
+        # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
+        # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
+        self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
+        self.depth_topic = rospy.get_param(
+            "~depth_topic", "/camera/depth/image"
+        )
+        self.semantic_topic = rospy.get_param(
+            "~semantic_topic", ""
+        )  # "/camera/semantic/image") # not to pulish gt by default
+        self.camera_info_topic = rospy.get_param(
+            "~camera_info_topic", "/camera/rgb/camera_info"
+        )
+        # self.wheel_odom_topic = rospy.get_param(
+        #     "~wheel_odom_topic", ""
+        # )
+        self.true_pose_topic = rospy.get_param("~true_pose_topic", "")
+        self.sem_cloud_topic = rospy.get_param(
+            "~sem_cloud_topic", "/rtabsem/cloud_map"
+        )
+        self.cloud_topic = rospy.get_param(
+            "~cloud_topic", "/rtabmap/cloud_map"
+        )
+        
+        # topics for planning
+        self.odom_topic = rospy.get_param("~odom_topic", "/odom")
+        if self.ground_truth_odom:
+            self.odom_topic = self.ground_truth_odom_topic
+            
+        self.grid_map_topic = rospy.get_param(
+            "~grid_map_topic", "/rtabmap/grid_map"
+        )
+        self.frontiers_topic = rospy.get_param(
+            "~frontiers_topic", "/frontiers"
+        )
+        
+
+
     def load_new_episode(self):
         """The function loads a fixed episode from the episode dataset. This
         function is used for evaluating a trained model on the val split.
@@ -113,7 +192,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         self.eps_data_idx += 1
         self.eps_data_idx = self.eps_data_idx % len(self.eps_data)
         pos = episode["start_position"]
-        rot = quaternion.from_float_array(episode["start_rotation"])
+        rot = qt.from_float_array(episode["start_rotation"])
 
         goal_name = episode["object_category"]
         goal_idx = episode["object_id"]
@@ -269,9 +348,9 @@ class ObjectGoal_Env(habitat.RLEnv):
 
         agent_state = self._env.sim.get_agent_state(0)
         rotation = agent_state.rotation
-        rvec = quaternion.as_rotation_vector(rotation)
+        rvec = qt.as_rotation_vector(rotation)
         rvec[1] = np.random.rand() * 2 * np.pi
-        rot = quaternion.from_rotation_vector(rvec)
+        rot = qt.from_rotation_vector(rvec)
 
         self.gt_planner = planner
         self.starting_loc = map_loc
@@ -310,13 +389,13 @@ class ObjectGoal_Env(habitat.RLEnv):
         agent_state.position[2] = cont_x
 
         rotation = agent_state.rotation
-        rvec = quaternion.as_rotation_vector(rotation)
+        rvec = qt.as_rotation_vector(rotation)
 
         if self.args.train_single_eps:
             rvec[1] = 0.0
         else:
             rvec[1] = np.random.rand() * 2 * np.pi
-        rot = quaternion.from_rotation_vector(rvec)
+        rot = qt.from_rotation_vector(rvec)
 
         return agent_state.position, rot
 
@@ -485,13 +564,13 @@ class ObjectGoal_Env(habitat.RLEnv):
         agent_state = super().habitat_env.sim.get_agent_state(0)
         x = -agent_state.position[2]
         y = -agent_state.position[0]
-        axis = quaternion.as_euler_angles(agent_state.rotation)[0]
+        axis = qt.as_euler_angles(agent_state.rotation)[0]
         if (axis % (2 * np.pi)) < 0.1 or (
             axis % (2 * np.pi)
         ) > 2 * np.pi - 0.1:
-            o = quaternion.as_euler_angles(agent_state.rotation)[1]
+            o = qt.as_euler_angles(agent_state.rotation)[1]
         else:
-            o = 2 * np.pi - quaternion.as_euler_angles(agent_state.rotation)[1]
+            o = 2 * np.pi - qt.as_euler_angles(agent_state.rotation)[1]
         if o > np.pi:
             o -= 2 * np.pi
         return x, y, o
@@ -505,6 +584,79 @@ class ObjectGoal_Env(habitat.RLEnv):
         )
         self.last_sim_location = curr_sim_pose
         return dx, dy, do
+
+    # TODO: add object detection / segmentation models here
+    def _preprocess_obs(self, obs, info=None):
+
+        # preprocess broken meshes (0-depth) in depth image 
+        self._preprocess_depth(obs)
+
+        self._preprocess_sem(obs)
+
+        # add pseudo wheel odometry pose to observations 
+        if self.wheel_odom:
+            if self.last_action:
+                updated_odom_mat = update_odom_by_action(self.last_odom_mat, self.last_action)
+                obs['odom_pose_mat'] = updated_odom_mat
+            else:
+                obs['odom_pose_mat'] = self.last_odom_mat
+        
+        # add ground truth pose to observations
+        if self.ground_truth_odom:
+            true_state = info['agent_pose']
+            true_pos_rtab, true_rot_rtab = pose_habitat2rtabmap(
+                true_state.position, 
+                true_state.rotation,
+                self.init_pos,
+                self.init_rot
+            )
+            
+            true_odom_mat = np.zeros((4,4), dtype=float)
+            true_odom_mat[:3, :3] = qt.as_rotation_matrix(true_rot_rtab)
+            true_odom_mat[:3, 3] = true_pos_rtab
+            true_odom_mat[3, 3] = 1.0
+            obs['true_odom_mat'] = true_odom_mat
+            
+        # if DEBUG_WHEEL_ODOM:
+        #     publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
+        return obs
+
+    def _preprocess_sem(self, obs):
+        # preprocess semantic image
+        if self.sem_model == "ground_truth":
+            # NOTE: for Gibson dataset, semantic image is instance segmentation
+            # need to convert that to semantic segmentation
+            inst_img = obs['semantic']
+            sem_img = np.zeros_like(inst_img)
+            for inst_id in np.unique(inst_img):
+                if inst_id > 0: # filter our background 
+                    inst_label = self.map_id2label[inst_id] 
+                    if inst_label >= 0: # only keep coco 15 categories 
+                        sem_img[inst_img == inst_id] = inst_label + 1 # 0 for background 
+                        
+            obs['semantic'] = sem_img
+            
+        if self.sem_model == "detectron":
+            # overwrite semantic image with detectron prediction 
+            rgb = obs['rgb']
+            sem_seg_pred, _ = self.sem_pred.get_prediction(rgb.astype(np.uint8))
+            semantic_image = np.zeros(rgb.shape[:2])
+            for name, label in coco_categories.items():
+                # NOTE: zero for background 
+                semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
+            obs['semantic'] = semantic_image
+
+        if DEBUG_VIS:
+            import matplotlib.pyplot as plt 
+            # import numpy as np
+            fig = plt.figure(figsize=(12,4))
+            fig.add_subplot(131)   #top left
+            plt.imshow(obs['rgb'])
+            fig.add_subplot(132)   #top left
+            plt.imshow(obs['depth'].squeeze())
+            fig.add_subplot(133)   #top left
+            plt.imshow(obs['semantic'])
+            plt.show()
 
 
     def _preprocess_depth(self, obs):

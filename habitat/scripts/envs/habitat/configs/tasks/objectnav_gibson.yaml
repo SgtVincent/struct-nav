@@ -30,6 +30,7 @@ SIMULATOR:
         HEIGHT: 480
         HFOV: 79
         POSITION: [0, 0.88, 0]
+        TYPE: HabitatSimSemanticSensor
 TASK:
     TYPE: ObjectNav-v1
     POSSIBLE_ACTIONS:

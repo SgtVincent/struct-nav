@@ -198,16 +198,6 @@ def get_args(args=None, namespace=None):
                         help="intrinsic exploration reward coefficient")
     parser.add_argument('--num_sem_categories', type=float, default=16)
 
-    # semantic model (ground truth / detectron2) 
-    parser.add_argument('--sem_model', type=str, default="detectron", 
-        choices=["none", "ground_truth", "detectron"])
-    parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
-                        help="Semantic prediction confidence threshold")
-    parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
-    parser.add_argument('--sem_device', type=str, default="gpu")
-    parser.add_argument('--sem_dbscan_eps', type=float, default=1.0, 
-        help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
-
     # Mapping
     parser.add_argument("--global_downscaling", type=int, default=2)
     parser.add_argument("--vision_range", type=int, default=100)
@@ -218,6 +208,18 @@ def get_args(args=None, namespace=None):
     parser.add_argument("--map_pred_threshold", type=float, default=1.0)
     parser.add_argument("--exp_pred_threshold", type=float, default=1.0)
     parser.add_argument("--collision_threshold", type=float, default=0.20)
+    
+    
+    # semantic model (ground truth / detectron2) 
+    parser.add_argument('--sem_model', type=str, default="detectron", 
+        choices=["none", "ground_truth", "detectron"])
+    parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
+                        help="Semantic prediction confidence threshold")
+    parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
+    parser.add_argument('--sem_device', type=str, default="gpu")
+    parser.add_argument('--sem_dbscan_eps', type=float, default=1.0, 
+        help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
+
     
     # Frontier Exploration
     parser.add_argument("--cluster_trashhole", type=float, default=0.2)
@@ -230,7 +232,7 @@ def get_args(args=None, namespace=None):
     parser.add_argument("--util_combine_method", type=str, default="discrete", 
                         choices=["discrete", "linear"],
                         help="method to combine geometric utility and semantic utility")
-    parser.add_argument("--util_sem_method", type=str, default="softr_mean",
+    parser.add_argument("--util_sample_method", type=str, default="softr_mean",
                         choices=["radius_mean", "softr_mean"], 
                         help="method to compute semantic utility")
     parser.add_argument("--util_prior_combine_weight", type=float, default=1.0,

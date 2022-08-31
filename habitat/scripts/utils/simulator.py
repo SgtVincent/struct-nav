@@ -90,6 +90,7 @@ def init_sim(test_scene, init_pos=[0,0,0], init_rot=qt.quaternion(1,0,0,0)):
         "width": 1280,  # Spatial resolution of the observations
         "height": 720,
         "scene": test_scene,  # Scene path
+        "scene_dataset": "/media/junting/SSD_data/habitat_data/scene_datasets/gibson/scene_dataset_config.json",
         "default_agent": 0,
         "sensor_height": 0.88,  # Height of sensors in meters
         "hfov": 90,  # flied of view

@@ -52,16 +52,6 @@ from envs.constants import color_palette, coco_categories
 from envs.habitat.objectgoal_env import ObjectGoal_Env
 from envs.utils.fmm_planner import FMMPlanner
 
-
-# TODO: remove all these global default arguments
-# parameters used for debuging with python debugger
-DEFAULT_RATE = 1.0
-DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info.yaml"
-# DEFAULT_CAMERA_CALIB = "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/envs/habitat/configs/camera_info_gibson.yaml"
-DEFAULT_GOAL_RADIUS = 0.25
-DEFAULT_MAX_ANGLE = 0.1
-DEFAULT_MAP_SIZE = 5.0
-VISUALIZE = False
 # DEBUG flags: 
 DEBUG = False
 DEBUG_VIS = False
@@ -80,9 +70,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         super().__init__(args, rank, config_env, dataset)
         
         # arguments
-        self.map_resolution = args.map_resolution_cm / 100.0
-        self.sem_model = args.sem_model
-        self.success_dist = args.success_dist
         # self.goal_policy = args.goal_policy
         # only geo acceptable for this baseline 
         self.goal_policy = "geo"
@@ -151,67 +138,10 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
 
         """initialize ros related publishers and subscribers for agent"""
         # task_config = rospy.get_param("~task_config")
-        self.rate_value = rospy.get_param("~rate", DEFAULT_RATE)
-        rospy.loginfo(f"agent update state from ros at rate {self.rate_value} hz")
-        self.camera_info_file = rospy.get_param(
-            "~camera_calib", DEFAULT_CAMERA_CALIB
-        )
-        self.initial_map_size = rospy.get_param("~initial_map_size", DEFAULT_MAP_SIZE)
+        super().init_ros()
         
-        # setup pseudo wheel odometry to fuse with rtabmap visual odometry 
-        self.wheel_odom = rospy.get_param("~wheel_odom", False)
-        self.whee_odom_frame_id = ""
-        if self.wheel_odom:
-            self.whee_odom_frame_id = rospy.get_param("~wheel_odom_frame_id", "")
-        
-        # setup ground truth odometry 
-        self.ground_truth_odom = rospy.get_param("~ground_truth_odom", False)
-        self.ground_truth_odom_topic = ""
-        if self.ground_truth_odom:
-            self.ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
-        
-        
-        self.map_update_mode = rospy.get_param("~map_update_mode", "listen")
-
-        # assert (
-        #     agent_type in AGENT_CLASS_MAPPING.keys()
-        # ), f"{agent_type} not in supported agent types: {AGENT_CLASS_MAPPING.keys()}"
-
-        # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
-        # max_d_angle = rospy.get_param("~max_d_angle", DEFAULT_MAX_ANGLE)
-        self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image")
-        self.depth_topic = rospy.get_param(
-            "~depth_topic", "/camera/depth/image"
-        )
-        self.semantic_topic = rospy.get_param(
-            "~semantic_topic", ""
-        )  # "/camera/semantic/image") # not to pulish gt by default
-        self.camera_info_topic = rospy.get_param(
-            "~camera_info_topic", "/camera/rgb/camera_info"
-        )
-        # self.wheel_odom_topic = rospy.get_param(
-        #     "~wheel_odom_topic", ""
-        # )
-        self.true_pose_topic = rospy.get_param("~true_pose_topic", "")
-        self.cloud_topic = rospy.get_param(
-            "~cloud_topic", "/rtabmap/cloud_map"
-        )
-        # topics for planning
-        self.odom_topic = rospy.get_param("~odom_topic", "/odom")
-        if self.ground_truth_odom:
-            self.odom_topic = self.ground_truth_odom_topic
-            
-        self.grid_map_topic = rospy.get_param(
-            "~grid_map_topic", "/rtabmap/grid_map"
-        )
-        self.frontiers_topic = rospy.get_param(
-            "~frontiers_topic", "/frontiers"
-        )
-        # goal_topic = rospy.get_param("~goal_topic", "/nav_goal")
-
         # ros pub and sub
         self.rate = rospy.Rate(self.rate_value)
-        
         
         self.pub_obs = HabitatObservationPublisher(
             rgb_topic=self.rgb_topic,
@@ -903,70 +833,53 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         action = self._get_action(start, start_o, stg, stop, planner_inputs)
         
         return action
+    
+    # def _preprocess_obs(self, obs, info=None):
 
-    # TODO: add object detection / segmentation models here
-    def _preprocess_obs(self, obs, info=None):
+    #     # preprocess broken meshes (0-depth) in depth image 
+    #     self._preprocess_depth(obs)
 
-        # preprocess broken meshes (0-depth) in depth image 
-        self._preprocess_depth(obs)
+    #     self._preprocess_sem(obs)
 
-        self._preprocess_sem(obs)
-
-        # add pseudo wheel odometry pose to observations 
-        if self.wheel_odom or DEBUG_WHEEL_ODOM:
-            if self.last_action:
-                updated_odom_mat = update_odom_by_action(self.last_odom_mat, self.last_action)
-                obs['odom_pose_mat'] = updated_odom_mat
-            else:
-                obs['odom_pose_mat'] = self.last_odom_mat
+    #     # add pseudo wheel odometry pose to observations 
+    #     if self.wheel_odom or DEBUG_WHEEL_ODOM:
+    #         if self.last_action:
+    #             updated_odom_mat = update_odom_by_action(self.last_odom_mat, self.last_action)
+    #             obs['odom_pose_mat'] = updated_odom_mat
+    #         else:
+    #             obs['odom_pose_mat'] = self.last_odom_mat
         
-        # add ground truth pose to observations
-        if self.ground_truth_odom:
-            true_state = info['agent_pose']
-            true_pos_rtab, true_rot_rtab = pose_habitat2rtabmap(
-                true_state.position, 
-                true_state.rotation,
-                self.init_pos,
-                self.init_rot
-            )
+    #     # add ground truth pose to observations
+    #     if self.ground_truth_odom:
+    #         true_state = info['agent_pose']
+    #         true_pos_rtab, true_rot_rtab = pose_habitat2rtabmap(
+    #             true_state.position, 
+    #             true_state.rotation,
+    #             self.init_pos,
+    #             self.init_rot
+    #         )
             
-            true_odom_mat = np.zeros((4,4), dtype=float)
-            true_odom_mat[:3, :3] = qt.as_rotation_matrix(true_rot_rtab)
-            true_odom_mat[:3, 3] = true_pos_rtab
-            true_odom_mat[3, 3] = 1.0
-            obs['true_odom_mat'] = true_odom_mat
+    #         true_odom_mat = np.zeros((4,4), dtype=float)
+    #         true_odom_mat[:3, :3] = qt.as_rotation_matrix(true_rot_rtab)
+    #         true_odom_mat[:3, 3] = true_pos_rtab
+    #         true_odom_mat[3, 3] = 1.0
+    #         obs['true_odom_mat'] = true_odom_mat
             
-        # if DEBUG_WHEEL_ODOM:
-        #     publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
+    #     # if DEBUG_WHEEL_ODOM:
+    #     #     publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
         
-        # ds = args.env_frame_width // args.frame_width  # Downscaling factor
-        # if ds != 1:
-        #     rgb = np.asarray(self.res(rgb.astype(np.uint8)))
-        #     depth = depth[ds // 2 :: ds, ds // 2 :: ds]
-        #     sem_seg_pred = sem_seg_pred[ds // 2 :: ds, ds // 2 :: ds]
+    #     # ds = args.env_frame_width // args.frame_width  # Downscaling factor
+    #     # if ds != 1:
+    #     #     rgb = np.asarray(self.res(rgb.astype(np.uint8)))
+    #     #     depth = depth[ds // 2 :: ds, ds // 2 :: ds]
+    #     #     sem_seg_pred = sem_seg_pred[ds // 2 :: ds, ds // 2 :: ds]
 
-        # depth = np.expand_dims(depth, axis=2)
-        # state = np.concatenate((rgb, depth, sem_seg_pred), axis=2).transpose(
-        #     2, 0, 1
-        # )
-        # passthrough
-        return obs
-
-    def _preprocess_sem(self, obs):
-        # preprocess semantic image
-        if self.sem_model == "ground_truth":
-            # by default, semantic sensor is added to agent
-            assert 'semantic' in obs
-            
-        if self.sem_model == "detectron":
-            # overwrite semantic image with detectron prediction 
-            rgb = obs['rgb']
-            sem_seg_pred, _ = self.sem_pred.get_prediction(rgb.astype(np.uint8))
-            semantic_image = np.zeros(rgb.shape[:2])
-            for name, label in coco_categories.items():
-                # NOTE: zero for background 
-                semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
-            obs['semantic'] = semantic_image
+    #     # depth = np.expand_dims(depth, axis=2)
+    #     # state = np.concatenate((rgb, depth, sem_seg_pred), axis=2).transpose(
+    #     #     2, 0, 1
+    #     # )
+    #     # passthrough
+    #     return obs
 
     def callback_odom(self, odom_msg: Odometry):
         self.odom_msg = odom_msg

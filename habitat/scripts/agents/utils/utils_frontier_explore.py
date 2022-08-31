@@ -415,7 +415,7 @@ def frontier_goals(
     util_explore_step = kwargs.get("util_explore_step", 50)
     util_exploit_step = kwargs.get("util_exploit_step", 100)
     util_combine_method = kwargs.get("util_combine_method", "discrete")
-    util_sem_method = kwargs.get("util_sem_method", "radius_mean")
+    util_sample_method = kwargs.get("util_sample_method", "radius_mean")
     
     
     # compute frontier pixels on grid map
@@ -456,7 +456,7 @@ def frontier_goals(
             goal_name,
             scene_graph,
             grid_map=map_raw,
-            method=util_sem_method,
+            method=util_sample_method,
         )
         utilities = combine_utilities(geo_utilities, sem_utilities, 
                                         method=util_combine_method,
