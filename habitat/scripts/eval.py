@@ -78,8 +78,8 @@ def main():
     scene_name = env.scene_name.split('/')[-1].split('.')[0]
     args.exp_name = (
         f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
-        f"{args.util_sample_method}_sem_{args.sem_model}_"
-        f"{scene_name}_{args.num_eval_episodes}"
+        f"{args.util_lang_prior_type}_{args.util_sample_method}_"
+        f"sem_{args.sem_model}_{scene_name}_{args.num_eval_episodes}"
     )
     dump_dir = os.path.join(args.dump_dir, args.exp_name)
 

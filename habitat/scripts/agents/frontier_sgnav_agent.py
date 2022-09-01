@@ -91,6 +91,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.prior_class = "matrix_prior"
         # self.prior_types = {'scene'} # {'scene', 'lang'}
         self.prior_types = set(args.prior_types)
+        self.language_prior_type = args.util_lang_prior_type
         self.vis_scene_graph = True # by default visualize scene graph 
         
         # args from config 
@@ -154,6 +155,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 priors=self.prior_types,
                 scene_prior_path=scene_prior_path,
                 lang_prior_path=language_prior_path, 
+                lang_piror_type=self.language_prior_type,
                 combine_weight=self.args.util_prior_combine_weight,
             )
 

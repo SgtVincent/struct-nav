@@ -1,5 +1,6 @@
 from ctypes import util
 from operator import ge
+from shutil import ExecError
 import matplotlib.pyplot as plt
 from habitat.utils.visualizations import maps
 from habitat_sim import PathFinder, Simulator
@@ -12,6 +13,7 @@ from skimage.measure import find_contours
 from numpy import ma 
 import skfmm
 from sklearn.cluster import DBSCAN
+import rospy 
 
 # import matplotlib.pyplot as plt
 # import plotly
@@ -435,9 +437,13 @@ def frontier_goals(
     ).astype(int)
     
     # compute frontier centroids distance to current position 
-    grid_dists = compute_frontiers_dist(centroids_grid[:, :2], 
-        current_position_grid, dist_type="geo_dist", 
-        map_raw=map_raw, collision_map=collision_map, visited_map=visited_map)
+    try:
+        grid_dists = compute_frontiers_dist(centroids_grid[:, :2], 
+            current_position_grid, dist_type="geo_dist", 
+            map_raw=map_raw, collision_map=collision_map, visited_map=visited_map)
+    except Exception as e:
+        rospy.logwarn(f"Frontiers distance computation failed: {e}")
+        grid_dists = np.ones(centroids_grid.shape[0])
     
     # compute current goal from frontiers, following certain algorithm
     if goal_policy == "geo" or scene_graph == None:

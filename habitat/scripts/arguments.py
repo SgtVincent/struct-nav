@@ -1,4 +1,5 @@
 import argparse
+from secrets import choice
 import torch
 import sys
 
@@ -235,8 +236,10 @@ def get_args(args=None, namespace=None):
     parser.add_argument("--util_sample_method", type=str, default="softr_mean",
                         choices=["radius_mean", "softr_mean"], 
                         help="method to compute semantic utility")
-    parser.add_argument("--util_prior_combine_weight", type=float, default=1.0,
+    parser.add_argument("--util_prior_combine_weight", type=float, default=0.0,
                         help="combine weight for semantic utility, utility=weight * scene_util + (1.0-weight)*lang_util") 
+    parser.add_argument("--util_lang_prior_type", type=str, default="clip_cos_dist", # bert_cos_dist
+                        choices=["bert_cos_dist", "clip_cos_dist"])
     parser.add_argument("--util_max_geo_weight", type=float, default=1.0, 
                         help="maximum weight for geometric utility")
     parser.add_argument("--util_min_geo_weight", type=float, default=0.1, 
