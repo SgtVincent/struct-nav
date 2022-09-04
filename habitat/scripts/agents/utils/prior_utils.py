@@ -36,13 +36,15 @@ def utility_reverse_euc_dist_discount_var(prior_mat, prior_var_mat, class_labels
     else: # sum
         return np.sum((1.0 / prior_dists) * weights)
 
-def utility_cos_sim(prior_mat, class_labels, goal_label, mean=True):
+def utility_cos_sim(prior_mat, class_labels, goal_label, mean=True, weights=None):
     
     prior_dists = prior_mat[class_labels, :][:, goal_label]
+    if weights is None:
+        weights = np.ones(len(class_labels))
     if mean:
-        return np.average(1 - prior_dists)
+        return np.average((1 - prior_dists), weights=weights)
     else:
-        return np.sum(1 - prior_dists)
+        return np.sum((1 - prior_dists) * weights)
 
 def utility_cos_sim_discount_var(prior_mat, prior_var_mat, class_labels, 
                                 goal_label, min_var=1.0, order=-0.5, 
@@ -177,6 +179,7 @@ class MatrixPrior(PriorBase):
         lang_utilities = []
         goal_label = coco_categories[goal_name]
         graph_sample_method, obj_util_aggregate_method = method.split('_')
+        lang_var_discount = kwargs.get("util_lang_var_discount", 0)
         
         if graph_sample_method == "radius":
             radius = kwargs.get("radius", 2.0)
@@ -231,9 +234,16 @@ class MatrixPrior(PriorBase):
                     
                 lang_utility = 0
                 if 'lang' in self.priors:
-                    lang_utility = utility_cos_sim_discount_var(
-                        self.lang_prior_matrix, self.prior_var_matrix, 
-                        class_labels, goal_label, mean=flag_mean, weights=obj_weights)
+                    if lang_var_discount: # use variance from scene prior as discount
+                        lang_utility = utility_cos_sim_discount_var(
+                            self.lang_prior_matrix, self.prior_var_matrix, 
+                            class_labels, goal_label, 
+                            mean=flag_mean, weights=obj_weights)
+                    else: # only use language prior 
+                        lang_utility = utility_cos_sim(
+                            self.lang_prior_matrix, class_labels, goal_label, 
+                            mean=flag_mean, weights=obj_weights)
+                        
                     lang_utilities.append(lang_utility)
                     
         sem_utilities = self.combine_utility(scene_utilities, lang_utilities)

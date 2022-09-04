@@ -635,6 +635,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 util_min_geo_weight=self.args.util_min_geo_weight,
                 util_explore_step=self.args.util_explore_step,
                 util_exploit_step=self.args.util_exploit_step,
+                util_lang_var_discount=self.args.util_lang_var_discount,
             )
             # except:
                 # frontiers, goals, goal_map = [], [], np.zeros_like(grid_map)

@@ -76,11 +76,20 @@ def main():
 
     # region: Setup Logging
     scene_name = env.scene_name.split('/')[-1].split('.')[0]
-    args.exp_name = (
-        f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
-        f"{args.util_lang_prior_type}_{args.util_sample_method}_"
-        f"sem_{args.sem_model}_{scene_name}_{args.num_eval_episodes}"
-    )
+    if args.agent == "frontier_sgnav":
+        flag_lang_var = ""
+        if not args.util_lang_var_discount:
+            flag_lang_var = "lang_no_var_"
+        args.exp_name = (
+            f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
+            f"{args.util_lang_prior_type}_{args.util_sample_method}_"
+            f"sem_{args.sem_model}_{flag_lang_var}{scene_name}_{args.num_eval_episodes}"
+        )
+    else: # semantic-free baseline
+        args.exp_name = (
+            f"{args.agent}_sem_{args.sem_model}_"
+            f"{scene_name}_{args.num_eval_episodes}"
+        )
     dump_dir = os.path.join(args.dump_dir, args.exp_name)
 
     if not os.path.exists(dump_dir):
