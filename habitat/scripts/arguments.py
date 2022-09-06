@@ -220,6 +220,8 @@ def get_args(args=None, namespace=None):
     parser.add_argument('--sem_device', type=str, default="gpu")
     parser.add_argument('--sem_dbscan_eps', type=float, default=1.0, 
         help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
+    parser.add_argument('--nms', type=int, default=0, 
+                        help="whether to use non-maximum suppression in scene graph construction")
 
     
     # Frontier Exploration
@@ -240,7 +242,7 @@ def get_args(args=None, namespace=None):
                         help="combine weight for semantic utility, utility=weight * scene_util + (1.0-weight)*lang_util") 
     parser.add_argument("--util_lang_prior_type", type=str, default="bert_cos_dist", # bert_cos_dist
                         choices=["bert_cos_dist", "clip_cos_dist"])
-    parser.add_argument("--util_lang_var_discount", type=int, default=0, 
+    parser.add_argument("--util_lang_var_discount", type=int, default=1, 
                         help="flag to enable inv. sqrt. variance as weight for lang prior")
     
     parser.add_argument("--util_max_geo_weight", type=float, default=1.0, 

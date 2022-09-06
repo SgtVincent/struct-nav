@@ -13,7 +13,6 @@ import pathlib
 import numpy as np
 import pickle
 import open3d as o3d
-import open3d.ml.tf as ml3d
 from scipy import stats
 from scipy.ndimage.morphology import binary_dilation
 import quaternion as qt
@@ -284,7 +283,7 @@ class SceneGraphRtabmap(SceneGraphBase):
         
         # 3. non-maximum suppression: filter out noisy detection result 
 
-        if nms == True:
+        if nms:
             valid_object_ids = []
             valid_object_score_bboxes = [] # [p, x, y, z, l,w,h]
             for obj_id in object_ids:

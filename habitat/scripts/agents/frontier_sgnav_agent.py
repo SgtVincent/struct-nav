@@ -952,5 +952,6 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                           grid_map=self.grid_map,
                           map_resolution=self.map_resolution,
                           dbscan_eps=self.args.sem_dbscan_eps,
+                          nms=self.args.nms
                           )
         # rospy.loginfo("constructed scene graph from semantic cloud map")

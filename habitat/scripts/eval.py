@@ -78,12 +78,15 @@ def main():
     scene_name = env.scene_name.split('/')[-1].split('.')[0]
     if args.agent == "frontier_sgnav":
         flag_lang_var = ""
+        flag_nms = ""
         if not args.util_lang_var_discount:
-            flag_lang_var = "lang_no_var_"
+            flag_lang_var = "langNoVar_"
+        if not args.nms:
+            flag_nms = "noNMS_"
         args.exp_name = (
             f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
             f"{args.util_lang_prior_type}_{args.util_sample_method}_"
-            f"sem_{args.sem_model}_{flag_lang_var}{scene_name}_{args.num_eval_episodes}"
+            f"sem_{args.sem_model}_{flag_lang_var}{flag_nms}{scene_name}_{args.num_eval_episodes}"
         )
     else: # semantic-free baseline
         args.exp_name = (
