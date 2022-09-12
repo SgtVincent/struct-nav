@@ -110,11 +110,12 @@ def init_sim(test_scene, init_pos=[0,0,0], init_rot=qt.quaternion(1,0,0,0)):
     sim.seed(sim_settings["seed"])
 
     # Set agent state
-    agent_state = habitat_sim.AgentState()
-    # agent_state.position = np.array([0.0, 0.0, 0.0])  # world space
-    # agent_state.position = np.array([1.0, 0.0, -1.0])  # world space
-    agent_state.position = np.array(init_pos)
-    agent_state.rotation = init_rot
+    # agent_state = habitat_sim.AgentState()
+    # agent_state.position = np.array(init_pos)
+    # agent_state.rotation = init_rot
+    
+    agent_state = habitat_sim.AgentState(position=init_pos, rotation=init_rot)
+    
     agent = sim.initialize_agent(sim_settings["default_agent"], agent_state)
 
     # Get agent state

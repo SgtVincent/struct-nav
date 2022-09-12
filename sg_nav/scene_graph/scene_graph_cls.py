@@ -27,7 +27,7 @@ from tqdm import tqdm
 """
 
 
-class SceneGraphBase():
+class SceneGraphBase:
 
     """Presume that the scene graph have two layers"""
     """ Set a layer to None if it does not exist in class instance """

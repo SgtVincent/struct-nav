@@ -13,6 +13,7 @@ import pathlib
 import numpy as np
 import pickle
 import open3d as o3d
+import copy 
 from scipy import stats
 from scipy.ndimage.morphology import binary_dilation
 import quaternion as qt
@@ -39,16 +40,18 @@ from scene_graph.utils import project_points_to_grid_xz
 
 
 class GridMap:
-    def __init__(self, time, resolution, width, height, pos, quat, grid):
+    def __init__(self, origin_pos, origin_quat, grid, 
+                 time=None, resolution=None, width=None, height=None):
+        # origin: the real-world pose of the cell (0,0) in the map.
+        self.origin_pos = origin_pos  # (x, y, z)
+        self.origin_quat = origin_quat  # quaternion
+        self.grid = grid  # numpy array
+        
+        # optional meta data 
         self.time = time
         self.resolution = resolution
         self.width = width
         self.height = height
-        # the real-world pose of the cell (0,0) in the map.
-        self.origin_pos = pos  # (x, y, z)
-        self.origin_quat = quat  # quaternion
-
-        self.grid = grid  # numpy array
 
     @classmethod
     def from_msg(cls, occ_msg: OccupancyGrid):
@@ -56,17 +59,17 @@ class GridMap:
         grid = np.asarray(occ_msg.data, dtype=np.int8).reshape(
             occ_msg.info.height, occ_msg.info.width
         )
-        grid[grid == 100] = 1
+        # grid[grid == 100] = 1
         ros_p = occ_msg.info.origin.position
         ros_q = occ_msg.info.origin.orientation
         return cls(
+            np.array([ros_p.x, ros_p.y, ros_p.z]),
+            np.quaternion(ros_q.w, ros_q.x, ros_q.y, ros_q.z),
+            grid,
             occ_msg.header.stamp.to_sec(),
             occ_msg.info.resolution,
             occ_msg.info.width,
             occ_msg.info.height,
-            np.array([ros_p.x, ros_p.y, ros_p.z]),
-            np.quaternion(ros_q.w, ros_q.x, ros_q.y, ros_q.z),
-            grid,
         )
 
 
@@ -80,12 +83,12 @@ class SceneGraphGTGibson(SceneGraphBase):
         self.sim = sim
         if tf_habitat2rtabmap is None:
             self.rot = np.eye(3)
-            self.trans = np.zeros([0,0,0], dtype=float)
+            self.trans = np.array([0,0,0], dtype=float)
         else:
             self.rot = tf_habitat2rtabmap[:3, :3]
             self.trans = tf_habitat2rtabmap[:3, 3]
         self.height_filter = height_filter
-            
+           
         # scene parameters
         # self.floor_heights = [0]
         self.height = sim.get_agent(0).state.position[1]
@@ -94,7 +97,8 @@ class SceneGraphGTGibson(SceneGraphBase):
         self.meters_per_grid = 0.05
         self.object_grid_scale = 1
         self.aligned_bbox = True
-
+        self.filter_coco_cats = True
+        
         # parse habitat.sim.SemanticScene
         self.load_gt_scene_graph()
 
@@ -144,23 +148,25 @@ class SceneGraphGTGibson(SceneGraphBase):
                     size = obj.obb.sizes # flip y-z sizes
 
                 class_name = obj.category.name()
-                label = -1 
+                
+                # Update: Only keep objects of selected coco_categories 
                 if class_name in coco_categories:
                     label = coco_categories[class_name]
-                object_node = self.object_layer.add_object(
-                    center,
-                    rot_quat,
-                    size,
-                    id=obj_id,
-                    class_name=class_name,
-                    label=label,
-                )
+
+                    object_node = self.object_layer.add_object(
+                        center,
+                        rot_quat,
+                        size,
+                        id=obj_id,
+                        class_name=class_name,
+                        label=label,
+                    )
 
         return
 
     def get_partial_scene_graph(
         self, grid_map: GridMap, grid_th=3, resolution=0.05
-    ) -> List[ObjectNode]:
+    ) -> SceneGraphBase:
 
         # dilate rtabmap grid map
         traversed_grid = grid_map.grid > -1
@@ -210,7 +216,16 @@ class SceneGraphGTGibson(SceneGraphBase):
         )
         obj_in_map_bound_idx = np.where(obj_in_map_bound_mask)[0]
         obj_observable_idx = obj_in_map_bound_idx[obj_partial_mask]
-        return [obj_nodes[idx] for idx in obj_observable_idx]
+        observed_obj_nodes = [obj_nodes[idx] for idx in obj_observable_idx]
+        
+        # return partial scene graph  
+        sub_graph = SceneGraphBase()
+        sub_graph.object_layer.obj_ids = [obj_node.id for obj_node in observed_obj_nodes]
+        sub_graph.object_layer.obj_dict = {obj_node.id: copy.deepcopy(obj_node) 
+                                           for obj_node in observed_obj_nodes}
+        
+        return sub_graph
+
 
 
 # NOTE: category index in habitat gibson is meaningless 
@@ -371,19 +386,20 @@ if __name__ == "__main__":
     # NOTE: run this demo with python -m agents.utils.sg_utils
     from utils.simulator import init_sim
     import rosbag
-    from habitat_sim.utils.common import quat_from_two_vectors
     import matplotlib.pyplot as plt
     import open3d as o3d 
     
-    TEST_SCENEGRAPH_SIMGT = False
-    TEST_SCENEGRAPH_RTABMAP = True
+    TEST_SCENEGRAPH_SIMGT = True
+    TEST_SCENEGRAPH_RTABMAP = False
     
     if TEST_SCENEGRAPH_SIMGT:
-        test_scene = "/home/junting/Downloads/datasets/habitat_data/scene_datasets/mp3d/v1/scans/17DRP5sb8fy/17DRP5sb8fy.glb"
-        sim = sim, action_names = init_sim(test_scene)
+        test_scene = "/media/junting/SSD_data/habitat_data/scene_datasets/gibson/Darden.glb"
+        sim = sim, action_names = init_sim(test_scene, init_pos=[1.0, 0.0, 1.0])
+        # FIXME: get initial pos and initial rotation of the agent to vis correctly 
+        # NOTE: temporarily not test grammar 
         gt_scenegraph = SceneGraphGTGibson(sim)
         bag = rosbag.Bag(
-            "/home/junting/habitat_ws/src/struct-nav/habitat/scripts/2022-06-05-11-53-35_0.bag",
+            "/media/junting/SSD_data/struct_nav/rosbag_record/sgnav_sem_gt_Darden_1.bag",
             "r",
         )
 
@@ -399,7 +415,8 @@ if __name__ == "__main__":
 
         # visualize rtabmap gridmap and habitat
         obj_centers = np.stack(
-            [obj_node.center for obj_node in partial_scenegraph], axis=0
+            [obj_node.center for obj_id, obj_node in 
+             partial_scenegraph.object_layer.obj_dict.items()], axis=0
         )
         obj_centers_2d = project_points_to_grid_xz(
             gt_scenegraph.scene_bounds, obj_centers, gt_scenegraph.meters_per_grid
@@ -411,7 +428,9 @@ if __name__ == "__main__":
             x=obj_centers_2d[:, 0], y=obj_centers_2d[:, 1], c="r", marker="o"
         )
         fig.add_subplot(122)
-        plt.imshow(grid_map.grid, origin="lower")
+        vis_grid = grid_map.grid.copy()
+        vis_grid[vis_grid == 100] = 1
+        plt.imshow(vis_grid, origin="lower")
         plt.show()
     
     if TEST_SCENEGRAPH_RTABMAP:

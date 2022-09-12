@@ -48,7 +48,7 @@ from agents.utils.ros_utils import (
     publish_target_name
 )
 from agents.utils.semantic_prediction import SemanticPredMaskRCNN
-from agents.utils.sg_utils import SceneGraphGTGibson, SceneGraphRtabmap
+from agents.utils.sg_utils import SceneGraphGTGibson, SceneGraphRtabmap, GridMap
 from agents.utils.prior_utils import MatrixPrior
 import envs.utils.pose as pu
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
@@ -79,20 +79,24 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.args = args
         self.config_env = config_env
         self.rank = rank
-        # agent depends on ROS and observations do not support vecpytroch
-        # only intended for single process
-        # assert rank == 0
-        super().__init__(args, rank, config_env, dataset)
         
-        # arguments
+        # extra arguments
         self.sg_point_features = False
-        # self.frontier_mode = args.frontier_mode
         self.goal_policy = args.goal_policy
         self.prior_class = "matrix_prior"
         # self.prior_types = {'scene'} # {'scene', 'lang'}
         self.prior_types = set(args.prior_types)
         self.language_prior_type = args.util_lang_prior_type
+        self.ground_truth_scene_graph = args.ground_truth_scene_graph
         self.vis_scene_graph = True # by default visualize scene graph 
+        
+        # agent depends on ROS and observations do not support vecpytroch
+        # only intended for single process
+        # assert rank == 0
+        super().__init__(args, rank, config_env, dataset)
+        
+
+
         
         # args from config 
         self.obs_width = config_env.SIMULATOR.RGB_SENSOR.WIDTH
@@ -326,6 +330,9 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                 self.init_pos = np.array([0, 0, 0])
                 self.init_rot = np.quaternion(1, 0, 0, 0)
 
+            if self.ground_truth_scene_graph:
+                tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
+                self.gt_scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
 
             if args.visualize or args.print_images:
                 self.legend = cv2.imread("docs/legend.png")
@@ -603,8 +610,11 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             return 2 # turn_left
         # map_resolution = self.map_resolution
         
-        # visualize navigation goal 
-        # publish_target_name(self.pub_target_name, self.goal_name, odom_pose_mat[:3, 3])
+        if self.gt_scene_graph:
+            # get partial ground truth scene graph in explored areas 
+            sg_grid_map = GridMap(np.array([map_origin[0], map_origin[1], 0.0]), 
+                                  qt.quaternion(1, 0, 0, 0), grid_map)
+            self.scene_graph = self.gt_scene_graph.get_partial_scene_graph(sg_grid_map)
         
         ################## check if target object already known ############
         if (self.goal_idx + 1) in self.obs['semantic']: # zero for background
@@ -743,10 +753,6 @@ class FrontierSGNavAgent(ObjectGoal_Env):
             # preprocess obs and publish it 
             obs = self._preprocess_obs(obs, info)
             self.pub_obs.publish(obs)
-            
-            if self.ground_truth_scene_graph:
-                tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
-                self.scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
                 
             if self.vis_scene_graph and self.scene_graph:
                 publish_scene_graph(self.scene_graph, 
@@ -754,7 +760,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
                                     vis_name=True,
                                     name_publisher=self.pub_object_names)
                 if DEBUG_SG:
-                    assert self.ground_truth_scene_graph == False
+                    
                     tf_habitat2rtabmap = get_tf_habitat2rtabmap(self.init_pos, self.init_rot)
                     gt_scene_graph = SceneGraphGTGibson(self._env.sim, tf_habitat2rtabmap)
                     publish_scene_graph(gt_scene_graph,

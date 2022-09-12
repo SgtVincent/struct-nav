@@ -121,9 +121,6 @@ class ObjectGoal_Env(habitat.RLEnv):
         if self.ground_truth_odom:
             self.ground_truth_odom_topic = rospy.get_param("~ground_truth_odom_topic", "")
         
-        # setup ground truth scene grpah 
-        self.ground_truth_scene_graph = rospy.get_param("~ground_truth_scene_graph", False)
-        
         self.map_update_mode = rospy.get_param("~map_update_mode", "listen")
 
         # goal_radius = rospy.get_param("~goal_radius", DEFAULT_GOAL_RADIUS)
@@ -621,7 +618,7 @@ class ObjectGoal_Env(habitat.RLEnv):
         #     publish_pose(obs['odom_pose_mat'], self.pub_wheel_odom_pose)
         return obs
 
-    def _preprocess_sem(self, obs):
+    def _preprocess_sem(self, obs, gt_sem_range_clip=True, gt_depth_range=5.0):
         # preprocess semantic image
         if self.sem_model == "ground_truth":
             # NOTE: for Gibson dataset, semantic image is instance segmentation
@@ -634,6 +631,12 @@ class ObjectGoal_Env(habitat.RLEnv):
                     if inst_label >= 0: # only keep coco 15 categories 
                         sem_img[inst_img == inst_id] = inst_label + 1 # 0 for background 
                         
+            # clip segmentation to depth range to make a reasonable GT model
+            if gt_sem_range_clip:
+                depth = obs['depth'].squeeze()
+                invalid_sem_mask = depth > gt_depth_range
+                sem_img[invalid_sem_mask] = 0
+            
             obs['semantic'] = sem_img
             
         if self.sem_model == "detectron":

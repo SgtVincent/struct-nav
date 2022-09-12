@@ -18,7 +18,6 @@
     <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="sem_cloud_topic" default="/rtabsem/cloud_map" />
-    <arg name="ground_truth_scene_graph" default="false" />
     <arg name="agent_update_rate" default="4.0" />
     <arg name="initial_map_size" default="10.0" />
     <arg name="map_update_mode" default="request" />
@@ -39,7 +38,6 @@
         <param name="rate" type="double" value="$(arg agent_update_rate)" />
         <param name="initial_map_size" value="$(arg initial_map_size)" />
         <param name="map_update_mode" value="$(arg map_update_mode)" />
-        <param name="ground_truth_scene_graph" value="$(arg ground_truth_scene_graph)" />
 
         <!-- topics  -->
         <param name="rgb_topic" value="/camera/rgb/image" />
