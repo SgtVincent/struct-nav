@@ -89,6 +89,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.language_prior_type = args.util_lang_prior_type
         self.ground_truth_scene_graph = args.ground_truth_scene_graph
         self.vis_scene_graph = True # by default visualize scene graph 
+        self.gt_scene_graph = None 
         
         # agent depends on ROS and observations do not support vecpytroch
         # only intended for single process
