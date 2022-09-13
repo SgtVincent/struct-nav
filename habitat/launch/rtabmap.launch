@@ -423,6 +423,15 @@
 
             <!-- <param name="Kp/MinDepth" type="double" value="$(arg min_depth)" />
             <param name="Kp/MaxDepth" type="double" value="$(arg max_depth)" /> -->
+            <!-- [0=SURF 1=SIFT 2=ORB 3=FAST/FREAK 4=FAST/BRIEF 5=GFTT/FREAK 
+                6=GFTT/BRIEF 7=BRISK 8=GFTT/ORB 9=KAZE 10=ORB-OCTREE 11=SuperPoint 
+                12=SURF/FREAK 13=GFTT/DAISY 14=SURF/DAISY 15=PyDetector]-->
+            <param name="Kp/DetectorStrategy" type="int" value="11" />
+            <!-- [[Vis/CorType=0] kNNFlannNaive=0, kNNFlannKdTree=1, 
+                kNNFlannLSH=2, kNNBruteForce=3, kNNBruteForceGPU=4, 
+                BruteForceCrossCheck=5, SuperGlue=6, GMS=7. 
+                Used for features matching approach.]-->
+            <param name="Vis/CorNNType" type="int" value="1" />
             <param name="Vis/MinDepth" type="double" value="$(arg min_depth)" />
             <param name="Vis/MaxDepth" type="double" value="$(arg max_depth)" />
 

@@ -212,7 +212,7 @@ def get_args(args=None, namespace=None):
     
     
     # semantic model (ground truth / detectron2) 
-    parser.add_argument('--sem_model', type=str, default="ground_truth", 
+    parser.add_argument('--sem_model', type=str, default="detectron", 
         choices=["none", "ground_truth", "detectron"])
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
@@ -222,7 +222,7 @@ def get_args(args=None, namespace=None):
         help="eps parameter in sklearn.cluster.DBSCAN to group detected targets")
     parser.add_argument('--nms', type=int, default=1, 
                         help="whether to use non-maximum suppression in scene graph construction")
-    parser.add_argument('--ground_truth_scene_graph', type=int, default=1,
+    parser.add_argument('--ground_truth_scene_graph', type=int, default=0,
                         help="where to use ground truth scene graph in sg_nav")
 
     
