@@ -79,17 +79,20 @@ def main():
     if args.agent == "frontier_sgnav":
         flag_lang_var = ""
         flag_nms = ""
+        flag_vis_odom = ""
         flag_gt_sg = ""
         if not args.util_lang_var_discount:
             flag_lang_var = "langNoVar_"
         if not args.nms:
             flag_nms = "noNMS_"
+        if not env.ground_truth_odom:
+            flag_vis_odom = "VisOdom_"
         if args.ground_truth_scene_graph:
             flag_gt_sg = "GTSG_"
         args.exp_name = (
             f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
             f"{args.util_lang_prior_type}_{args.util_sample_method}_"
-            f"sem_{args.sem_model}_{flag_gt_sg}{flag_lang_var}{flag_nms}"
+            f"sem_{args.sem_model}_{flag_vis_odom}{flag_gt_sg}{flag_lang_var}{flag_nms}"
             f"{scene_name}_{args.num_eval_episodes}"
         )
     else: # semantic-free baseline
