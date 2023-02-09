@@ -1,0 +1,1 @@
+# TODO: add default configuration of objectnav here

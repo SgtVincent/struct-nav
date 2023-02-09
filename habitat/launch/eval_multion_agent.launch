@@ -1,9 +1,11 @@
 <launch>
 
     <!-- path definition-->
-    <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
+    <arg name="camera_calib"
+        default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
-    <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
+    <!-- <arg name="task_config" default="tasks/objectnav_gibson.yaml" /> -->
+    <arg name="task_config" default="tasks/multinav_real.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/" />
     <arg name="dump_dir" default="$(find habitat_ros)/../tmp" />
     <arg name="prior_dir" default="$(find habitat_ros)/prior_data/" />
@@ -12,7 +14,9 @@
 
     <!-- <arg name="agent_type" default="frontier_explore" /> -->
     <!-- <arg name="agent_type" default="frontier_2d_detection" /> -->
-    <arg name="agent_type" default="frontier_sgnav" />
+    <!-- <arg name="agent_type" default="frontier_sgnav" /> -->
+    <arg name="agent_type" default="multion_semnav" />
+
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
     <arg name="ground_truth_odom" default="true" />
@@ -22,7 +26,7 @@
     <arg name="initial_map_size" default="10.0" />
     <arg name="map_update_mode" default="request" />
 
-    <node pkg="habitat_ros" type="eval.py" name="eval_habitat_env" output="screen">
+    <node pkg="habitat_ros" type="eval_multion.py" name="eval_multion" output="screen">
         <!-- path definition -->
         <param name="camera_calib" value="$(arg camera_calib)" />
         <param name="config_dir" value="$(arg config_dir)" />

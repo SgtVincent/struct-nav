@@ -1,0 +1,70 @@
+ENVIRONMENT:
+    MAX_EPISODE_STEPS: 2500
+SIMULATOR:
+    TURN_ANGLE: 30
+    TILT_ANGLE: 30
+    ACTION_SPACE_CONFIG: "v1"
+    AGENT_0:
+        SENSORS: ["RGB_SENSOR", "DEPTH_SENSOR", "SEMANTIC_SENSOR"]
+        HEIGHT: 0.88
+        RADIUS: 0.1
+    HABITAT_SIM_V0:
+        GPU_DEVICE_ID: 0
+        ALLOW_SLIDING: False
+    SEMANTIC_SENSOR:
+        WIDTH: 256
+        HEIGHT: 256
+        HFOV: 79
+        POSITION: [0, 0.88, 0]
+    RGB_SENSOR:
+        WIDTH: 256
+        HEIGHT: 256
+        HFOV: 79
+        POSITION: [0, 0.88, 0]
+    DEPTH_SENSOR:
+        WIDTH: 256
+        HEIGHT: 256
+        HFOV: 79
+        POSITION: [0, 0.88, 0]
+    SCENE_DATASET_CONFIG_FILE: "/media/junting/SSD_data/habitat_data/scene_datasets/hm3d/hm3d_annotated_basis.scene_dataset_config.json"
+TASK:
+    TYPE: MultiObjectNav-v1
+    REAL_OBJECTS_PATH: "/media/junting/SSD_data/habitat_data/objects/multion_real_objects"
+    OBJECTS_TYPE: "REAL"
+
+    POSSIBLE_ACTIONS: ["FOUND", "MOVE_FORWARD", "TURN_LEFT", "TURN_RIGHT"]
+
+    SUCCESS_DISTANCE: 1.0
+
+    SENSORS: ["MULTI_OBJECT_GOAL_SENSOR", "COMPASS_SENSOR", "GPS_SENSOR"]
+
+    GOAL_SENSOR_UUID: multiobjectgoal
+
+    MEASUREMENTS:
+        [
+            "EPISODE_LENGTH",
+            "DISTANCE_TO_CURR_GOAL",
+            "DISTANCE_TO_MULTI_GOAL",
+            "SUB_SUCCESS",
+            "SUCCESS",
+            "MSPL",
+            "PERCENTAGE_SUCCESS",
+            "PSPL",
+        ]
+
+    SUCCESS:
+        SUCCESS_DISTANCE: 1.0
+    SUB_SUCCESS:
+        SUCCESS_DISTANCE: 1.0
+    PERCENTAGE_SUCCESS:
+        SUCCESS_DISTANCE: 1.0
+    DISTANCE_TO_GOAL:
+        DISTANCE_TO: POINT
+
+DATASET:
+    TYPE: MultiObjectNav-v1
+    SPLIT: minival
+    CONTENT_SCENES: ["00800-TEEsavR23oF"]
+    SCENES_DIR: "/media/junting/SSD_data/habitat_data/scene_datasets"
+    DATA_PATH: "/media/junting/SSD_data/habitat_data/datasets/multinav/5_ON_REAL/minival/minival.json.gz"
+    EPISODES_DIR: "/media/junting/SSD_data/habitat_data/datasets/multinav/5_ON_REAL/minival"

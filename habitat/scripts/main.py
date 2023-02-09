@@ -7,7 +7,7 @@ import numpy as np
 import open3d as o3d
 import rospy
 from agents.dummy_agents import RandomWalkAgent, SpinningAgent
-from agents.frontier_explore_agent import FrontierExploreAgent
+from habitat.scripts.agents.multinav_geo_frontier import FrontierExploreAgent
 from agents.utils.arguments import get_args
 from agents.utils.ros_utils import safe_call_reset_service
 from utils.publishers import HabitatObservationPublisher

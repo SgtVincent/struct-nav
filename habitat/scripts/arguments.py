@@ -212,7 +212,7 @@ def get_args(args=None, namespace=None):
     
     
     # semantic model (ground truth / detectron2) 
-    parser.add_argument('--sem_model', type=str, default="detectron", 
+    parser.add_argument('--sem_model', type=str, default="ground_truth", 
         choices=["none", "ground_truth", "detectron"])
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
@@ -255,6 +255,10 @@ def get_args(args=None, namespace=None):
                         help="maximum steps to decrease geo weight linearly")
     parser.add_argument("--util_exploit_step", type=int, default=50, 
                         help="maximum steps to decrease geo weight linearly")
+    
+    # task configuration 
+    parser.add_argument("--task", type=str, default="objnav",
+                        help="Evaluation task")
     
     # parse arguments
     args = parser.parse_args(args=args, namespace=namespace)

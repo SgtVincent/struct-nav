@@ -7,13 +7,16 @@ import torch
 
 # from habitat import Config, Env, RLEnv, VectorEnv, make_dataset
 from habitat import Config, Env, RLEnv, make_dataset
-from habitat.config.default import get_config as cfg_env
+from habitat.config.default import get_config as objnav_cfg
+from envs.habitat.default_multion import get_config as multion_cfg
 from habitat.datasets.pointnav.pointnav_dataset import PointNavDatasetV1
 
 # from agents.sem_exp import Sem_Exp_Env_Agent
 from agents.frontier_2d_detect_agent import Frontier2DDetectionAgent
 from agents.frontier_sgnav_agent import FrontierSGNavAgent
+from agents.multion_semnav_agent import MultiONSemNavAgent
 from envs.habitat.objectgoal_env import ObjectGoal_Env
+from envs.habitat.multion_env import MultiON_Env
 from .utils.vector_env import VectorEnv
 
 
@@ -31,10 +34,17 @@ def make_env_fn(args, config_env, rank):
         env = FrontierSGNavAgent(
             args=args, rank=rank, config_env=config_env, dataset=dataset
         )
-    else:
-        env = ObjectGoal_Env(
+    elif args.agent == "multion_semnav":
+        env = MultiONSemNavAgent(
             args=args, rank=rank, config_env=config_env, dataset=dataset
         )
+    else:
+        raise NotImplementedError
+    # elif args.agent == ""
+    # else:
+    #     env = ObjectGoal_Env(
+    #         args=args, rank=rank, config_env=config_env, dataset=dataset
+    #     )
 
     env.seed(rank)
     return env
@@ -55,7 +65,7 @@ def construct_envs(args):
     env_configs = []
     args_list = []
 
-    basic_config = cfg_env(
+    basic_config = objnav_cfg(
         config_paths=os.path.join(args.config_dir, args.task_config)
     )
     basic_config.defrost()
@@ -91,7 +101,7 @@ def construct_envs(args):
 
     print("Scenes per thread:")
     for i in range(args.num_processes):
-        config_env = cfg_env(
+        config_env = objnav_cfg(
             config_paths=["envs/habitat/configs/" + args.task_config]
         )
         config_env.defrost()
@@ -176,8 +186,11 @@ def construct_envs(args):
 
 
 def construct_single_env(args):
-
-    basic_config = cfg_env(config_paths=os.path.join(args.config_dir, args.task_config))
+    if args.task == "objnav":
+        cfg_func = objnav_cfg
+    elif args.task == "multion":
+        cfg_func = multion_cfg
+    basic_config = cfg_func(config_paths=os.path.join(args.config_dir, args.task_config))
     basic_config.defrost()
     basic_config.DATASET.SPLIT = args.split
     basic_config.DATASET.DATA_PATH = basic_config.DATASET.DATA_PATH.replace(
@@ -196,22 +209,7 @@ def construct_single_env(args):
         )
         scenes = _get_scenes_from_folder(content_dir)
 
-    # if len(scenes) > 0:
-        # assert len(scenes) >= args.num_processes, (
-        #     "reduce the number of processes as there "
-        #     "aren't enough number of scenes"
-        # )
-
-        # scene_split_sizes = [
-        #     int(np.floor(len(scenes) / args.num_processes))
-        #     for _ in range(args.num_processes)
-        # ]
-        # for i in range(len(scenes) % args.num_processes):
-        #     scene_split_sizes[i] += 1
-
-    # print("Scenes per thread:")
-
-    config_env = cfg_env(config_paths=[args.config_dir + args.task_config])
+    config_env = cfg_func(config_paths=[args.config_dir + args.task_config])
     config_env.defrost()
 
     if len(scenes) > 0:
@@ -224,41 +222,6 @@ def construct_single_env(args):
 
     gpu_id = min(torch.cuda.device_count() - 1, 0)  # first gpu or cpu
     config_env.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
-
-    # NOTE: Disable setting simulator sensor params in argparse. Use yaml config instead! 
-    
-    # agent_sensors = []
-    # agent_sensors.append("RGB_SENSOR")
-    # agent_sensors.append("DEPTH_SENSOR")
-    # agent_sensors.append("SEMANTIC_SENSOR")
-
-    # config_env.SIMULATOR.AGENT_0.SENSORS = agent_sensors
-
-    # Reseting episodes manually, setting high max episode length in sim
-
-    # config_env.SIMULATOR.RGB_SENSOR.WIDTH = args.env_frame_width
-    # config_env.SIMULATOR.RGB_SENSOR.HEIGHT = args.env_frame_height
-    # config_env.SIMULATOR.RGB_SENSOR.HFOV = args.hfov
-    # config_env.SIMULATOR.RGB_SENSOR.POSITION = [0, args.camera_height, 0]
-
-    # config_env.SIMULATOR.DEPTH_SENSOR.WIDTH = args.env_frame_width
-    # config_env.SIMULATOR.DEPTH_SENSOR.HEIGHT = args.env_frame_height
-    # config_env.SIMULATOR.DEPTH_SENSOR.HFOV = args.hfov
-    # config_env.SIMULATOR.DEPTH_SENSOR.MIN_DEPTH = args.min_depth
-    # config_env.SIMULATOR.DEPTH_SENSOR.MAX_DEPTH = args.max_depth
-    # config_env.SIMULATOR.DEPTH_SENSOR.POSITION = [0, args.camera_height, 0]
-
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.WIDTH = args.env_frame_width
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.HEIGHT = args.env_frame_height
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.HFOV = args.hfov
-    # config_env.SIMULATOR.SEMANTIC_SENSOR.POSITION = [
-    #     0,
-    #     args.camera_height,
-    #     0,
-    # ]
-    # config_env.SIMULATOR.TURN_ANGLE = args.turn_angle
-    
-    # TODO: move all parameters to yaml config IF POSSIBLE
     
     config_env.ENVIRONMENT.MAX_EPISODE_STEPS = 10000000
     config_env.ENVIRONMENT.ITERATOR_OPTIONS.SHUFFLE = False
