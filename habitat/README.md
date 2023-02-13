@@ -13,8 +13,8 @@ Integrate Habitat simulator with ROS
 
 ## Installation (recommended)
 
-Please refer to [Installation_py38](habitat/Installation_py38.md) or [Installtion_py39](habitat/Installation_py39.md) for detailed installation instructions. We recommend to first try install with [Installtion_py39](habitat/Installation_py39.md), which requires compiling
-habitat simulator from source, but with latest rtabmap_ros(0.20.18). If you have any installation issues, please follow [Installation_py38](habitat/Installation_py38.md) instead, which uses older version of rtabmap_ros (0.20.14) but with fewer problems.
+Please refer to [Installation_py38](Installation_py38.md) or [Installtion_py39](Installation_py39.md) for detailed installation instructions. We recommend to first try install with [Installtion_py39](Installation_py39.md), which requires compiling
+habitat simulator from source, but with latest rtabmap_ros(0.20.18). If you have any installation issues, please follow [Installation_py38](Installation_py38.md) instead, which uses older version of rtabmap_ros (0.20.14) but with fewer problems.
 
 ## Data preparation
 
