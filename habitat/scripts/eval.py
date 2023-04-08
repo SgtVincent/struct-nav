@@ -91,7 +91,7 @@ def main():
             flag_gt_sg = "GTSG_"
         sem_noise_model_str = ""
         for model in args.sem_noise_model:
-            sem_noise_model += f"{model}_{args.sem_noise_model_rate}_"    
+            sem_noise_model_str += f"{model}_{args.sem_noise_model_rate}_"    
         
             
         args.exp_name = (

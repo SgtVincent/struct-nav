@@ -11,7 +11,7 @@
 
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
-    <arg name="ground_truth_odom" default="false" />
+    <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="ground_truth_scene_graph" default="false" />
 
@@ -63,7 +63,8 @@
         <!-- map parameters-->
         <!-- visual odometry costs large part of the computation -->
         <arg unless="$(arg ground_truth_odom)" name="rtabmap_detection_rate" value="2" />
-        <arg if="$(arg ground_truth_odom)" name="rtabmap_detection_rate" value="$(arg agent_update_rate)" />
+        <arg if="$(arg ground_truth_odom)" name="rtabmap_detection_rate"
+            value="$(arg agent_update_rate)" />
 
         <arg name="grid_3d" value="true" />
         <arg name="grid_ray_tracing" value="true" />
@@ -76,9 +77,12 @@
         <!-- disabled when grid_normals_segmentation is true -->
         <arg name="grid_min_ground_height" value="-0.20" />
 
-        <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster maximum radius.] -->
-        <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum neighbors.] -->
-        <arg name="grid_noise_filtering_radius" value="0.5" /> <!-- [Noise filtering radius (0=disabled). Done after segmentation.] -->
+        <arg name="grid_cluster_radius" value="0.2" /> <!-- [[Grid/NormalsSegmentation=true] Cluster
+        maximum radius.] -->
+        <arg name="grid_noise_filtering_min_neighbors" value="5" /> <!-- [Noise filtering minimum
+        neighbors.] -->
+        <arg name="grid_noise_filtering_radius" value="0.5" /> <!-- [Noise filtering radius
+        (0=disabled). Done after segmentation.] -->
 
         <arg name="rgbd_optimize_from_graph_end" value="false" />
         <!-- interface with move_base -->
@@ -100,6 +104,7 @@
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find habitat_ros)/rviz/rgbd.rviz">
         <remap if="$(arg wheel_odom)" from="$(arg ground_truth_odom_topic)" to="/odom" />
     </node>
-    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find
+    turtlebot3_navigation)/rviz/turtlebot3_navigation.rviz"/> -->
 
 </launch>
