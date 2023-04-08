@@ -18,7 +18,8 @@ import envs.utils.pose as pu
 from envs.constants import coco_categories
 from envs.constants import color_palette, coco_categories, coco_label_mapping
 import agents.utils.visualization as vu
-
+from agents.utils.semantic_prediction import SemanticPredMaskRCNN
+from agents.utils.semantic_noise import SemanticNoiseModel
 from agents.utils.utils_frontier_explore import update_odom_by_action
 from utils.transformation import pose_habitat2rtabmap
 
@@ -65,6 +66,19 @@ class ObjectGoal_Env(habitat.RLEnv):
                         self.map_id2label[obj_id] = coco_categories[obj_cls_name]
                     else:
                         self.map_id2label[obj_id] = -1
+        
+        elif args.sem_model == "detectron":
+            self.sem_pred = SemanticPredMaskRCNN(args)
+
+        else:
+            raise NotImplementedError(f"Semantic model {args.sem_model} is not implemented")
+
+        if len(args.sem_noise_model) > 0:
+            # initialize semantic noise model if needed
+            object_labels = np.array(list(coco_label_mapping.keys()), dtype=int) + 1
+            self.sem_noise_model = SemanticNoiseModel(
+                args, object_labels=object_labels, seed=args.sem_noise_seed)
+
 
         # Initializations
         self.episode_no = 0
@@ -648,6 +662,11 @@ class ObjectGoal_Env(habitat.RLEnv):
                 # NOTE: zero for background 
                 semantic_image[sem_seg_pred[:,:,label] == 1] = label + 1 
             obs['semantic'] = semantic_image
+
+        if len(self.args.sem_noise_model) > 0:
+            # add semantic noise if specified
+            obs['semantic'] = self.sem_noise_model.add_noise(obs['semantic'])
+
 
         if DEBUG_VIS:
             import matplotlib.pyplot as plt 

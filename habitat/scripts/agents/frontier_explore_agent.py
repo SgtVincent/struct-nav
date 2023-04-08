@@ -18,7 +18,6 @@ from PIL import Image
 from torchvision import transforms
 from yaml import Mark
 
-# from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.arguments import get_args
 from agents.utils.utils_frontier_explore import frontier_goals
 from envs.constants import color_palette

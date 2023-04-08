@@ -89,10 +89,16 @@ def main():
             flag_vis_odom = "VisOdom_"
         if args.ground_truth_scene_graph:
             flag_gt_sg = "GTSG_"
+        sem_noise_model_str = ""
+        for model in args.sem_noise_model:
+            sem_noise_model += f"{model}_{args.sem_noise_model_rate}_"    
+        
+            
         args.exp_name = (
             f"{args.agent}_{args.goal_policy}_priorw_{args.util_prior_combine_weight}_"
             f"{args.util_lang_prior_type}_{args.util_sample_method}_"
-            f"sem_{args.sem_model}_{flag_vis_odom}{flag_gt_sg}{flag_lang_var}{flag_nms}"
+            f"sem_{args.sem_model}_{sem_noise_model_str}"
+            f"{flag_vis_odom}{flag_gt_sg}{flag_lang_var}{flag_nms}"
             f"{scene_name}_{args.num_eval_episodes}"
         )
     else: # semantic-free baseline

@@ -47,7 +47,6 @@ from agents.utils.ros_utils import (
     publish_scene_graph,
     publish_target_name
 )
-from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from agents.utils.sg_utils import SceneGraphGTGibson, SceneGraphRtabmap, GridMap
 from agents.utils.prior_utils import MatrixPrior
 import envs.utils.pose as pu
@@ -108,13 +107,7 @@ class FrontierSGNavAgent(ObjectGoal_Env):
         self.sensor_height = config_env.SIMULATOR.AGENT_0.HEIGHT
         self.forward_dist = config_env.SIMULATOR.FORWARD_STEP_SIZE # 0.25 by default
         self.turn_angle = config_env.SIMULATOR.TURN_ANGLE # 30 degrees by default 
-        
-
-        # TODO: should place 2D recognition models in a separate ROS pacakge
-        # fix this before release! 
-        # Initialize 2D recognition models 
-        if self.sem_model == "detectron":
-            self.sem_pred = SemanticPredMaskRCNN(args)
+    
 
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)

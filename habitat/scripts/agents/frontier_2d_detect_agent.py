@@ -46,7 +46,6 @@ from agents.utils.ros_utils import (
     publish_targets,
     publish_pose
 )
-from agents.utils.semantic_prediction import SemanticPredMaskRCNN
 from envs.utils.depth_utils import get_point_cloud_from_Y, get_camera_matrix
 from envs.constants import color_palette, coco_categories
 from envs.habitat.objectgoal_env import ObjectGoal_Env
@@ -84,13 +83,6 @@ class Frontier2DDetectionAgent(ObjectGoal_Env):
         self.forward_dist = config_env.SIMULATOR.FORWARD_STEP_SIZE # 0.25 by default
         self.turn_angle = config_env.SIMULATOR.TURN_ANGLE # 30 degrees by default 
         
-
-        # TODO: should place 2D recognition models in a separate ROS pacakge
-        # fix this before release! 
-        # Initialize 2D recognition models 
-        if self.sem_model == "detectron":
-            self.sem_pred = SemanticPredMaskRCNN(args)
-
         # initializations for planning:
         self.selem = skimage.morphology.disk(3)
         # TODO: fetch this from config file

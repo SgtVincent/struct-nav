@@ -212,8 +212,14 @@ def get_args(args=None, namespace=None):
     
     
     # semantic model (ground truth / detectron2) 
-    parser.add_argument('--sem_model', type=str, default="detectron", 
+    parser.add_argument('--sem_model', type=str, default="ground_truth", 
         choices=["none", "ground_truth", "detectron"])
+    parser.add_argument('--sem_noise_model', nargs='*', default=[],
+                        choices=["random_label_replace, random_label_drop"])
+    parser.add_argument('--sem_noise_model_rate', type=float, default=0.5,
+                        help="rate for semantic segmentation noise model")
+    parser.add_argument('--sem_noise_seed', type=int, default=42)
+    
     parser.add_argument('--sem_pred_prob_thr', type=float, default=0.9,
                         help="Semantic prediction confidence threshold")
     parser.add_argument('--sem_config_dir', type=str, default="habitat/scripts/agents/configs")
