@@ -1,7 +1,8 @@
 <launch>
 
     <!-- path definition-->
-    <arg name="camera_calib" default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
+    <arg name="camera_calib"
+        default="$(find habitat_ros)/scripts/envs/habitat/configs/camera_info.yaml" />
     <arg name="config_dir" default="$(find habitat_ros)/scripts/envs/habitat/configs/" />
     <arg name="task_config" default="tasks/objectnav_gibson.yaml" />
     <arg name="sem_config_dir" default="$(find habitat_ros)/scripts/agents/configs/" />
@@ -15,7 +16,7 @@
     <arg name="agent_type" default="frontier_sgnav" />
     <arg name="wheel_odom" default="false" />
     <arg name="wheel_odom_frame_id" default="odom_wheel" />
-    <arg name="ground_truth_odom" default="false" />
+    <arg name="ground_truth_odom" default="true" />
     <arg name="ground_truth_odom_topic" default="/true_odom" />
     <arg name="sem_cloud_topic" default="/rtabsem/cloud_map" />
     <arg name="agent_update_rate" default="4.0" />
