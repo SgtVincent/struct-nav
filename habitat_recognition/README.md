@@ -1,3 +1,0 @@
-# Habitat Recognition Package
-
-## Issue

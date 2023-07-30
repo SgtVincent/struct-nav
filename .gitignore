@@ -169,3 +169,7 @@ output/
 ############ sg_nav ignore ##################
 sg_nav/log/
 sg_nav/wandb/
+
+############ IDE/github settings gitignore #####
+.github/
+.vscode/
