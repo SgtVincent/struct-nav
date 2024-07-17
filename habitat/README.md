@@ -53,12 +53,14 @@ source devel.sh
 
 ```bash
 roslaunch habitat_ros eval_frontier_2d_detect.launch
+roslaunch habitat_ros eval_habitat_agent.launch
 ```
 
 ### Evaluate scene graph navigation
 
 ```bash
 roslaunch habitat_ros eval_sgnav.launch
+roslaunch habitat_ros eval_habitat_agent.launch
 ```
 
 ## Extra documentations

@@ -1,6 +1,6 @@
 """Publisher helpers."""
 import struct
-from pyrsistent import s
+#from pyrsistent import s
 import quaternion as qt 
 import numpy as np
 import rospy
