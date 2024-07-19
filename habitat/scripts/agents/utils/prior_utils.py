@@ -5,7 +5,7 @@ from sys import flags
 
 import numpy as np
 from envs.constants import coco_categories, coco_label_mapping
-from sentence_transformers import SentenceTransformer, util
+# from sentence_transformers import SentenceTransformer, util # don't need these libs if using pre-calculated language prior matrix
 
 MAX_DIST = 1e8
 
